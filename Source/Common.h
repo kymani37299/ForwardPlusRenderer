@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iostream>
 #include <string>
 #include <stdint.h>
 #include <DirectXMath.h>
@@ -14,7 +15,7 @@ X(X const&) = delete; \
 X& operator=(X const&) = delete;
 
 #ifdef DEBUG
-#define ASSERT(X,MSG) if(!(X)) { __debugbreak(); }
+#define ASSERT(X,msg) if(!(X)) { std::cout << msg << std::endl; __debugbreak(); }
 #define NOT_IMPLEMENTED ASSERT(0, "NOT IMPLEMENTED")
 #else
 #define ASSERT(X, MSG)
