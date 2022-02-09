@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="backends">
+      <UniqueIdentifier>{00057006-ECD1-CA11-15EB-B8B9011700A0}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\imconfig.h" />
+    <ClInclude Include="src\imgui.h" />
+    <ClInclude Include="src\imgui_internal.h" />
+    <ClInclude Include="src\imstb_rectpack.h" />
+    <ClInclude Include="src\imstb_textedit.h" />
+    <ClInclude Include="src\imstb_truetype.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\backends\imgui_impl_dx11.cpp">
+      <Filter>backends</Filter>
+    </ClCompile>
+    <ClCompile Include="src\imgui.cpp" />
+    <ClCompile Include="src\imgui_demo.cpp" />
+    <ClCompile Include="src\imgui_draw.cpp" />
+    <ClCompile Include="src\imgui_tables.cpp" />
+    <ClCompile Include="src\imgui_widgets.cpp" />
+  </ItemGroup>
+</Project>
