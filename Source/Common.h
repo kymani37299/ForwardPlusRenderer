@@ -22,6 +22,8 @@ X& operator=(X const&) = delete;
 #define NOT_IMPLEMENTED
 #endif // DEBUG
 
+#define FORCE_CRASH *((unsigned int*)0) = 0xDEAD
+
 struct Float2
 {
 	float x;

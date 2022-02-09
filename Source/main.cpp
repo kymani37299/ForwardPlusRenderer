@@ -2,6 +2,7 @@
 #include <iostream>
 
 #include "Common.h"
+#include "Core/Renderer.h"
 #include "System/VSConsoleRedirect.h"
 #include "System/ApplicationConfiguration.h"
 #include "System/Window.h"
@@ -19,9 +20,14 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdParams, 
 
 	Window::Init();
 
-	while (Window::Get()->IsRunning())
 	{
-		Window::Get()->Update(0.0f);
+		Renderer r;
+
+		while (Window::Get()->IsRunning())
+		{
+			Window::Get()->Update(0.0f);
+			r.Render();
+		}
 	}
 
 	Window::Destroy();
