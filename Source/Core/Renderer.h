@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "Core/RenderPass.h"
+#include "Render/Resource.h"
 
 class Renderer
 {
@@ -16,5 +17,6 @@ public:
 	void AddRenderPass(RenderPass* renderPass) { m_Schedule.push_back(renderPass); }
 
 private:
+	RenderTargetID m_FinalRT;
 	std::vector<RenderPass*> m_Schedule;
 };

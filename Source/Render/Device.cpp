@@ -42,7 +42,7 @@ void Device::DeferredInit()
     CreateSwapchain();
 }
 
-void Device::Present()
+void Device::Present(RenderTargetID finalRT)
 {
     m_Swapchain->Present(AppConfig.VSyncEnabled ? 1 : 0, 0);
 }

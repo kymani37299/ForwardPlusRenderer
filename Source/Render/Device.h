@@ -3,6 +3,7 @@
 #include "Common.h"
 
 #include "Render/RenderAPI.h"
+#include "Render/Resource.h"
 
 class Device
 {
@@ -28,7 +29,7 @@ private:
 public:
 	Device();
 
-	void Present();
+	void Present(RenderTargetID finalRT);
 	void CreateSwapchain();
 
 	ID3D11Device* GetHandle() const { return m_Device; }

@@ -7,7 +7,7 @@ namespace GFX
 	BufferID CreateVertexBuffer(uint64_t byteSize, uint64_t elementStride, void* initData)
 	{
 		BufferID id;
-		Buffer& buffer = CreateBuffer(id);
+		Buffer& buffer = Storage::CreateBuffer(id);
 		buffer.ByteSize = byteSize;
 		buffer.ElementStride = elementStride;
 
