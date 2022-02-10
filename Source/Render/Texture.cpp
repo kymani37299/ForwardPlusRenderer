@@ -35,7 +35,7 @@ namespace GFX
 			textureDesc.Format = format;
 			textureDesc.SampleDesc.Count = 1;
 			textureDesc.Usage = D3D11_USAGE_DEFAULT;
-			textureDesc.BindFlags = D3D11_BIND_RENDER_TARGET;
+			textureDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
 			textureDesc.MiscFlags = 0;
 			textureDesc.CPUAccessFlags = 0;
 			API_CALL(Device::Get()->GetHandle()->CreateTexture2D(&textureDesc, nullptr, colorTexture.Handle.GetAddressOf()));
@@ -45,6 +45,13 @@ namespace GFX
 			renderTargetViewDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
 			renderTargetViewDesc.Texture2D.MipSlice = 0;
 			API_CALL(Device::Get()->GetHandle()->CreateRenderTargetView(colorTexture.Handle.Get(), &renderTargetViewDesc, colorTexture.RTV.GetAddressOf()));
+
+			D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+			srvDesc.Format = format;
+			srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+			srvDesc.Texture2D.MipLevels = 1;
+			srvDesc.Texture2D.MostDetailedMip = 0;
+			API_CALL(Device::Get()->GetHandle()->CreateShaderResourceView(colorTexture.Handle.Get(), &srvDesc, colorTexture.SRV.GetAddressOf()));
 		}
 
 		if (useDepthStencil)

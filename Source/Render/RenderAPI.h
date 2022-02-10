@@ -11,4 +11,6 @@
 #define API_CALL(X) X
 #endif // DEBUG
 
+#define SAFE_RELEASE(X) { if(X) X->Release(); }
+
 using Microsoft::WRL::ComPtr;

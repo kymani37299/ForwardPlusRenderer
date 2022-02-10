@@ -4,5 +4,5 @@
 
 namespace GFX
 {
-	BufferID CreateVertexBuffer(uint64_t byteSize, uint64_t elementStride, void* initData);
+	BufferID CreateVertexBuffer(uint64_t byteSize, uint64_t elementStride, const void* initData);
 }

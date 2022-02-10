@@ -8,6 +8,7 @@ namespace GFX
 	{
 		std::vector<Buffer> BufferStorage;
 		std::vector<Texture> TextureStorage;
+		std::vector<Shader> ShaderStorage;
 	}
 
 	namespace Storage
@@ -24,6 +25,12 @@ namespace GFX
 			return TextureStorage[id];
 		}
 
+		const Shader& GetShader(ShaderID id)
+		{
+			ASSERT(ShaderStorage.size() > id, "[GetShader] Invalid ID");
+			return ShaderStorage[id];
+		}
+
 		Buffer& CreateBuffer(BufferID& id)
 		{
 			id = BufferStorage.size();
@@ -38,10 +45,18 @@ namespace GFX
 			return TextureStorage[id];
 		}
 
+		Shader& CreateShader(ShaderID& id)
+		{
+			id = ShaderStorage.size();
+			ShaderStorage.resize(id + 1);
+			return ShaderStorage[id];
+		}
+
 		void ClearStorage()
 		{
 			BufferStorage.clear();
 			TextureStorage.clear();
+			ShaderStorage.clear();
 		}
 	}
 }

@@ -164,6 +164,7 @@
     <ClCompile Include="Source\Render\Buffer.cpp" />
     <ClCompile Include="Source\Render\Device.cpp" />
     <ClCompile Include="Source\Render\Resource.cpp" />
+    <ClCompile Include="Source\Render\Shader.cpp" />
     <ClCompile Include="Source\Render\Texture.cpp" />
     <ClCompile Include="Source\System\Window.cpp" />
   </ItemGroup>
@@ -175,10 +176,12 @@
     <ClInclude Include="Source\Render\Device.h" />
     <ClInclude Include="Source\Render\RenderAPI.h" />
     <ClInclude Include="Source\Render\Resource.h" />
+    <ClInclude Include="Source\Render\Shader.h" />
     <ClInclude Include="Source\Render\Texture.h" />
     <ClInclude Include="Source\System\ApplicationConfiguration.h" />
     <ClInclude Include="Source\System\VSConsoleRedirect.h" />
     <ClInclude Include="Source\System\Window.h" />
+    <ClInclude Include="Source\Utility\PathUtility.h" />
     <ClInclude Include="Source\Utility\StringUtility.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

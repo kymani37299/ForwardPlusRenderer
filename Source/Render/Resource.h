@@ -40,15 +40,26 @@ struct RenderTargetID
 	TextureID DepthTexture = static_cast<TextureID>(-1);
 };
 
+using ShaderID = uint32_t;
+
+struct Shader
+{
+	ComPtr<ID3D11VertexShader> VS;
+	ComPtr<ID3D11PixelShader> PS;
+	ComPtr<ID3D11InputLayout> IL;
+};
+
 namespace GFX
 {
 	namespace Storage
 	{
 		const Buffer& GetBuffer(BufferID id);
 		const Texture& GetTexture(TextureID id);
+		const Shader& GetShader(ShaderID id);
 
 		Buffer& CreateBuffer(BufferID& id);
 		Texture& CreateTexture(TextureID& id);
+		Shader& CreateShader(ShaderID& id);
 
 		void ClearStorage();
 	}

@@ -45,4 +45,7 @@ private:
 	ComPtr<IDXGISwapChain1> m_Swapchain;
 	ComPtr<ID3D11Texture2D> m_SwapchainTexture;
 	ComPtr<ID3D11RenderTargetView> m_SwapchainView;
+
+	ShaderID m_CopyShader;
+	BufferID m_QuadBuffer;
 };
