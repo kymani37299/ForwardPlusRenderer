@@ -161,6 +161,7 @@
   <ItemGroup>
     <ClCompile Include="Source\Core\Renderer.cpp" />
     <ClCompile Include="Source\main.cpp" />
+    <ClCompile Include="Source\Render\Buffer.cpp" />
     <ClCompile Include="Source\Render\Device.cpp" />
     <ClCompile Include="Source\Render\Resource.cpp" />
     <ClCompile Include="Source\System\Window.cpp" />
@@ -168,6 +169,7 @@
   <ItemGroup>
     <ClInclude Include="Source\Common.h" />
     <ClInclude Include="Source\Core\Renderer.h" />
+    <ClInclude Include="Source\Render\Buffer.h" />
     <ClInclude Include="Source\Render\Device.h" />
     <ClInclude Include="Source\Render\RenderAPI.h" />
     <ClInclude Include="Source\Render\Resource.h" />

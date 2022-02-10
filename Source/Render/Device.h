@@ -30,6 +30,8 @@ public:
 
 	void Present();
 	void CreateSwapchain();
+
+	ID3D11Device* GetHandle() const { return m_Device; }
 private:
 	// Initialize components that will use Device::Get()
 	void DeferredInit();
