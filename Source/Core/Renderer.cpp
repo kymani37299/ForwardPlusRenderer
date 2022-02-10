@@ -4,6 +4,7 @@
 #include "Render/Device.h"
 #include "Render/Resource.h"
 #include "Render/Texture.h"
+#include "Render/Commands.h"
 
 Renderer::Renderer()
 {
@@ -35,9 +36,17 @@ void Renderer::Update(float dt)
 void Renderer::Render()
 {
 	ID3D11DeviceContext1* context = Device::Get()->GetContext();
+	GFX::Cmd::BindRenderTarget(context, m_FinalRT);
 	for (RenderPass* renderPass : m_Schedule)
 	{
 		renderPass->OnDraw(context);
 	}
 	Device::Get()->Present(m_FinalRT);
+}
+
+void Renderer::AddRenderPass(RenderPass* renderPass)
+{ 
+	ID3D11DeviceContext1* context = Device::Get()->GetContext();
+	renderPass->OnInit(context);
+	m_Schedule.push_back(renderPass); 
 }

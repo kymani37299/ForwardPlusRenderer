@@ -162,6 +162,7 @@
     <ClCompile Include="Source\Core\Renderer.cpp" />
     <ClCompile Include="Source\main.cpp" />
     <ClCompile Include="Source\Render\Buffer.cpp" />
+    <ClCompile Include="Source\Render\Commands.cpp" />
     <ClCompile Include="Source\Render\Device.cpp" />
     <ClCompile Include="Source\Render\Resource.cpp" />
     <ClCompile Include="Source\Render\Shader.cpp" />
@@ -173,6 +174,7 @@
     <ClInclude Include="Source\Core\Renderer.h" />
     <ClInclude Include="Source\Core\RenderPass.h" />
     <ClInclude Include="Source\Render\Buffer.h" />
+    <ClInclude Include="Source\Render\Commands.h" />
     <ClInclude Include="Source\Render\Device.h" />
     <ClInclude Include="Source\Render\RenderAPI.h" />
     <ClInclude Include="Source\Render\Resource.h" />

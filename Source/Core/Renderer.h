@@ -14,7 +14,7 @@ public:
 	void Update(float dt);
 	void Render();
 
-	void AddRenderPass(RenderPass* renderPass) { m_Schedule.push_back(renderPass); }
+	void AddRenderPass(RenderPass* renderPass);
 
 private:
 	RenderTargetID m_FinalRT;
