@@ -32,6 +32,7 @@ public:
 	void CreateSwapchain();
 
 	ID3D11Device* GetHandle() const { return m_Device; }
+	ID3D11DeviceContext1* GetContext() const { return m_Context.Get(); }
 private:
 	// Initialize components that will use Device::Get()
 	void DeferredInit();

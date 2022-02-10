@@ -9,26 +9,37 @@
 
 ApplicationConfiguration AppConfig;
 
+class AppScope
+{
+public:
+	AppScope()
+	{
+		Window::Init();
+	}
+
+	~AppScope()
+	{
+		Window::Destroy();
+	}
+};
+
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdParams, int showFlags)
 {
-	RedirectToVSConsoleScoped _vsConsoleRedirect;
-
 	AppConfig.AppHandle = instance;
 	AppConfig.WindowTitle = "Forward plus graphics";
 	AppConfig.WindowWidth = 1024;
 	AppConfig.WindowHeight = 768;
 
-	Window::Init();
+	AppScope _appScope;
+	RedirectToVSConsoleScoped _vsConsoleRedirect;
 
+	Renderer r;
+	float dt = 0.0f;
+
+	while (Window::Get()->IsRunning())
 	{
-		Renderer r;
-
-		while (Window::Get()->IsRunning())
-		{
-			Window::Get()->Update(0.0f);
-			r.Render();
-		}
+		Window::Get()->Update(dt);
+		r.Update(dt);
+		r.Render();
 	}
-
-	Window::Destroy();
 }
