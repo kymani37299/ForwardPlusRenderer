@@ -1,6 +1,7 @@
 #include "Renderer.h"
 
 #include "Render/Device.h"
+#include "Render/Resource.h"
 
 Renderer::Renderer()
 {
@@ -9,6 +10,7 @@ Renderer::Renderer()
 
 Renderer::~Renderer()
 {
+	GFX::ClearStorage();
 	Device::Destroy();
 }
 
