@@ -53,5 +53,20 @@ namespace GFX
 			ID3D11ShaderResourceView* srv = colorTex.SRV.Get();
 			context->PSSetShaderResources(slot, 1, &srv);
 		}
+
+		void SetPipelineState(ID3D11DeviceContext1* context, const PipelineState& pipelineState)
+		{
+			const CompiledPipelineState& compiledState = GFX::CompilePipelineState(pipelineState);
+			SetPipelineState(context, compiledState);
+		}
+
+		void SetPipelineState(ID3D11DeviceContext1* context, const CompiledPipelineState& pipelineState)
+		{
+			const float blendFactor[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+
+			context->RSSetState(pipelineState.RS.Get());
+			context->OMSetDepthStencilState(pipelineState.DS.Get(), 0xff);
+			context->OMSetBlendState(pipelineState.BS.Get(), blendFactor, 0xff);
+		}
 	}
 }

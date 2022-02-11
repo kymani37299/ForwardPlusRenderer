@@ -164,6 +164,7 @@
     <ClCompile Include="Source\Render\Buffer.cpp" />
     <ClCompile Include="Source\Render\Commands.cpp" />
     <ClCompile Include="Source\Render\Device.cpp" />
+    <ClCompile Include="Source\Render\PipelineState.cpp" />
     <ClCompile Include="Source\Render\Resource.cpp" />
     <ClCompile Include="Source\Render\Shader.cpp" />
     <ClCompile Include="Source\Render\Texture.cpp" />
@@ -176,6 +177,7 @@
     <ClInclude Include="Source\Render\Buffer.h" />
     <ClInclude Include="Source\Render\Commands.h" />
     <ClInclude Include="Source\Render\Device.h" />
+    <ClInclude Include="Source\Render\PipelineState.h" />
     <ClInclude Include="Source\Render\RenderAPI.h" />
     <ClInclude Include="Source\Render\Resource.h" />
     <ClInclude Include="Source\Render\Shader.h" />

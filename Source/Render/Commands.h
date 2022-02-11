@@ -2,6 +2,7 @@
 
 #include "Render/RenderAPI.h"
 #include "Render/Resource.h"
+#include "Render/PipelineState.h"
 
 namespace GFX
 {
@@ -13,5 +14,8 @@ namespace GFX
 		void BindVertexBuffer(ID3D11DeviceContext1* context, BufferID bufferID);
 		void BindRenderTarget(ID3D11DeviceContext1* context, RenderTargetID rtID);
 		void BindTextureSRV(ID3D11DeviceContext1* context, TextureID textureID, uint32_t slot);
+
+		void SetPipelineState(ID3D11DeviceContext1* context, const PipelineState& pipelineState);
+		void SetPipelineState(ID3D11DeviceContext1* context, const CompiledPipelineState& pipelineState);
 	}
 }
