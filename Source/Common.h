@@ -75,6 +75,25 @@ struct Float4
 	friend Float4 operator/(Float4 l, const Float4& r) { l /= r; return l; }
 };
 
+struct ColorUNORM
+{
+	ColorUNORM() : r(0), g(0), b(0), a(0) {}
+
+	// [0-255]
+	ColorUNORM(unsigned char r, unsigned char g, unsigned char b, unsigned char a) : r(r), g(g), b(b), a(a) {}
+
+	// [0.0f - 1.0f]
+	ColorUNORM(float r, float g, float b, float a) : r(toU8(r)), g(toU8(g)), b(toU8(b)), a(toU8(a)) {}
+
+	unsigned char r;
+	unsigned char g;
+	unsigned char b;
+	unsigned char a;
+
+private:
+	static unsigned char toU8(float x) { return (unsigned char)(255.0f * x); }
+};
+
 struct Mat3x3
 {
 	Float3 row[3];

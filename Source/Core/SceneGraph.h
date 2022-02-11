@@ -7,13 +7,17 @@
 
 struct Material
 {
-	TextureID Albedo;
+	bool UseBlend = false;
+	TextureID Albedo = TextureID_Invalid;
 };
 
 struct Mesh
 {
-	BufferID Position;
-	BufferID Indices;
+	BufferID Position = BufferID_Invalid; // Float3
+	BufferID UV = BufferID_Invalid; // Float2
+	BufferID Normal = BufferID_Invalid; // Float3
+	BufferID Tangent = BufferID_Invalid; // Float4
+	BufferID Indices = BufferID_Invalid; // uint16_t
 };
 
 struct Drawable
@@ -33,7 +37,7 @@ struct Camera
 	Float3 Forward;
 };
 
-class SceneGraph
+struct SceneGraph
 {
 	Camera MainCamera;
 	std::vector<Entity> Entities;

@@ -160,6 +160,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Source\Core\Renderer.cpp" />
+    <ClCompile Include="Source\Loading\SceneLoading.cpp" />
     <ClCompile Include="Source\main.cpp" />
     <ClCompile Include="Source\Render\Buffer.cpp" />
     <ClCompile Include="Source\Render\Commands.cpp" />
@@ -175,6 +176,7 @@
     <ClInclude Include="Source\Core\Renderer.h" />
     <ClInclude Include="Source\Core\RenderPass.h" />
     <ClInclude Include="Source\Core\SceneGraph.h" />
+    <ClInclude Include="Source\Loading\SceneLoading.h" />
     <ClInclude Include="Source\Render\Buffer.h" />
     <ClInclude Include="Source\Render\Commands.h" />
     <ClInclude Include="Source\Render\Device.h" />

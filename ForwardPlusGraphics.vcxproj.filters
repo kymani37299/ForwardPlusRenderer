@@ -45,6 +45,9 @@
     <ClCompile Include="Source\Render\PipelineState.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Loading\SceneLoading.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\Common.h">
@@ -99,6 +102,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Source\Render\ResourceID.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Loading\SceneLoading.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

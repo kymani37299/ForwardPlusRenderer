@@ -29,6 +29,9 @@ struct Texture
 	uint32_t Width;
 	uint32_t Height;
 	uint32_t NumMips;
+
+	uint32_t RowPitch;
+	uint32_t SlicePitch;
 };
 
 struct Shader

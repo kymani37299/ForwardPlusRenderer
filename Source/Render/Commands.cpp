@@ -39,7 +39,7 @@ namespace GFX
 		{
 			const Texture& colorTexture = GFX::Storage::GetTexture(rtID.ColorTexture);
 			ID3D11DepthStencilView* dsv = nullptr;
-			if (rtID.DepthTexture != static_cast<TextureID>(-1))
+			if (rtID.DepthTexture != TextureID_Invalid)
 			{
 				const Texture& depthTexture = GFX::Storage::GetTexture(rtID.DepthTexture);
 				dsv = depthTexture.DSV.Get();
