@@ -39,6 +39,7 @@ struct Shader
 	ComPtr<ID3D11VertexShader> VS;
 	ComPtr<ID3D11PixelShader> PS;
 	ComPtr<ID3D11InputLayout> IL;
+	ComPtr<ID3D11InputLayout> MIL;
 };
 
 namespace GFX

@@ -42,4 +42,10 @@ namespace GFX
 	{
 		return CreateBuffer(byteSize, elementStride, D3D11_USAGE_IMMUTABLE, D3D11_BIND_INDEX_BUFFER, initData);
 	}
+
+	uint64_t GetNumBufferElements(BufferID bufferID)
+	{
+		const Buffer& buffer = Storage::GetBuffer(bufferID);
+		return buffer.ByteSize / buffer.ElementStride;
+	}
 }

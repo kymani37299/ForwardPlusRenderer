@@ -127,7 +127,7 @@ namespace SceneLoading
 	Entity LoadEntity(const std::string& path)
 	{
 		const std::string& ext = PathUtility::GetFileExtension(path);
-		if (ext == "gltf")
+		if (ext != "gltf")
 		{
 			ASSERT(0, "[SceneLoading] For now we only support glTF 3D format.");
 			return Entity{};

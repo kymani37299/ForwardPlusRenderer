@@ -13,4 +13,6 @@ namespace GFX
 		uint32_t vertStride = sizeof(VertexType);
 		return CreateVertexBuffer(vertStride * numElements, vertStride, initData);
 	}
+
+	uint64_t GetNumBufferElements(BufferID bufferID);
 }

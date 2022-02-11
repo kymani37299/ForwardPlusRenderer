@@ -220,6 +220,7 @@ namespace GFX
         if (vsBlob)
         {
             shader.IL = CreateInputLayout(vsBlob, false);
+            shader.MIL = CreateInputLayout(vsBlob, true);
         }
 
         SAFE_RELEASE(vsBlob);

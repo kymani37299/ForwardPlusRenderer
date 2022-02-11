@@ -54,7 +54,7 @@ namespace GFX
 	{
 		int width, height, bpp;
 		void* texData = LoadTexture(path, width, height, bpp);
-		TextureID id = CreateTexture(width, height, DXGI_FORMAT_R8G8B8A8_UNORM, data);
+		TextureID id = CreateTexture(width, height, DXGI_FORMAT_R8G8B8A8_UNORM, texData);
 		FreeTexture(texData);
 		return id;
 	}
@@ -71,6 +71,15 @@ namespace GFX
 		texture.RowPitch = texture.Width * ToBPP(texture.Format);
 		texture.SlicePitch = texture.RowPitch * texture.Height;
 
+		D3D11_SUBRESOURCE_DATA* initializationData = nullptr;
+		if (initData)
+		{
+			initializationData = new D3D11_SUBRESOURCE_DATA();
+			initializationData->pSysMem = initData;
+			initializationData->SysMemPitch = texture.RowPitch;
+			initializationData->SysMemSlicePitch = texture.SlicePitch;
+		}
+
 		D3D11_TEXTURE2D_DESC textureDesc = {};
 		textureDesc.Width = texture.Width;
 		textureDesc.Height = texture.Height;
@@ -82,7 +91,7 @@ namespace GFX
 		textureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 		textureDesc.MiscFlags = 0;
 		textureDesc.CPUAccessFlags = 0;
-		API_CALL(Device::Get()->GetHandle()->CreateTexture2D(&textureDesc, nullptr, texture.Handle.GetAddressOf()));
+		API_CALL(Device::Get()->GetHandle()->CreateTexture2D(&textureDesc, initializationData, texture.Handle.GetAddressOf()));
 
 		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc{};
 		srvDesc.Format = texture.Format;

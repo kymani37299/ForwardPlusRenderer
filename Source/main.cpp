@@ -2,17 +2,17 @@
 #include <iostream>
 
 #include "Common.h"
+#include "Core/Renderer.h"
+#include "Core/SceneGraph.h"
 #include "Render/Commands.h"
 #include "Render/Buffer.h"
 #include "Render/Shader.h"
 #include "Render/Device.h"
 #include "Render/PipelineState.h"
-#include "Core/Renderer.h"
+#include "Loading/SceneLoading.h"
 #include "System/VSConsoleRedirect.h"
 #include "System/ApplicationConfiguration.h"
 #include "System/Window.h"
-
-#include "Core/SceneGraph.h"
 
 ApplicationConfiguration AppConfig;
 
@@ -30,44 +30,45 @@ public:
 	}
 };
 
-class RedRenderPass : public RenderPass
+SceneGraph MainSceneGraph;
+
+class GeometryRenderPass : public RenderPass
 {
 public:
 	void OnInit(ID3D11DeviceContext1* context) override
 	{
-		struct FCVert
-		{
-			Float2 Position;
-			Float2 UV;
-		};
+		MainSceneGraph.Entities.push_back(SceneLoading::LoadEntity("Resources/sponza/sponza.gltf"));
+		m_Shader = GFX::CreateShader("Source/Shaders/geometry.hlsl");
 
-		const std::vector<FCVert> fcVBData = {
-			FCVert{	{1.0,1.0},		{1.0,0.0}},
-			FCVert{	{-1.0,-1.0},	{0.0,1.0}},
-			FCVert{	{1.0,-1.0},		{1.0,1.0}},
-			FCVert{	{1.0,1.0},		{1.0,0.0}},
-			FCVert{ {-1.0,1.0},		{0.0,0.0}},
-			FCVert{	{-1.0,-1.0},	{0.0,1.0}}
-		};
-
-		m_Shader = GFX::CreateShader("Source/Shaders/red.hlsl");
-		m_VB = GFX::CreateVertexBuffer(fcVBData.size() * sizeof(FCVert), sizeof(FCVert), fcVBData.data());
+		D3D11_SAMPLER_DESC linearBorderDesc{};
+		linearBorderDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+		linearBorderDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+		linearBorderDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+		linearBorderDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+		Device::Get()->GetHandle()->CreateSamplerState(&linearBorderDesc, m_LinearClampSampler.GetAddressOf());
 	}
 
 	void OnDraw(ID3D11DeviceContext1* context) override
 	{
-		PipelineState pipelineState = GFX::DefaultPipelineState();
+		GFX::Cmd::BindShader(context, m_Shader, true);
 
-		GFX::Cmd::BindShader(context, m_Shader);
-		GFX::Cmd::BindVertexBuffer(context, m_VB);
-		GFX::Cmd::SetPipelineState(context, pipelineState);
-
-		context->Draw(6, 0);
+		for (Entity e : MainSceneGraph.Entities)
+		{
+			for (Drawable d : e.Drawables)
+			{
+				Mesh& m = d.Mesh;
+				GFX::Cmd::BindVertexBuffers(context, { m.Position, m.UV, m.Normal, m.Tangent });
+				GFX::Cmd::BindIndexBuffer(context, m.Indices);
+				GFX::Cmd::BindTextureSRV(context, d.Material.Albedo, 0);
+				context->PSSetSamplers(0, 1, m_LinearClampSampler.GetAddressOf());
+				context->DrawIndexed(GFX::GetNumBufferElements(m.Indices), 0, 0);
+			}
+		}
 	}
 
 private:
-	BufferID m_VB;
 	ShaderID m_Shader;
+	ComPtr<ID3D11SamplerState> m_LinearClampSampler;
 };
 
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdParams, int showFlags)
@@ -81,7 +82,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdParams, 
 	RedirectToVSConsoleScoped _vsConsoleRedirect;
 
 	Renderer r;
-	r.AddRenderPass(new RedRenderPass());
+	r.AddRenderPass(new GeometryRenderPass());
 	float dt = 0.0f;
 
 	while (Window::Get()->IsRunning())
