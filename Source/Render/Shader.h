@@ -5,4 +5,5 @@
 namespace GFX
 {
 	ShaderID CreateShader(const std::string& path);
+	void ReloadShader(ShaderID shaderID);
 }

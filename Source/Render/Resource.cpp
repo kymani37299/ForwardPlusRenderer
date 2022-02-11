@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "Render/RenderAPI.h"
+#include "Render/Shader.h"
 
 namespace GFX
 {
@@ -52,6 +53,14 @@ namespace GFX
 			id = ShaderStorage.size();
 			ShaderStorage.resize(id + 1);
 			return ShaderStorage[id];
+		}
+
+		void ReloadAllShaders()
+		{
+			for (ShaderID id = 0; id < ShaderStorage.size(); id++)
+			{
+				ReloadShader(id);
+			}
 		}
 
 		void ClearStorage()

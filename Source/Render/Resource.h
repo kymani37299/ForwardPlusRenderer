@@ -40,6 +40,8 @@ struct Shader
 	ComPtr<ID3D11PixelShader> PS;
 	ComPtr<ID3D11InputLayout> IL;
 	ComPtr<ID3D11InputLayout> MIL;
+
+	std::string Path;
 };
 
 namespace GFX
@@ -54,6 +56,7 @@ namespace GFX
 		Texture& CreateTexture(TextureID& id);
 		Shader& CreateShader(ShaderID& id);
 
+		void ReloadAllShaders();
 		void ClearStorage();
 	}
 }

@@ -80,6 +80,37 @@ private:
 	ComPtr<ID3D11SamplerState> m_LinearClampSampler;
 };
 
+namespace Input
+{
+	bool IsKeyPressed(unsigned int key)
+	{
+		return WindowInput::IsKeyPressed(key);
+	}
+
+	bool IsKeyJustPressed(unsigned int key)
+	{
+		return WindowInput::IsKeyJustPressed(key);
+	}
+
+	Float2 GetMousePos()
+	{
+		return WindowInput::GetMousePos();
+	}
+
+	Float2 GetMouseDelta()
+	{
+		return WindowInput::GetMouseDelta();
+	}
+}
+
+void UpdateInput(float dt)
+{
+	if (Input::IsKeyJustPressed('R'))
+	{
+		GFX::Storage::ReloadAllShaders();
+	}
+}
+
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdParams, int showFlags)
 {
 	AppConfig.AppHandle = instance;
@@ -96,8 +127,11 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdParams, 
 
 	while (Window::Get()->IsRunning())
 	{
+		WindowInput::InputFrameBegin();
 		Window::Get()->Update(dt);
+		UpdateInput(dt);
 		r.Update(dt);
 		r.Render();
+		WindowInput::InputFrameEnd();
 	}
 }

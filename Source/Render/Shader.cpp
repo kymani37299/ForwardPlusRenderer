@@ -202,9 +202,18 @@ namespace GFX
 	{
 		ShaderID id;
 		Shader& shader = Storage::CreateShader(id);
+        shader.Path = path;
+        ReloadShader(id);
+        return id;
+	}
 
-		std::string shaderCode;
-        ReadShaderFile(path, shaderCode);
+    void ReloadShader(ShaderID shaderID)
+    {
+        // Small hack in order to reload a shader
+        Shader& shader = const_cast<Shader&>(Storage::GetShader(shaderID));
+
+        std::string shaderCode;
+        ReadShaderFile(shader.Path, shaderCode);
 
         ID3DBlob* vsBlob = ReadBlobFromFile(shaderCode, "VS", "vs_" + SHADER_VERSION, nullptr);
         ID3DBlob* psBlob = ReadBlobFromFile(shaderCode, "PS", "ps_" + SHADER_VERSION, nullptr);
@@ -212,20 +221,20 @@ namespace GFX
         ID3D11Device* device = Device::Get()->GetHandle();
 
         bool success = vsBlob || psBlob;
-        if(vsBlob) success = success && SUCCEEDED(device->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, shader.VS.GetAddressOf()));
-        if(psBlob) success = success && SUCCEEDED(device->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, shader.PS.GetAddressOf()));
+        if (vsBlob) success = success && SUCCEEDED(device->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, shader.VS.ReleaseAndGetAddressOf()));
+        if (psBlob) success = success && SUCCEEDED(device->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, shader.PS.ReleaseAndGetAddressOf()));
 
         ASSERT(success, "[CreateShader] Shader compilation failed!");
 
         if (vsBlob)
         {
+            shader.IL.Reset();
+            shader.MIL.Reset();
             shader.IL = CreateInputLayout(vsBlob, false);
             shader.MIL = CreateInputLayout(vsBlob, true);
         }
 
         SAFE_RELEASE(vsBlob);
         SAFE_RELEASE(psBlob);
-
-        return id;
-	}
+    }
 }
