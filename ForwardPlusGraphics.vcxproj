@@ -174,12 +174,14 @@
     <ClInclude Include="Source\Common.h" />
     <ClInclude Include="Source\Core\Renderer.h" />
     <ClInclude Include="Source\Core\RenderPass.h" />
+    <ClInclude Include="Source\Core\SceneGraph.h" />
     <ClInclude Include="Source\Render\Buffer.h" />
     <ClInclude Include="Source\Render\Commands.h" />
     <ClInclude Include="Source\Render\Device.h" />
     <ClInclude Include="Source\Render\PipelineState.h" />
     <ClInclude Include="Source\Render\RenderAPI.h" />
     <ClInclude Include="Source\Render\Resource.h" />
+    <ClInclude Include="Source\Render\ResourceID.h" />
     <ClInclude Include="Source\Render\Shader.h" />
     <ClInclude Include="Source\Render\Texture.h" />
     <ClInclude Include="Source\System\ApplicationConfiguration.h" />

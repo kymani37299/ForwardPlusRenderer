@@ -2,6 +2,8 @@
 
 #include <vector>
 
+#include "Render/RenderAPI.h"
+
 namespace GFX
 {
 	namespace

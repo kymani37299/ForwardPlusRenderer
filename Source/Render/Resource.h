@@ -1,8 +1,7 @@
 #pragma once
 
+#include "Render/ResourceID.h"
 #include "Render/RenderAPI.h"
-
-using BufferID = uint32_t;
 
 struct Buffer
 {
@@ -15,8 +14,6 @@ struct Buffer
 	uint64_t ByteSize;
 	uint64_t ElementStride;
 };
-
-using TextureID = uint32_t;
 
 struct Texture
 {
@@ -33,14 +30,6 @@ struct Texture
 	uint32_t Height;
 	uint32_t NumMips;
 };
-
-struct RenderTargetID
-{
-	TextureID ColorTexture = static_cast<TextureID>(-1);
-	TextureID DepthTexture = static_cast<TextureID>(-1);
-};
-
-using ShaderID = uint32_t;
 
 struct Shader
 {

@@ -1,6 +1,7 @@
 #include "Texture.h"
 
 #include "Render/Device.h"
+#include "Render/Resource.h"
 
 namespace GFX
 {

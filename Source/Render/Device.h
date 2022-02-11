@@ -3,7 +3,7 @@
 #include "Common.h"
 
 #include "Render/RenderAPI.h"
-#include "Render/Resource.h"
+#include "Render/ResourceID.h"
 
 class Device
 {

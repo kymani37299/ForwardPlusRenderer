@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Render/RenderAPI.h"
-#include "Render/Resource.h"
+#include "Render/ResourceID.h"
 
 namespace GFX
 {

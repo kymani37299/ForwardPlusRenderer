@@ -6,10 +6,13 @@
 #include "Render/Buffer.h"
 #include "Render/Shader.h"
 #include "Render/Device.h"
+#include "Render/PipelineState.h"
 #include "Core/Renderer.h"
 #include "System/VSConsoleRedirect.h"
 #include "System/ApplicationConfiguration.h"
 #include "System/Window.h"
+
+#include "Core/SceneGraph.h"
 
 ApplicationConfiguration AppConfig;
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Render/Resource.h"
+#include "Render/ResourceID.h"
 
 namespace GFX
 {

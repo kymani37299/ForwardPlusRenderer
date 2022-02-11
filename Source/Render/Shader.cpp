@@ -6,6 +6,7 @@
 #include <d3dcompiler.h>
 
 #include "Render/Device.h"
+#include "Render/Resource.h"
 #include "Utility/StringUtility.h"
 #include "Utility/PathUtility.h"
 

@@ -1,6 +1,7 @@
 #include "Buffer.h"
 
 #include "Render/Device.h"
+#include "Render/Resource.h"
 
 namespace GFX
 {
