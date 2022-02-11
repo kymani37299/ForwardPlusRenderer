@@ -12,13 +12,27 @@ struct VertexOut
 	float2 UV : TEXCOORD;
 };
 
+struct CameraData
+{
+	float4x4 View;
+	float4x4 Projection;
+};
+
+cbuffer CameraCB : register(b0)
+{
+	CameraData CamData;
+}
+
 SamplerState LinearClamp : register(s0);
 Texture2D AlbedoTexture : register(t0);
 
 VertexOut VS(VertexInput IN)
 {
+	float4x4 VP = mul(CamData.View, CamData.Projection);
+
 	VertexOut OUT;
 	OUT.Position = float4(IN.Position, 1.0f);
+	OUT.Position = mul(IN.Position, VP);
 	OUT.UV = IN.UV;
 	return OUT;
 }

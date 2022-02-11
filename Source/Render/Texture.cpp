@@ -168,4 +168,10 @@ namespace GFX
 
 		return id;
 	}
+
+	ID3D11ShaderResourceView* DX_GetTextureSRV(TextureID textureID)
+	{
+		const Texture& texture = GFX::Storage::CreateTexture(textureID);
+		return texture.SRV.Get();
+	}
 }

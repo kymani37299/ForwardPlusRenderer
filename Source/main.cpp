@@ -5,6 +5,7 @@
 #include "Core/Renderer.h"
 #include "Core/SceneGraph.h"
 #include "Render/Commands.h"
+#include "Render/Texture.h"
 #include "Render/Buffer.h"
 #include "Render/Shader.h"
 #include "Render/Device.h"
@@ -50,7 +51,12 @@ public:
 
 	void OnDraw(ID3D11DeviceContext1* context) override
 	{
+		MainSceneGraph.MainCamera.UpdateBuffer(context);
+
 		GFX::Cmd::BindShader(context, m_Shader, true);
+
+		ID3D11Buffer* cbv = GFX::DX_GetBuffer(MainSceneGraph.MainCamera.CameraBuffer); 
+		context->VSSetConstantBuffers(0, 1, &cbv);
 
 		for (Entity e : MainSceneGraph.Entities)
 		{
@@ -59,7 +65,10 @@ public:
 				Mesh& m = d.Mesh;
 				GFX::Cmd::BindVertexBuffers(context, { m.Position, m.UV, m.Normal, m.Tangent });
 				GFX::Cmd::BindIndexBuffer(context, m.Indices);
-				GFX::Cmd::BindTextureSRV(context, d.Material.Albedo, 0);
+
+				ID3D11ShaderResourceView* srv = GFX::DX_GetTextureSRV(d.Material.Albedo); 
+				context->PSSetShaderResources(0, 1, &srv);
+				
 				context->PSSetSamplers(0, 1, m_LinearClampSampler.GetAddressOf());
 				context->DrawIndexed(GFX::GetNumBufferElements(m.Indices), 0, 0);
 			}

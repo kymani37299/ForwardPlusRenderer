@@ -4,6 +4,7 @@
 
 #include "Render/Shader.h"
 #include "Render/Buffer.h"
+#include "Render/Texture.h"
 #include "Render/Commands.h"
 #include "System/ApplicationConfiguration.h"
 #include "System/Window.h"
@@ -72,10 +73,12 @@ void Device::Present(RenderTargetID finalRT)
     GFX::Cmd::BindShader(m_Context.Get(), m_CopyShader);
     m_Context->OMSetRenderTargets(1, m_SwapchainView.GetAddressOf(), nullptr);
     GFX::Cmd::BindVertexBuffer(m_Context.Get(), m_QuadBuffer);
-    GFX::Cmd::BindTextureSRV(m_Context.Get(), finalRT.ColorTexture, 0);
+
+    ID3D11ShaderResourceView* srv = GFX::DX_GetTextureSRV(finalRT.ColorTexture);
+    m_Context->PSSetShaderResources(0, 1,  &srv);
     m_Context->Draw(6, 0);
 
-    ID3D11ShaderResourceView* srv = nullptr;
+    srv = nullptr;
     m_Context->PSSetShaderResources(0, 1, &srv);
 
     m_Swapchain->Present(AppConfig.VSyncEnabled ? 1 : 0, 0);

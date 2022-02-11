@@ -160,6 +160,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Source\Core\Renderer.cpp" />
+    <ClCompile Include="Source\Core\SceneGraph.cpp" />
     <ClCompile Include="Source\Loading\SceneLoading.cpp" />
     <ClCompile Include="Source\main.cpp" />
     <ClCompile Include="Source\Render\Buffer.cpp" />

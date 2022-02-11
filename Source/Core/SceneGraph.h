@@ -5,6 +5,8 @@
 #include "Common.h"
 #include "Render/ResourceID.h"
 
+struct ID3D11DeviceContext1;
+
 struct Material
 {
 	bool UseBlend = false;
@@ -33,12 +35,18 @@ struct Entity
 
 struct Camera
 {
+	Camera(Float3 position, Float3 Forward, float fov);
+	void UpdateBuffer(ID3D11DeviceContext1* context);
+
+	float FOV;
 	Float3 Position;
 	Float3 Forward;
+
+	BufferID CameraBuffer = BufferID_Invalid;
 };
 
 struct SceneGraph
 {
-	Camera MainCamera;
+	Camera MainCamera{ {0.0f, 2.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, 45.0f };
 	std::vector<Entity> Entities;
 };

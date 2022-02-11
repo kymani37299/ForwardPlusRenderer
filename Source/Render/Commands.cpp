@@ -107,5 +107,16 @@ namespace GFX
 			context->OMSetDepthStencilState(pipelineState.DS.Get(), 0xff);
 			context->OMSetBlendState(pipelineState.BS.Get(), blendFactor, 0xff);
 		}
+
+		void UploadToBuffer(ID3D11DeviceContext1* context, BufferID bufferID, const void* data, uint64_t index)
+		{
+			const Buffer& buffer = GFX::Storage::GetBuffer(bufferID);
+			const uint8_t* dataBytePtr = reinterpret_cast<const uint8_t*>(data);
+
+			D3D11_MAPPED_SUBRESOURCE mapResult;
+			API_CALL(context->Map(buffer.Handle.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapResult));
+			memcpy(mapResult.pData, dataBytePtr + (index * buffer.ElementStride), buffer.ElementStride);
+			context->Unmap(buffer.Handle.Get(), 0);
+		}
 	}
 }

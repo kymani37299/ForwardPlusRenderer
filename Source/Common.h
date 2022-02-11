@@ -38,6 +38,8 @@ struct Float2
 	friend Float2 operator-(Float2 l, const Float2& r) { l -= r; return l; }
 	friend Float2 operator*(Float2 l, const Float2& r) { l *= r; return l; }
 	friend Float2 operator/(Float2 l, const Float2& r) { l /= r; return l; }
+
+	DirectX::XMVECTOR ToXM() { return DirectX::XMVectorSet(x, y, 0.0f, 0.0f); }
 };
 
 struct Float3
@@ -55,6 +57,8 @@ struct Float3
 	friend Float3 operator-(Float3 l, const Float3& r) { l -= r; return l; }
 	friend Float3 operator*(Float3 l, const Float3& r) { l *= r; return l; }
 	friend Float3 operator/(Float3 l, const Float3& r) { l /= r; return l; }
+
+	DirectX::XMVECTOR ToXM() { return DirectX::XMVectorSet(x, y, z, 0.0f); }
 };
 
 struct Float4
@@ -73,6 +77,8 @@ struct Float4
 	friend Float4 operator-(Float4 l, const Float4& r) { l -= r; return l; }
 	friend Float4 operator*(Float4 l, const Float4& r) { l *= r; return l; }
 	friend Float4 operator/(Float4 l, const Float4& r) { l /= r; return l; }
+
+	DirectX::XMVECTOR ToXM() { return DirectX::XMVectorSet(x, y, z, w); }
 };
 
 struct ColorUNORM
