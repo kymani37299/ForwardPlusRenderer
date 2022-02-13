@@ -43,13 +43,6 @@ public:
 		MainSceneGraph.Entities.push_back(std::move(sponza));
 		for (Entity& e : MainSceneGraph.Entities) e.UpdateBuffer(context);
 		m_Shader = GFX::CreateShader("Source/Shaders/geometry.hlsl");
-
-		D3D11_SAMPLER_DESC linearBorderDesc{};
-		linearBorderDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-		linearBorderDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-		linearBorderDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-		linearBorderDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-		Device::Get()->GetHandle()->CreateSamplerState(&linearBorderDesc, m_LinearWrapSampler.GetAddressOf());
 	}
 
 	void OnDraw(ID3D11DeviceContext1* context) override
@@ -61,6 +54,7 @@ public:
 
 		GFX::Cmd::SetPipelineState(context, pso);
 		GFX::Cmd::BindShader(context, m_Shader, true);
+		context->PSSetSamplers(0, GFX::GetStaticSamplersNum(), GFX::GetStaticSamplers());
 
 		{
 			ID3D11Buffer* cbv = GFX::DX_GetBuffer(MainSceneGraph.MainCamera.CameraBuffer);
@@ -83,7 +77,6 @@ public:
 				ID3D11ShaderResourceView* srv = GFX::DX_GetTextureSRV(d.Material.Albedo); 
 				context->PSSetShaderResources(0, 1, &srv);
 				
-				context->PSSetSamplers(0, 1, m_LinearWrapSampler.GetAddressOf());
 				context->DrawIndexed(GFX::GetNumBufferElements(m.Indices), 0, 0);
 			}
 		}
@@ -91,7 +84,6 @@ public:
 
 private:
 	ShaderID m_Shader;
-	ComPtr<ID3D11SamplerState> m_LinearWrapSampler;
 };
 
 namespace Input

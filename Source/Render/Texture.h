@@ -15,4 +15,8 @@ namespace GFX
 
 	// Info
 	ID3D11ShaderResourceView* DX_GetTextureSRV(TextureID textureID);
+
+	// Static samplers
+	ID3D11SamplerState** GetStaticSamplers();
+	uint16_t GetStaticSamplersNum();
 }

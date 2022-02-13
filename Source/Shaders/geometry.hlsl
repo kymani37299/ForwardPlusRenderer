@@ -1,3 +1,5 @@
+#include "samplers.h"
+
 struct VertexInput
 {
 	float3 Position : SV_POSITION;
@@ -33,7 +35,6 @@ cbuffer EntityCB : register(b1)
 	EntityData EntData;
 }
 
-SamplerState LinearClamp : register(s0);
 Texture2D AlbedoTexture : register(t0);
 
 VertexOut VS(VertexInput IN)
@@ -51,5 +52,5 @@ VertexOut VS(VertexInput IN)
 
 float4 PS(VertexOut IN) : SV_Target
 {
-	return AlbedoTexture.Sample(LinearClamp, IN.UV);
+	return AlbedoTexture.Sample(s_LinearWrap, IN.UV);
 }

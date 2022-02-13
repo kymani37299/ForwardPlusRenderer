@@ -43,9 +43,18 @@ Device::Device()
     baseDeviceContext->Release();
 }
 
+Device::~Device()
+{
+    for (ID3D11SamplerState* sampler : m_StaticSamplers)
+    {
+        sampler->Release();
+    }
+}
+
 void Device::DeferredInit()
 {
     CreateSwapchain();
+    CreateStaticSamplers();
 
     struct FCVert
     {
@@ -66,6 +75,20 @@ void Device::DeferredInit()
     m_QuadBuffer = GFX::CreateVertexBuffer(fcVBData.size() * sizeof(FCVert), sizeof(FCVert), fcVBData.data());
 
     GFX::Cmd::ResetContext(m_Context.Get());
+}
+
+void Device::CreateStaticSamplers()
+{
+    m_StaticSamplers.resize(1);
+
+    D3D11_SAMPLER_DESC samplerDesc{};
+    
+    // s_LinearWrap
+    samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+    samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+    samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+    m_Device->CreateSamplerState(&samplerDesc, &m_StaticSamplers[0]);
 }
 
 void Device::Present(RenderTargetID finalRT)

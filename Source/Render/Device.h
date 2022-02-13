@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include "Common.h"
 
 #include "Render/RenderAPI.h"
@@ -28,16 +30,19 @@ private:
 
 public:
 	Device();
+	~Device();
 
 	void Present(RenderTargetID finalRT);
 	void CreateSwapchain();
 
 	ID3D11Device* GetHandle() const { return m_Device; }
 	ID3D11DeviceContext1* GetContext() const { return m_Context.Get(); }
+
+	std::vector<ID3D11SamplerState*>& GetStaticSamplers() { return m_StaticSamplers; }
 private:
 	// Initialize components that will use Device::Get()
 	void DeferredInit();
-
+	void CreateStaticSamplers();
 private:
 	ID3D11Device* m_Device;
 	ComPtr<ID3D11DeviceContext1> m_Context;
@@ -45,6 +50,8 @@ private:
 	ComPtr<IDXGISwapChain1> m_Swapchain;
 	ComPtr<ID3D11Texture2D> m_SwapchainTexture;
 	ComPtr<ID3D11RenderTargetView> m_SwapchainView;
+
+	std::vector<ID3D11SamplerState*> m_StaticSamplers;
 
 	ShaderID m_CopyShader;
 	BufferID m_QuadBuffer;

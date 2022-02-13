@@ -174,4 +174,15 @@ namespace GFX
 		const Texture& texture = GFX::Storage::GetTexture(textureID);
 		return texture.SRV.Get();
 	}
+
+	ID3D11SamplerState** GetStaticSamplers()
+	{
+		return (ID3D11SamplerState**) Device::Get()->GetStaticSamplers().data();
+	}
+	
+	
+	uint16_t GetStaticSamplersNum()
+	{
+		return Device::Get()->GetStaticSamplers().size();
+	}
 }
