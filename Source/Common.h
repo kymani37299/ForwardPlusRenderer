@@ -24,6 +24,8 @@ X& operator=(X const&) = delete;
 
 #define FORCE_CRASH *((unsigned int*)0) = 0xDEAD
 
+#define STATIC_ARRAY_SIZE(X) (sizeof(X)/(sizeof(X[0])))
+
 struct Float2
 {
 	float x;

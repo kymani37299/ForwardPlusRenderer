@@ -37,6 +37,7 @@ void Renderer::Render()
 {
 	ID3D11DeviceContext1* context = Device::Get()->GetContext();
 	GFX::Cmd::ResetContext(context);
+	GFX::Cmd::ClearRenderTarget(context, m_FinalRT);
 	GFX::Cmd::BindRenderTarget(context, m_FinalRT);
 	for (RenderPass* renderPass : m_Schedule)
 	{

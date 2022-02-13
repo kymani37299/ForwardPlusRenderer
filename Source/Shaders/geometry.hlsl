@@ -28,9 +28,8 @@ Texture2D AlbedoTexture : register(t0);
 
 VertexOut VS(VertexInput IN)
 {
-	const float4x4 VP = mul(CamData.Projection, CamData.View);
 	const float4 modelPos = float4(IN.Position, 1.0f);
-	const float4 worldPos = modelPos; // TODO: Add transform
+	const float4 worldPos = modelPos * 0.01f; // TODO: Add transform
 	const float4 viewPos = mul(worldPos, CamData.View);
 	const float4 clipPos = mul(viewPos, CamData.Projection);
 

@@ -14,13 +14,41 @@ namespace GFX
 
 		ps.RS.CullMode = D3D11_CULL_NONE;
 		ps.RS.FillMode = D3D11_FILL_SOLID;
+        ps.RS.AntialiasedLineEnable = false;
+        ps.RS.DepthBias = 0.0f;
+        ps.RS.DepthBiasClamp = 0.0f;
+        ps.RS.DepthClipEnable = true;
+        ps.RS.FrontCounterClockwise = false;
+        ps.RS.MultisampleEnable = false;
+        ps.RS.ScissorEnable = false;
+        ps.RS.SlopeScaledDepthBias = false;
 
 		ps.DS.DepthEnable = false;
+        ps.DS.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+        ps.DS.DepthFunc = D3D11_COMPARISON_LESS;
 		ps.DS.StencilEnable = false;
+        ps.DS.StencilReadMask = 0xff;
+        ps.DS.StencilWriteMask = 0xff;
+        ps.DS.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+        ps.DS.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
+        ps.DS.FrontFace.StencilPassOp = D3D11_STENCIL_OP_REPLACE;
+        ps.DS.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+        ps.DS.BackFace = ps.DS.FrontFace;
 
-		ps.BS.RenderTarget[0].BlendEnable = false;
-		ps.BS.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-
+        ps.BS.AlphaToCoverageEnable = false;
+        ps.BS.IndependentBlendEnable = false;
+        for (uint16_t i = 0; i < 8; i++)
+        {
+            ps.BS.RenderTarget[i].BlendEnable = false;
+            ps.BS.RenderTarget[i].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+            ps.BS.RenderTarget[i].BlendOp = D3D11_BLEND_OP_ADD;
+            ps.BS.RenderTarget[i].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+            ps.BS.RenderTarget[i].SrcBlend = D3D11_BLEND_ONE;
+            ps.BS.RenderTarget[i].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+            ps.BS.RenderTarget[i].SrcBlendAlpha = D3D11_BLEND_ONE;
+            ps.BS.RenderTarget[i].DestBlendAlpha = D3D11_BLEND_ONE;
+        }
+		
 		return ps;
 	}
 

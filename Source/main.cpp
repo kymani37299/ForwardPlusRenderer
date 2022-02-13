@@ -52,7 +52,11 @@ public:
 	void OnDraw(ID3D11DeviceContext1* context) override
 	{
 		MainSceneGraph.MainCamera.UpdateBuffer(context);
+		
+		PipelineState pso = GFX::DefaultPipelineState();
+		pso.DS.DepthEnable = true;
 
+		GFX::Cmd::SetPipelineState(context, pso);
 		GFX::Cmd::BindShader(context, m_Shader, true);
 
 		ID3D11Buffer* cbv = GFX::DX_GetBuffer(MainSceneGraph.MainCamera.CameraBuffer); 
@@ -108,6 +112,15 @@ void UpdateInput(float dt)
 	if (Input::IsKeyJustPressed('R'))
 	{
 		GFX::Storage::ReloadAllShaders();
+	}
+	
+	char mov_inputs[] = { 'W', 'S', 'A', 'D', 'Q', 'E'};
+	Float3 mov_effects[] = { {1.0f, 0.0f, 0.0f},{-1.0f, 0.0f, 0.0f},{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, -1.0f},{0.0f, -1.0f, 0.0f},{0.0f, 1.0f, 0.0f} };
+	static_assert(STATIC_ARRAY_SIZE(mov_inputs) == STATIC_ARRAY_SIZE(mov_effects));
+	for (uint16_t i = 0; i < STATIC_ARRAY_SIZE(mov_inputs); i++)
+	{
+		if (Input::IsKeyPressed(mov_inputs[i]))
+			MainSceneGraph.MainCamera.Position += mov_effects[i];
 	}
 }
 

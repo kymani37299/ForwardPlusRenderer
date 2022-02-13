@@ -105,7 +105,20 @@ namespace GFX
 
 			context->RSSetState(pipelineState.RS.Get());
 			context->OMSetDepthStencilState(pipelineState.DS.Get(), 0xff);
-			context->OMSetBlendState(pipelineState.BS.Get(), blendFactor, 0xff);
+			context->OMSetBlendState(pipelineState.BS.Get(), blendFactor, 0xffffffff);
+		}
+
+		void ClearRenderTarget(ID3D11DeviceContext1* context, RenderTargetID rtID)
+		{
+			const float clearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+			const Texture& colorTexture = GFX::Storage::GetTexture(rtID.ColorTexture);
+			context->ClearRenderTargetView(colorTexture.RTV.Get(), clearColor);
+			if (rtID.DepthTexture != TextureID_Invalid)
+			{
+				const Texture& depthTexture = GFX::Storage::GetTexture(rtID.DepthTexture);
+				context->ClearDepthStencilView(depthTexture.DSV.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+			}
 		}
 
 		void UploadToBuffer(ID3D11DeviceContext1* context, BufferID bufferID, const void* data, uint64_t index)
