@@ -36,10 +36,21 @@ struct Float2
 	Float2& operator*=(const Float2& x) { this->x *= x.x; this->y *= x.y; return *this; }
 	Float2& operator/=(const Float2& x) { this->x /= x.x; this->y /= x.y; return *this; }
 
+	Float2& operator+=(const float& x) { this->x += x; this->y += x; return *this; }
+	Float2& operator-=(const float& x) { this->x -= x; this->y -= x; return *this; }
+	Float2& operator*=(const float& x) { this->x *= x; this->y *= x; return *this; }
+	Float2& operator/=(const float& x) { this->x /= x; this->y /= x; return *this; }
+
 	friend Float2 operator+(Float2 l, const Float2& r) { l += r; return l; }
 	friend Float2 operator-(Float2 l, const Float2& r) { l -= r; return l; }
 	friend Float2 operator*(Float2 l, const Float2& r) { l *= r; return l; }
 	friend Float2 operator/(Float2 l, const Float2& r) { l /= r; return l; }
+
+	friend Float2 operator+(float l, const Float2& r) { return r + Float2(l,l); }
+	friend Float2 operator-(float l, const Float2& r) { return r - Float2(l,l); }
+	friend Float2 operator*(float l, const Float2& r) { return r * Float2(l,l); }
+	friend Float2 operator/(float l, const Float2& r) { return r / Float2(l,l); }
+	friend Float2 operator/(Float2 l, const float& r) { return l / Float2(r,r); }
 
 	DirectX::XMVECTOR ToXM() { return DirectX::XMVectorSet(x, y, 0.0f, 0.0f); }
 };
@@ -55,10 +66,21 @@ struct Float3
 	Float3& operator*=(const Float3& x) { this->x *= x.x; this->y *= x.y; this->z *= x.z; return *this; }
 	Float3& operator/=(const Float3& x) { this->x /= x.x; this->y /= x.y; this->z /= x.z; return *this; }
 
+	Float3& operator+=(const float& x) { this->x += x; this->y += x; this->z += x; return *this; }
+	Float3& operator-=(const float& x) { this->x -= x; this->y -= x; this->z -= x; return *this; }
+	Float3& operator*=(const float& x) { this->x *= x; this->y *= x; this->z *= x; return *this; }
+	Float3& operator/=(const float& x) { this->x /= x; this->y /= x; this->z /= x; return *this; }
+
 	friend Float3 operator+(Float3 l, const Float3& r) { l += r; return l; }
 	friend Float3 operator-(Float3 l, const Float3& r) { l -= r; return l; }
 	friend Float3 operator*(Float3 l, const Float3& r) { l *= r; return l; }
 	friend Float3 operator/(Float3 l, const Float3& r) { l /= r; return l; }
+
+	friend Float3 operator+(float l, const Float3& r) { return r + Float3(l, l, l); }
+	friend Float3 operator-(float l, const Float3& r) { return r - Float3(l, l, l); }
+	friend Float3 operator*(float l, const Float3& r) { return r * Float3(l, l, l); }
+	friend Float3 operator/(float l, const Float3& r) { return r / Float3(l, l, l); }
+	friend Float3 operator/(Float3 l, const float& r) { return l / Float3(r, r, r); }
 
 	DirectX::XMVECTOR ToXM() { return DirectX::XMVectorSet(x, y, z, 0.0f); }
 };
@@ -75,10 +97,21 @@ struct Float4
 	Float4& operator*=(const Float4& x) { this->x *= x.x; this->y *= x.y; this->z *= x.z; this->w *= x.w; return *this; }
 	Float4& operator/=(const Float4& x) { this->x /= x.x; this->y /= x.y; this->z /= x.z; this->w /= x.w; return *this; }
 
+	Float4& operator+=(const float& x) { this->x += x; this->y += x; this->z += x; this->w += x; return *this; }
+	Float4& operator-=(const float& x) { this->x -= x; this->y -= x; this->z -= x; this->w -= x; return *this; }
+	Float4& operator*=(const float& x) { this->x *= x; this->y *= x; this->z *= x; this->w *= x; return *this; }
+	Float4& operator/=(const float& x) { this->x /= x; this->y /= x; this->z /= x; this->w /= x; return *this; }
+
 	friend Float4 operator+(Float4 l, const Float4& r) { l += r; return l; }
 	friend Float4 operator-(Float4 l, const Float4& r) { l -= r; return l; }
 	friend Float4 operator*(Float4 l, const Float4& r) { l *= r; return l; }
 	friend Float4 operator/(Float4 l, const Float4& r) { l /= r; return l; }
+
+	friend Float4 operator+(float l, const Float4& r) { return r + Float4(l, l, l, l); }
+	friend Float4 operator-(float l, const Float4& r) { return r - Float4(l, l, l, l); }
+	friend Float4 operator*(float l, const Float4& r) { return r * Float4(l, l, l, l); }
+	friend Float4 operator/(float l, const Float4& r) { return r / Float4(l, l, l, l); }
+	friend Float4 operator/(Float4 l, const float& r) { return l / Float4(r, r, r, r); }
 
 	DirectX::XMVECTOR ToXM() { return DirectX::XMVectorSet(x, y, z, w); }
 };

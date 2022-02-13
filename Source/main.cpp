@@ -38,15 +38,18 @@ class GeometryRenderPass : public RenderPass
 public:
 	void OnInit(ID3D11DeviceContext1* context) override
 	{
-		MainSceneGraph.Entities.push_back(SceneLoading::LoadEntity("Resources/sponza/sponza.gltf"));
+		Entity sponza = SceneLoading::LoadEntity("Resources/sponza/sponza.gltf");
+		sponza.Scale *= 0.1f;
+		MainSceneGraph.Entities.push_back(std::move(sponza));
+		for (Entity& e : MainSceneGraph.Entities) e.UpdateBuffer(context);
 		m_Shader = GFX::CreateShader("Source/Shaders/geometry.hlsl");
 
 		D3D11_SAMPLER_DESC linearBorderDesc{};
 		linearBorderDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-		linearBorderDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
-		linearBorderDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
-		linearBorderDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-		Device::Get()->GetHandle()->CreateSamplerState(&linearBorderDesc, m_LinearClampSampler.GetAddressOf());
+		linearBorderDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+		linearBorderDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+		linearBorderDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+		Device::Get()->GetHandle()->CreateSamplerState(&linearBorderDesc, m_LinearWrapSampler.GetAddressOf());
 	}
 
 	void OnDraw(ID3D11DeviceContext1* context) override
@@ -59,21 +62,28 @@ public:
 		GFX::Cmd::SetPipelineState(context, pso);
 		GFX::Cmd::BindShader(context, m_Shader, true);
 
-		ID3D11Buffer* cbv = GFX::DX_GetBuffer(MainSceneGraph.MainCamera.CameraBuffer); 
-		context->VSSetConstantBuffers(0, 1, &cbv);
+		{
+			ID3D11Buffer* cbv = GFX::DX_GetBuffer(MainSceneGraph.MainCamera.CameraBuffer);
+			context->VSSetConstantBuffers(0, 1, &cbv);
+		}
 
 		for (Entity e : MainSceneGraph.Entities)
 		{
+			{
+				ID3D11Buffer* cbv = GFX::DX_GetBuffer(e.EntityBuffer);
+				context->VSSetConstantBuffers(1, 1, &cbv);
+			}
+
 			for (Drawable d : e.Drawables)
 			{
 				Mesh& m = d.Mesh;
 				GFX::Cmd::BindVertexBuffers(context, { m.Position, m.UV, m.Normal, m.Tangent });
 				GFX::Cmd::BindIndexBuffer(context, m.Indices);
-
+				
 				ID3D11ShaderResourceView* srv = GFX::DX_GetTextureSRV(d.Material.Albedo); 
 				context->PSSetShaderResources(0, 1, &srv);
 				
-				context->PSSetSamplers(0, 1, m_LinearClampSampler.GetAddressOf());
+				context->PSSetSamplers(0, 1, m_LinearWrapSampler.GetAddressOf());
 				context->DrawIndexed(GFX::GetNumBufferElements(m.Indices), 0, 0);
 			}
 		}
@@ -81,7 +91,7 @@ public:
 
 private:
 	ShaderID m_Shader;
-	ComPtr<ID3D11SamplerState> m_LinearClampSampler;
+	ComPtr<ID3D11SamplerState> m_LinearWrapSampler;
 };
 
 namespace Input
@@ -114,13 +124,14 @@ void UpdateInput(float dt)
 		GFX::Storage::ReloadAllShaders();
 	}
 	
+	const float movement_speed = 0.1f;
 	char mov_inputs[] = { 'W', 'S', 'A', 'D', 'Q', 'E'};
 	Float3 mov_effects[] = { {1.0f, 0.0f, 0.0f},{-1.0f, 0.0f, 0.0f},{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, -1.0f},{0.0f, -1.0f, 0.0f},{0.0f, 1.0f, 0.0f} };
 	static_assert(STATIC_ARRAY_SIZE(mov_inputs) == STATIC_ARRAY_SIZE(mov_effects));
 	for (uint16_t i = 0; i < STATIC_ARRAY_SIZE(mov_inputs); i++)
 	{
 		if (Input::IsKeyPressed(mov_inputs[i]))
-			MainSceneGraph.MainCamera.Position += mov_effects[i];
+			MainSceneGraph.MainCamera.Position += movement_speed * mov_effects[i];
 	}
 }
 

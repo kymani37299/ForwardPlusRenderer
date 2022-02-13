@@ -30,7 +30,13 @@ struct Drawable
 
 struct Entity
 {
+	void UpdateBuffer(ID3D11DeviceContext1* context);
+
+	Float3 Position = Float3(0.0f, 0.0f, 0.0f);
+	Float3 Scale = Float3(1.0f, 1.0f, 1.0f);
+
 	std::vector<Drawable> Drawables;
+	BufferID EntityBuffer = BufferID_Invalid;
 };
 
 struct Camera

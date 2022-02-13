@@ -14,13 +14,23 @@ struct VertexOut
 
 struct CameraData
 {
-	float4x4 View;
-	float4x4 Projection;
+	float4x4 WorldToView;
+	float4x4 ViewToClip;
+};
+
+struct EntityData
+{
+	float4x4 ModelToWorld;
 };
 
 cbuffer CameraCB : register(b0)
 {
 	CameraData CamData;
+}
+
+cbuffer EntityCB : register(b1)
+{
+	EntityData EntData;
 }
 
 SamplerState LinearClamp : register(s0);
@@ -29,9 +39,9 @@ Texture2D AlbedoTexture : register(t0);
 VertexOut VS(VertexInput IN)
 {
 	const float4 modelPos = float4(IN.Position, 1.0f);
-	const float4 worldPos = modelPos * 0.01f; // TODO: Add transform
-	const float4 viewPos = mul(worldPos, CamData.View);
-	const float4 clipPos = mul(viewPos, CamData.Projection);
+	const float4 worldPos = mul(modelPos, EntData.ModelToWorld);
+	const float4 viewPos = mul(worldPos, CamData.WorldToView);
+	const float4 clipPos = mul(viewPos, CamData.ViewToClip);
 
 	VertexOut OUT;
 	OUT.Position = clipPos;
