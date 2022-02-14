@@ -38,12 +38,15 @@ class GeometryRenderPass : public RenderPass
 public:
 	void OnInit(ID3D11DeviceContext1* context) override
 	{
+		MainSceneGraph.Lights.push_back(Light::CreateDirectional(Float3(-1.0f, -1.0f, -1.0f), Float3(0.5f, 0.5f, 0.5f)));
+		MainSceneGraph.Lights.push_back(Light::CreateDirectional(Float3(1.0f, -1.0f, -1.0f), Float3(0.3f, 0.0f, 0.8f)));
+
 		Entity sponza = SceneLoading::LoadEntity("Resources/sponza/sponza.gltf");
 		sponza.Scale *= 0.1f;
 		MainSceneGraph.Entities.push_back(std::move(sponza));
-
 		//MainSceneGraph.Entities.push_back(SceneLoading::LoadEntity("Resources/cube/cube.gltf"));
-		for (Entity& e : MainSceneGraph.Entities) e.UpdateBuffer(context);
+		MainSceneGraph.UpdateRenderData(context);
+
 		m_Shader = GFX::CreateShader("Source/Shaders/geometry.hlsl");
 	}
 
@@ -61,6 +64,12 @@ public:
 		{
 			ID3D11Buffer* cbv = GFX::DX_GetBuffer(MainSceneGraph.MainCamera.CameraBuffer);
 			context->VSSetConstantBuffers(0, 1, &cbv);
+			context->PSSetConstantBuffers(0, 1, &cbv);
+		}
+
+		{
+			ID3D11ShaderResourceView* srv = GFX::DX_GetBufferSRV(MainSceneGraph.LightsBuffer);
+			context->PSSetShaderResources(1, 1, &srv);
 		}
 
 		for (Entity e : MainSceneGraph.Entities)

@@ -24,7 +24,7 @@ void Entity::UpdateBuffer(ID3D11DeviceContext1* context)
 	EntityCB entityCB{};
 	entityCB.ModelToWorld = XMMatrixTranspose(XMMatrixAffineTransformation(Scale.ToXM(), Float3(0.0f, 0.0f, 0.0f).ToXM(), Float4(0.0f, 0.0f, 0.0f, 0.0f).ToXM(), Position.ToXM()));
 	if(EntityBuffer == BufferID_Invalid) EntityBuffer = GFX::CreateConstantBuffer<EntityCB>();
-	GFX::Cmd::UploadToBuffer(context, EntityBuffer, &entityCB);
+	GFX::Cmd::UploadToBuffer(context, EntityBuffer, &entityCB, sizeof(EntityCB));
 }
 
 Camera::Camera(Float3 position, Float3 forward, float fov):
@@ -51,5 +51,59 @@ void Camera::UpdateBuffer(ID3D11DeviceContext1* context)
 	cameraCB.ViewToClip = XMMatrixTranspose(XMMatrixPerspectiveFovLH(DegreesToRadians(FOV), aspectRatio, 0.1f, 1000.0f));
 	cameraCB.Position = Position;
 	if (CameraBuffer == BufferID_Invalid) CameraBuffer = GFX::CreateConstantBuffer<CameraCB>();
-	GFX::Cmd::UploadToBuffer(context, CameraBuffer, &cameraCB);
+	GFX::Cmd::UploadToBuffer(context, CameraBuffer, &cameraCB, sizeof(CameraCB));
+}
+
+Light Light::CreateDirectional(Float3 direction, Float3 color)
+{
+	Light l{};
+	l.Type = LT_Directional;
+	l.Direction = direction;
+	l.Strength = color;
+	return l;
+}
+
+void SceneGraph::UpdateRenderData(ID3D11DeviceContext1* context)
+{
+	for (Entity& e : Entities)
+	{
+		e.UpdateBuffer(context);
+	}
+
+	MainCamera.UpdateBuffer(context);
+
+	// Lights
+	
+	{
+		struct LightSB
+		{
+			uint32_t LightType;
+			Float3 Position;
+			Float3 Strength;
+			Float2 Falloff;
+			Float3 Direction;
+			float SpotPower;
+		};
+
+		// TODO: Resize buffer when new lights are added and update its data
+		if (LightsBuffer == BufferID_Invalid) LightsBuffer = GFX::CreateBuffer(sizeof(LightSB) * Lights.size(), sizeof(LightSB), RCF_Bind_SB | RCF_CPU_Write);
+		
+		ASSERT(GFX::GetNumBufferElements(LightsBuffer) == Lights.size(), "TODO: Resize buffer when new lights are added and update its data");
+
+		std::vector<LightSB> sbLights;
+		sbLights.resize(Lights.size());
+		uint32_t index = 0;
+		for (const Light& l : Lights)
+		{
+			sbLights[index].LightType = l.Type;
+			sbLights[index].Position = l.Position;
+			sbLights[index].Strength = l.Strength;
+			sbLights[index].Falloff = l.Falloff;
+			sbLights[index].Direction = l.Direction;
+			sbLights[index].SpotPower = l.SpotPower;
+			index++;
+		}
+
+		GFX::Cmd::UploadToBuffer(context, LightsBuffer, sbLights.data(), sbLights.size() * sizeof(LightSB));
+	}
 }

@@ -29,6 +29,11 @@ struct EntityData
 	float4x4 ModelToWorld;
 };
 
+struct SceneData
+{
+	uint NumLights;
+};
+
 cbuffer CameraCB : register(b0)
 {
 	CameraData CamData;
@@ -39,7 +44,13 @@ cbuffer EntityCB : register(b1)
 	EntityData EntData;
 }
 
+cbuffer SceneCB : register(b2)
+{
+	SceneData ScnData;
+}
+
 Texture2D AlbedoTexture : register(t0);
+StructuredBuffer<Light> Lights : register(t1);
 
 VertexOut VS(VertexInput IN)
 {
@@ -61,13 +72,6 @@ float4 PS(VertexOut IN) : SV_Target
 	// TO BE ADDED TO DATA
 	const float4 ambientLight = 0.1f * float4(1.0f, 1.0f, 1.0f, 1.0f);
 
-	Light l;
-	l.Position = float3(0.0f, 10.0f, 0.0f);
-	l.Direction = normalize(float3(-1.0f, -1.0f, -1.0f));
-	l.Strength = float3(0.5f, 0.5f, 0.5f);
-	l.Falloff = float2(0.0f, 0.0f);
-	l.SpotPower = 0.0f;
-
 	Material mat;
 	mat.Albedo = AlbedoTexture.Sample(s_LinearWrap, IN.UV);
 	mat.FresnelR0 = float3(0.05f, 0.05f, 0.05f);
@@ -78,7 +82,26 @@ float4 PS(VertexOut IN) : SV_Target
 	float3 view = normalize(CamData.Position - IN.WorldPosition);
 
 	float4 litColor = ambientLight * mat.Albedo;
-	litColor.rgb += ComputeDirectionalLight(l, mat, normal, view);
+
+	uint numLights, lightStride;
+	Lights.GetDimensions(numLights, lightStride);
+
+	for (uint i = 0; i < numLights; i++)
+	{
+		const Light l = Lights[i];
+		switch (l.Type)
+		{
+		case 1:
+			litColor.rgb += ComputeDirectionalLight(l, mat, normal, view);
+			break;
+		case 2:
+			litColor.rgb += ComputePointLight(l, mat, IN.WorldPosition, normal, view);
+			break;
+		case 3:
+			litColor.rgb += ComputeSpotLight(l, mat, IN.WorldPosition, normal, view);
+			break;
+		}
+	}
 
 #ifdef USE_ALPHA
 	litColor.a = mat.Albedo.a;

@@ -22,6 +22,6 @@ namespace GFX
 		void SetPipelineState(ID3D11DeviceContext1* context, const CompiledPipelineState& pipelineState);
 
 		void ClearRenderTarget(ID3D11DeviceContext1* context, RenderTargetID rtID);
-		void UploadToBuffer(ID3D11DeviceContext1* context, BufferID bufferID, const void* data, uint64_t index = 0);
+		void UploadToBuffer(ID3D11DeviceContext1* context, BufferID bufferID, const void* data, uint64_t dataSize, uint64_t offset = 0);
 	}
 }

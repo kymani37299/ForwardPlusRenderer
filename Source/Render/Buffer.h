@@ -3,6 +3,7 @@
 #include "Render/ResourceID.h"
 
 struct ID3D11Buffer;
+struct ID3D11ShaderResourceView;
 
 namespace GFX
 {
@@ -30,6 +31,7 @@ namespace GFX
 
 	// Info
 	ID3D11Buffer* DX_GetBuffer(BufferID bufferID);
+	ID3D11ShaderResourceView* DX_GetBufferSRV(BufferID bufferID);
 	uint64_t GetNumBufferElements(BufferID bufferID);
 
 }

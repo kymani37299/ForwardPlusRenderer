@@ -30,7 +30,18 @@ namespace GFX
 
 		API_CALL(Device::Get()->GetHandle()->CreateBuffer(&bufferDesc, subresourceData, buffer.Handle.GetAddressOf()));
 
-		// TODO: Create SRV if needed
+		if (creationFlags & RCF_Bind_SB)
+		{
+			D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+			srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+			srvDesc.ViewDimension = D3D_SRV_DIMENSION_BUFFER;
+			srvDesc.Buffer.ElementOffset = 0;
+			srvDesc.Buffer.ElementWidth = buffer.ElementStride;
+			srvDesc.Buffer.FirstElement = 0;
+			srvDesc.Buffer.NumElements = buffer.ByteSize / buffer.ElementStride;
+
+			API_CALL(Device::Get()->GetHandle()->CreateShaderResourceView(buffer.Handle.Get(), &srvDesc, buffer.SRV.GetAddressOf()));
+		}
 
 		return id;
 	}
@@ -38,7 +49,15 @@ namespace GFX
 	ID3D11Buffer* DX_GetBuffer(BufferID bufferID)
 	{
 		const Buffer& buffer = Storage::GetBuffer(bufferID);
+		ASSERT(buffer.Handle.Get(), "[DX_GetBuffer] Null resource");
 		return buffer.Handle.Get();
+	}
+
+	ID3D11ShaderResourceView* DX_GetBufferSRV(BufferID bufferID)
+	{
+		const Buffer& buffer = Storage::GetBuffer(bufferID);
+		ASSERT(buffer.SRV.Get(), "[DX_GetBuffer] Null resource");
+		return buffer.SRV.Get();
 	}
 
 	uint64_t GetNumBufferElements(BufferID bufferID)

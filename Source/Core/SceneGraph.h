@@ -53,15 +53,17 @@ struct Camera
 
 enum LightType : uint32_t
 {
-	Invalid,
-	Directional,
-	Point,
-	Spot
+	LT_Invalid = 0,
+	LT_Directional = 1,
+	LT_Point = 2,
+	LT_Spot = 3
 };
 
 struct Light
 {
-	LightType Type = Invalid;
+	static Light CreateDirectional(Float3 direction, Float3 color);
+
+	LightType Type = LT_Invalid;
 	Float3 Position = { 0.0f, 0.0f, 0.0f };		// Point
 	Float3 Strength = { 0.0f, 0.0f, 0.0f };		// Dir/Spot/Point
 	Float2 Falloff = { 0.0f, 0.0f };			// Point/Spot (Start, End)
@@ -71,7 +73,11 @@ struct Light
 
 struct SceneGraph
 {
+	void UpdateRenderData(ID3D11DeviceContext1* context);
+
 	Camera MainCamera{ {0.0f, 2.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, 75.0f };
 	std::vector<Entity> Entities;
 	std::vector<Light> Lights;
+
+	BufferID LightsBuffer = BufferID_Invalid;
 };

@@ -7,6 +7,7 @@ struct Material
 
 struct Light
 {
+	uint Type;			// 1 - Dir, 2 - Point, 3 - Spot
 	float3 Position;	// Point
 	float3 Strength;
 	float2 Falloff;		// Point/Spot (Start, End)
@@ -84,4 +85,10 @@ float3 ComputePointLight(Light light, Material mat, float3 pos, float3 normal, f
     lightStrength *= att;
 
     return BlinnPhong(lightStrength, lightVec, normal, toEye, mat);
+}
+
+float3 ComputeSpotLight(Light light, Material mat, float3 pos, float3 normal, float3 toEye)
+{
+	// TODO
+	return float3(0.0f, 0.0f, 0.0f);
 }
