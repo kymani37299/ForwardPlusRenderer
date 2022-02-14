@@ -69,19 +69,15 @@ VertexOut VS(VertexInput IN)
 
 float4 PS(VertexOut IN) : SV_Target
 {
-	// TO BE ADDED TO DATA
-	const float4 ambientLight = 0.1f * float4(1.0f, 1.0f, 1.0f, 1.0f);
-
 	Material mat;
 	mat.Albedo = AlbedoTexture.Sample(s_LinearWrap, IN.UV);
 	mat.FresnelR0 = float3(0.05f, 0.05f, 0.05f);
 	mat.Roughness = 0.2f;
-	//
 
 	float3 normal = normalize(IN.Normal);
 	float3 view = normalize(CamData.Position - IN.WorldPosition);
 
-	float4 litColor = ambientLight * mat.Albedo;
+	float4 litColor = float4(0.0f, 0.0f, 0.0f, 0.0f);
 
 	uint numLights, lightStride;
 	Lights.GetDimensions(numLights, lightStride);
@@ -99,6 +95,9 @@ float4 PS(VertexOut IN) : SV_Target
 			break;
 		case 3:
 			litColor.rgb += ComputeSpotLight(l, mat, IN.WorldPosition, normal, view);
+			break;
+		case 4:
+			litColor.rgb += ComputeAmbientLight(l, mat);
 			break;
 		}
 	}

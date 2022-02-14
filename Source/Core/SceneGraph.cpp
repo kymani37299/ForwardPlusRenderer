@@ -63,6 +63,14 @@ Light Light::CreateDirectional(Float3 direction, Float3 color)
 	return l;
 }
 
+Light Light::CreateAmbient(Float3 color)
+{
+	Light l{};
+	l.Type = LT_Ambient;
+	l.Strength = color;
+	return l;
+}
+
 void SceneGraph::UpdateRenderData(ID3D11DeviceContext1* context)
 {
 	for (Entity& e : Entities)

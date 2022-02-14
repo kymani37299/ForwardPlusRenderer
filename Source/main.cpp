@@ -38,8 +38,8 @@ class GeometryRenderPass : public RenderPass
 public:
 	void OnInit(ID3D11DeviceContext1* context) override
 	{
+		MainSceneGraph.Lights.push_back(Light::CreateAmbient(Float3(0.1f, 0.1f, 0.15f)));
 		MainSceneGraph.Lights.push_back(Light::CreateDirectional(Float3(-1.0f, -1.0f, -1.0f), Float3(0.5f, 0.5f, 0.5f)));
-		MainSceneGraph.Lights.push_back(Light::CreateDirectional(Float3(1.0f, -1.0f, -1.0f), Float3(0.3f, 0.0f, 0.8f)));
 
 		Entity sponza = SceneLoading::LoadEntity("Resources/sponza/sponza.gltf");
 		sponza.Scale *= 0.1f;

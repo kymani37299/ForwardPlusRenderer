@@ -7,9 +7,9 @@ struct Material
 
 struct Light
 {
-	uint Type;			// 1 - Dir, 2 - Point, 3 - Spot
+	uint Type;			// 1 - Dir, 2 - Point, 3 - Spot, 4 - Ambient
 	float3 Position;	// Point
-	float3 Strength;
+	float3 Strength;	// All
 	float2 Falloff;		// Point/Spot (Start, End)
 	float3 Direction;	// Dir/Spot
 	float SpotPower;	// Spot
@@ -91,4 +91,9 @@ float3 ComputeSpotLight(Light light, Material mat, float3 pos, float3 normal, fl
 {
 	// TODO
 	return float3(0.0f, 0.0f, 0.0f);
+}
+
+float3 ComputeAmbientLight(Light light, Material mat)
+{
+	return light.Strength * mat.Albedo;
 }

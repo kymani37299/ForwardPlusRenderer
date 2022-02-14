@@ -56,16 +56,18 @@ enum LightType : uint32_t
 	LT_Invalid = 0,
 	LT_Directional = 1,
 	LT_Point = 2,
-	LT_Spot = 3
+	LT_Spot = 3,
+	LT_Ambient = 4,
 };
 
 struct Light
 {
 	static Light CreateDirectional(Float3 direction, Float3 color);
+	static Light CreateAmbient(Float3 color);
 
 	LightType Type = LT_Invalid;
 	Float3 Position = { 0.0f, 0.0f, 0.0f };		// Point
-	Float3 Strength = { 0.0f, 0.0f, 0.0f };		// Dir/Spot/Point
+	Float3 Strength = { 0.0f, 0.0f, 0.0f };		// Dir/Spot/Point/Ambient
 	Float2 Falloff = { 0.0f, 0.0f };			// Point/Spot (Start, End)
 	Float3 Direction = { 0.0f, 0.0f, 0.0f };	// Dir/Spot
 	float SpotPower = 0.0f;						// Spot
