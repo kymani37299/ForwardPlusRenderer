@@ -7,11 +7,11 @@ struct Material
 
 struct Light
 {
-	float3 Position; // Dir/Point/Spot
-	float3 Strength; // Point/Spot
-	float2 Falloff; // Dir/Spot (Start, End)
-	float3 Direction; // Point/Spot
-	float SpotPower; // Spot
+	float3 Position;	// Point
+	float3 Strength;
+	float2 Falloff;		// Point/Spot (Start, End)
+	float3 Direction;	// Dir/Spot
+	float SpotPower;	// Spot
 };
 
 // Linear falloff.

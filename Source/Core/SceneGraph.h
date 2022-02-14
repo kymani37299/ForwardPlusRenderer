@@ -51,8 +51,27 @@ struct Camera
 	BufferID CameraBuffer = BufferID_Invalid;
 };
 
+enum LightType : uint32_t
+{
+	Invalid,
+	Directional,
+	Point,
+	Spot
+};
+
+struct Light
+{
+	LightType Type = Invalid;
+	Float3 Position = { 0.0f, 0.0f, 0.0f };		// Point
+	Float3 Strength = { 0.0f, 0.0f, 0.0f };		// Dir/Spot/Point
+	Float2 Falloff = { 0.0f, 0.0f };			// Point/Spot (Start, End)
+	Float3 Direction = { 0.0f, 0.0f, 0.0f };	// Dir/Spot
+	float SpotPower = 0.0f;						// Spot
+};
+
 struct SceneGraph
 {
 	Camera MainCamera{ {0.0f, 2.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, 75.0f };
 	std::vector<Entity> Entities;
+	std::vector<Light> Lights;
 };

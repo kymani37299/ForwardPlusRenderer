@@ -72,7 +72,7 @@ void Device::DeferredInit()
     };
 
     m_CopyShader = GFX::CreateShader("Source/Render/Shaders/copy.hlsl");
-    m_QuadBuffer = GFX::CreateVertexBuffer(fcVBData.size() * sizeof(FCVert), sizeof(FCVert), fcVBData.data());
+    m_QuadBuffer = GFX::CreateVertexBuffer<FCVert>(fcVBData.size(), fcVBData.data());
 
     GFX::Cmd::ResetContext(m_Context.Get());
 }

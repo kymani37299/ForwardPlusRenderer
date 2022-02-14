@@ -16,3 +16,19 @@ struct RenderTargetID
 	TextureID DepthTexture = TextureID_Invalid;
 };
 
+enum ResourceCreationFlags : uint64_t
+{
+	None = 0,
+
+	// Bindings
+	RCF_Bind_VB = 1 << 0,
+	RCF_Bind_IB = RCF_Bind_VB << 1,
+	RCF_Bind_CB = RCF_Bind_IB << 1,
+	RCF_Bind_SB = RCF_Bind_CB << 1,
+	RCF_Bind_UAV = RCF_Bind_SB << 1,
+
+	// Access
+	RCF_CPU_Write = RCF_Bind_UAV << 1,
+	RCF_CPU_Read = RCF_CPU_Write << 1,
+};
+

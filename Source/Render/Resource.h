@@ -3,6 +3,39 @@
 #include "Render/ResourceID.h"
 #include "Render/RenderAPI.h"
 
+inline D3D11_USAGE GetUsageFlags(uint64_t creationFlags)
+{
+	if (creationFlags & RCF_CPU_Write) return D3D11_USAGE_DYNAMIC;
+	if (creationFlags & RCF_CPU_Read) return D3D11_USAGE_DEFAULT;
+	return D3D11_USAGE_IMMUTABLE;
+}
+
+inline uint32_t GetBindFlags(uint64_t creationFlags)
+{
+	uint32_t flags = 0;
+	if (creationFlags & RCF_Bind_VB) flags  |= D3D11_BIND_VERTEX_BUFFER;
+	if (creationFlags & RCF_Bind_IB) flags  |= D3D11_BIND_INDEX_BUFFER;
+	if (creationFlags & RCF_Bind_CB) flags  |= D3D11_BIND_CONSTANT_BUFFER;
+	if (creationFlags & RCF_Bind_SB) flags  |= D3D11_BIND_SHADER_RESOURCE;
+	if (creationFlags & RCF_Bind_UAV) flags |= D3D11_BIND_SHADER_RESOURCE;
+	return flags;
+}
+
+inline uint32_t GetCPUAccessFlags(uint64_t creationFlags)
+{
+	uint32_t flags = 0;
+	if (creationFlags & RCF_CPU_Write) flags |= D3D11_CPU_ACCESS_WRITE;
+	if (creationFlags & RCF_CPU_Read) flags |= D3D11_CPU_ACCESS_READ;
+	return flags;
+}
+
+inline uint32_t GetMiscFlags(uint64_t creationFlags)
+{
+	uint32_t flags = 0;
+	if (creationFlags & RCF_Bind_SB) flags |= D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+	return flags;
+}
+
 struct Buffer
 {
 	// DX

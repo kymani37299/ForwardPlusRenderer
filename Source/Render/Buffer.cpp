@@ -5,7 +5,7 @@
 
 namespace GFX
 {
-	BufferID CreateBuffer(uint64_t byteSize, uint64_t elementStride, D3D11_USAGE usageFlags, uint32_t bindFlags, uint32_t cpuAccessFlags, const void* initData = nullptr)
+	BufferID CreateBuffer(uint64_t byteSize, uint64_t elementStride, uint64_t creationFlags, const void* initData)
 	{
 		BufferID id;
 		Buffer& buffer = Storage::CreateBuffer(id);
@@ -22,30 +22,17 @@ namespace GFX
 
 		D3D11_BUFFER_DESC bufferDesc = {};
 		bufferDesc.ByteWidth = byteSize;
-		bufferDesc.Usage = usageFlags;
-		bufferDesc.BindFlags = bindFlags;
-		bufferDesc.CPUAccessFlags = cpuAccessFlags;
-		bufferDesc.MiscFlags = 0;
-		bufferDesc.StructureByteStride = 0;
+		bufferDesc.Usage = GetUsageFlags(creationFlags);
+		bufferDesc.BindFlags = GetBindFlags(creationFlags);
+		bufferDesc.CPUAccessFlags = GetCPUAccessFlags(creationFlags);
+		bufferDesc.MiscFlags = GetMiscFlags(creationFlags);
+		bufferDesc.StructureByteStride = buffer.ElementStride;
 
 		API_CALL(Device::Get()->GetHandle()->CreateBuffer(&bufferDesc, subresourceData, buffer.Handle.GetAddressOf()));
 
+		// TODO: Create SRV if needed
+
 		return id;
-	}
-
-	BufferID CreateVertexBuffer(uint64_t byteSize, uint64_t elementStride, const void* initData)
-	{
-		return CreateBuffer(byteSize, elementStride, D3D11_USAGE_IMMUTABLE, D3D11_BIND_VERTEX_BUFFER, 0, initData);
-	}
-
-	BufferID CreateIndexBuffer(uint64_t byteSize, uint32_t elementStride, const void* initData)
-	{
-		return CreateBuffer(byteSize, elementStride, D3D11_USAGE_IMMUTABLE, D3D11_BIND_INDEX_BUFFER, 0, initData);
-	}
-
-	BufferID CreateConstantBuffer(uint64_t bufferSize)
-	{
-		return CreateBuffer(bufferSize, bufferSize, D3D11_USAGE_DYNAMIC, D3D11_BIND_CONSTANT_BUFFER, D3D11_CPU_ACCESS_WRITE);
 	}
 
 	ID3D11Buffer* DX_GetBuffer(BufferID bufferID)

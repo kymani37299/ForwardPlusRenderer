@@ -23,7 +23,7 @@ void Entity::UpdateBuffer(ID3D11DeviceContext1* context)
 
 	EntityCB entityCB{};
 	entityCB.ModelToWorld = XMMatrixTranspose(XMMatrixAffineTransformation(Scale.ToXM(), Float3(0.0f, 0.0f, 0.0f).ToXM(), Float4(0.0f, 0.0f, 0.0f, 0.0f).ToXM(), Position.ToXM()));
-	if(EntityBuffer == BufferID_Invalid) EntityBuffer = GFX::CreateConstantBuffer(sizeof(EntityCB));
+	if(EntityBuffer == BufferID_Invalid) EntityBuffer = GFX::CreateConstantBuffer<EntityCB>();
 	GFX::Cmd::UploadToBuffer(context, EntityBuffer, &entityCB);
 }
 
@@ -50,6 +50,6 @@ void Camera::UpdateBuffer(ID3D11DeviceContext1* context)
 	cameraCB.WorldToView = XMMatrixTranspose(XMMatrixLookAtLH(Position.ToXM(), (Position + Forward).ToXM(), Up.ToXM()));
 	cameraCB.ViewToClip = XMMatrixTranspose(XMMatrixPerspectiveFovLH(DegreesToRadians(FOV), aspectRatio, 0.1f, 1000.0f));
 	cameraCB.Position = Position;
-	if (CameraBuffer == BufferID_Invalid) CameraBuffer = GFX::CreateConstantBuffer(sizeof(CameraCB));
+	if (CameraBuffer == BufferID_Invalid) CameraBuffer = GFX::CreateConstantBuffer<CameraCB>();
 	GFX::Cmd::UploadToBuffer(context, CameraBuffer, &cameraCB);
 }
