@@ -41,6 +41,8 @@ public:
 		Entity sponza = SceneLoading::LoadEntity("Resources/sponza/sponza.gltf");
 		sponza.Scale *= 0.1f;
 		MainSceneGraph.Entities.push_back(std::move(sponza));
+
+		//MainSceneGraph.Entities.push_back(SceneLoading::LoadEntity("Resources/cube/cube.gltf"));
 		for (Entity& e : MainSceneGraph.Entities) e.UpdateBuffer(context);
 		m_Shader = GFX::CreateShader("Source/Shaders/geometry.hlsl");
 	}

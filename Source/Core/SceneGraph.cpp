@@ -40,6 +40,7 @@ void Camera::UpdateBuffer(ID3D11DeviceContext1* context)
 	{
 		XMMATRIX WorldToView;
 		XMMATRIX ViewToClip;
+		Float3 Position;
 	};
 
 	float aspectRatio = (float) AppConfig.WindowWidth / AppConfig.WindowHeight;
@@ -48,6 +49,7 @@ void Camera::UpdateBuffer(ID3D11DeviceContext1* context)
 	CameraCB cameraCB{};
 	cameraCB.WorldToView = XMMatrixTranspose(XMMatrixLookAtLH(Position.ToXM(), (Position + Forward).ToXM(), Up.ToXM()));
 	cameraCB.ViewToClip = XMMatrixTranspose(XMMatrixPerspectiveFovLH(DegreesToRadians(FOV), aspectRatio, 0.1f, 1000.0f));
+	cameraCB.Position = Position;
 	if (CameraBuffer == BufferID_Invalid) CameraBuffer = GFX::CreateConstantBuffer(sizeof(CameraCB));
 	GFX::Cmd::UploadToBuffer(context, CameraBuffer, &cameraCB);
 }
