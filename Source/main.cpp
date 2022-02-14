@@ -1,5 +1,6 @@
 #include <Windows.h>
 #include <iostream>
+#include <time.h>
 
 #include "Common.h"
 #include "Core/Renderer.h"
@@ -23,6 +24,7 @@ public:
 	AppScope()
 	{
 		Window::Init();
+		srand((uint32_t)time(0));
 	}
 
 	~AppScope()
@@ -30,6 +32,18 @@ public:
 		Window::Destroy();
 	}
 };
+
+// [0,1]
+float Rand()
+{
+	return (float) rand() / RAND_MAX;
+}
+
+// [-1,1]
+float Rand2()
+{
+	return Rand() * 2.0f - 1.0f;
+}
 
 SceneGraph MainSceneGraph;
 
@@ -39,8 +53,17 @@ public:
 	void OnInit(ID3D11DeviceContext1* context) override
 	{
 		MainSceneGraph.Lights.push_back(Light::CreateAmbient(Float3(0.1f, 0.1f, 0.15f)));
-		MainSceneGraph.Lights.push_back(Light::CreateDirectional(Float3(-1.0f, -1.0f, -1.0f), Float3(0.5f, 0.5f, 0.5f)));
+		MainSceneGraph.Lights.push_back(Light::CreateDirectional(Float3(-1.0f, -1.0f, -1.0f), Float3(0.2f, 0.2f, 0.23f)));
 
+		constexpr uint32_t NUM_LIGHTS = 5000;
+		for (uint32_t i = 0; i < NUM_LIGHTS; i++)
+		{
+			Float3 position = Float3(200.0f, 100.0f, 200.0f) * Float3(Rand2(), Rand2(), Rand2());
+			Float3 color = Float3(Rand(), Rand(), Rand());
+			Float2 falloff = Float2(1.0f + 3.0f * Rand(), 5.0f + 10.0f * Rand());
+			MainSceneGraph.Lights.push_back(Light::CreatePoint(position, color, falloff));
+		}
+		
 		Entity sponza = SceneLoading::LoadEntity("Resources/sponza/sponza.gltf");
 		sponza.Scale *= 0.1f;
 		MainSceneGraph.Entities.push_back(std::move(sponza));

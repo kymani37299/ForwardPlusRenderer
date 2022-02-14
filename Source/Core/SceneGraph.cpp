@@ -71,6 +71,16 @@ Light Light::CreateAmbient(Float3 color)
 	return l;
 }
 
+Light Light::CreatePoint(Float3 position, Float3 color, Float2 falloff)
+{
+	Light l{};
+	l.Type = LT_Point;
+	l.Position = position;
+	l.Strength = color;
+	l.Falloff = falloff;
+	return l;
+}
+
 void SceneGraph::UpdateRenderData(ID3D11DeviceContext1* context)
 {
 	for (Entity& e : Entities)

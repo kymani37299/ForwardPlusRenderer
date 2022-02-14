@@ -64,6 +64,7 @@ struct Light
 {
 	static Light CreateDirectional(Float3 direction, Float3 color);
 	static Light CreateAmbient(Float3 color);
+	static Light CreatePoint(Float3 position, Float3 color, Float2 falloff);
 
 	LightType Type = LT_Invalid;
 	Float3 Position = { 0.0f, 0.0f, 0.0f };		// Point
