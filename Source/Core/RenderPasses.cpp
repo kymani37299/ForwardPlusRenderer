@@ -38,10 +38,12 @@ void ScenePrepareRenderPass::OnInit(ID3D11DeviceContext1* context)
 		MainSceneGraph.Lights.push_back(Light::CreatePoint(position, color, falloff));
 	}
 
-	Entity sponza = SceneLoading::LoadEntity("Resources/sponza/sponza.gltf");
-	sponza.Scale *= 0.1f;
-	MainSceneGraph.Entities.push_back(std::move(sponza));
-	MainSceneGraph.Entities.push_back(SceneLoading::LoadEntity("Resources/cube/cube.gltf"));
+	MainSceneGraph.Entities.resize(2);
+	MainSceneGraph.Entities[0].Scale *= 0.1f;
+
+	SceneLoading::LoadEntity("Resources/sponza/sponza.gltf", MainSceneGraph.Entities[0]);
+	SceneLoading::LoadEntity("Resources/cube/cube.gltf", MainSceneGraph.Entities[1]);
+	
 	MainSceneGraph.UpdateRenderData(context);
 }
 
@@ -73,20 +75,19 @@ void DepthPrepassRenderPass::OnDraw(ID3D11DeviceContext1* context)
 		context->PSSetConstantBuffers(0, 1, &cbv);
 	}
 
-	for (Entity e : MainSceneGraph.Entities)
+	for (Entity& e : MainSceneGraph.Entities)
 	{
 		{
 			ID3D11Buffer* cbv = GFX::DX_GetBuffer(e.EntityBuffer);
 			context->VSSetConstantBuffers(1, 1, &cbv);
 		}
-
-		for (Drawable d : e.Drawables)
-		{
-			Mesh& m = d.Mesh;
+		const auto func = [&context](const Drawable& d) {
+			const Mesh& m = d.Mesh;
 			GFX::Cmd::BindVertexBuffers(context, { m.Position, m.UV, m.Normal, m.Tangent });
 			GFX::Cmd::BindIndexBuffer(context, m.Indices);
 			context->DrawIndexed(GFX::GetNumBufferElements(m.Indices), 0, 0);
-		}
+		};
+		e.Drawables.ForEach(func);
 	}
 }
 
@@ -119,21 +120,20 @@ void GeometryRenderPass::OnDraw(ID3D11DeviceContext1* context)
 		context->PSSetShaderResources(3, 1, &srv);
 	}
 
-	for (Entity e : MainSceneGraph.Entities)
+	for (Entity& e : MainSceneGraph.Entities)
 	{
 		{
 			ID3D11Buffer* cbv = GFX::DX_GetBuffer(e.EntityBuffer);
 			context->VSSetConstantBuffers(1, 1, &cbv);
 		}
 
-		for (Drawable d : e.Drawables)
-		{
+		const auto func = [&context](const Drawable& d) {
 			{
 				ID3D11Buffer* cbv = GFX::DX_GetBuffer(d.Material.MaterialParams);
 				context->PSSetConstantBuffers(2, 1, &cbv);
 			}
 
-			Mesh& m = d.Mesh;
+			const Mesh& m = d.Mesh;
 			GFX::Cmd::BindVertexBuffers(context, { m.Position, m.UV, m.Normal, m.Tangent });
 			GFX::Cmd::BindIndexBuffer(context, m.Indices);
 
@@ -141,6 +141,8 @@ void GeometryRenderPass::OnDraw(ID3D11DeviceContext1* context)
 			context->PSSetShaderResources(0, 3, srv);
 
 			context->DrawIndexed(GFX::GetNumBufferElements(m.Indices), 0, 0);
-		}
+		};
+
+		e.Drawables.ForEach(func);
 	}
 }

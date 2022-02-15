@@ -4,6 +4,7 @@
 #define CGLTF_IMPLEMENTATION
 #include <cgltf.h>
 
+#include "Loading/LoadingThread.h"
 #include "Render/Buffer.h"
 #include "Render/Texture.h"
 #include "Utility/PathUtility.h"
@@ -138,19 +139,17 @@ namespace SceneLoading
 		}
 	}
 	
-	Entity LoadEntity(const std::string& path)
+	void LoadEntity(const std::string& path, Entity& entityOut)
 	{
 		const std::string& ext = PathUtility::GetFileExtension(path);
 		if (ext != "gltf")
 		{
 			ASSERT(0, "[SceneLoading] For now we only support glTF 3D format.");
-			return Entity{};
+			return;
 		}
 
 		LoadingContext context{};
 		context.RelativePath = PathUtility::GetPathWitoutFile(path);
-
-		Entity entity;
 
 		cgltf_options options = {};
 		cgltf_data* data = NULL;
@@ -162,11 +161,70 @@ namespace SceneLoading
 			cgltf_mesh* meshData = (data->meshes + i);
 			for (size_t j = 0; j < meshData->primitives_count; j++)
 			{
-				entity.Drawables.push_back(LoadDrawable(context, meshData->primitives + j));
+				entityOut.Drawables.Add(LoadDrawable(context, meshData->primitives + j));
 			}
 		}
 		cgltf_free(data);
+	}
 
-		return entity;
+	class EntityLoadingTask : public LoadingTask
+	{
+	public:
+		EntityLoadingTask(const std::string& path, Entity& entity) :
+			m_Path(path),
+			m_Entity(entity) {}
+
+
+		void Run(ID3D11DeviceContext1* context) override
+		{
+			const std::string& ext = PathUtility::GetFileExtension(m_Path);
+			if (ext != "gltf")
+			{
+				ASSERT(0, "[SceneLoading] For now we only support glTF 3D format.");
+				return;
+			}
+
+			Entity entity;
+
+			cgltf_options options = {};
+			cgltf_data* data = NULL;
+			CGTF_CALL(cgltf_parse_file(&options, m_Path.c_str(), &data));
+			CGTF_CALL(cgltf_load_buffers(&options, data, m_Path.c_str()));
+
+			LoadingContext loadingContext{};
+			loadingContext.RelativePath = PathUtility::GetPathWitoutFile(m_Path);
+
+			std::vector<Drawable> drawables;
+			for (size_t i = 0; i < data->meshes_count; i++)
+			{
+				cgltf_mesh* meshData = (data->meshes + i);
+				for (size_t j = 0; j < meshData->primitives_count; j++)
+				{
+					if (ShouldStop()) break; // Something requested stop
+
+					Drawable d = LoadDrawable(loadingContext, meshData->primitives + j);
+					drawables.push_back(d);
+
+					if (drawables.size() >= BATCH_SIZE)
+					{
+						entity.Drawables.AddAll(drawables);
+					}
+					
+				}
+			}
+			entity.Drawables.AddAll(drawables);
+			cgltf_free(data);
+		}
+
+	private:
+		std::string m_Path;
+		Entity& m_Entity;
+
+		static constexpr uint32_t BATCH_SIZE = 4;
+	};
+
+	void LoadEntityInBackground(const std::string& path, Entity& entityOut)
+	{
+		LoadingThread::Get()->Submit(new EntityLoadingTask(path, entityOut));
 	}
 }

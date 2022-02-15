@@ -4,5 +4,6 @@
 
 namespace SceneLoading
 {
-	Entity LoadEntity(const std::string& path);
+	void LoadEntityInBackground(const std::string& path, Entity& entityOut);
+	void LoadEntity(const std::string& path, Entity& entityOut);
 }

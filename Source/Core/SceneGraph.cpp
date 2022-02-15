@@ -48,7 +48,8 @@ void Entity::UpdateBuffer(ID3D11DeviceContext1* context)
 	if(EntityBuffer == BufferID_Invalid) EntityBuffer = GFX::CreateConstantBuffer<EntityCB>();
 	GFX::Cmd::UploadToBuffer(context, EntityBuffer, &entityCB, sizeof(EntityCB));
 
-	for (Drawable& d : Drawables) d.Material.UpdateBuffer(context);
+	const auto func = [&context](Drawable& d) { d.Material.UpdateBuffer(context); };
+	Drawables.ForEach(func);
 }
 
 Camera::Camera(Float3 position, Float3 forward, float fov):

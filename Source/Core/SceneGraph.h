@@ -4,6 +4,7 @@
 
 #include "Common.h"
 #include "Render/ResourceID.h"
+#include "Utility/Multithreading.h"
 
 struct ID3D11DeviceContext1;
 
@@ -46,7 +47,7 @@ struct Entity
 	Float3 Position = Float3(0.0f, 0.0f, 0.0f);
 	Float3 Scale = Float3(1.0f, 1.0f, 1.0f);
 
-	std::vector<Drawable> Drawables;
+	MTR::MutexVector<Drawable> Drawables;
 	BufferID EntityBuffer = BufferID_Invalid;
 };
 

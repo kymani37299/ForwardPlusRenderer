@@ -182,6 +182,7 @@
     <ClInclude Include="Source\Core\RenderPass.h" />
     <ClInclude Include="Source\Core\RenderPasses.h" />
     <ClInclude Include="Source\Core\SceneGraph.h" />
+    <ClInclude Include="Source\Loading\LoadingThread.h" />
     <ClInclude Include="Source\Loading\SceneLoading.h" />
     <ClInclude Include="Source\Render\Buffer.h" />
     <ClInclude Include="Source\Render\Commands.h" />
@@ -196,6 +197,7 @@
     <ClInclude Include="Source\System\Input.h" />
     <ClInclude Include="Source\System\VSConsoleRedirect.h" />
     <ClInclude Include="Source\System\Window.h" />
+    <ClInclude Include="Source\Utility\Multithreading.h" />
     <ClInclude Include="Source\Utility\PathUtility.h" />
     <ClInclude Include="Source\Utility\StringUtility.h" />
     <ClInclude Include="Source\Utility\Timer.h" />

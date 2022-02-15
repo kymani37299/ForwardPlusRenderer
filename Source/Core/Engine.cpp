@@ -5,15 +5,19 @@
 #include "Core/Renderer.h"
 #include "Core/SceneGraph.h"
 #include "Core/RenderPasses.h"
+#include "Loading/LoadingThread.h"
 #include "System/ApplicationConfiguration.h"
 #include "System/Window.h"
 #include "System/Input.h"
 
 ApplicationConfiguration AppConfig;
+LoadingThread* LoadingThread::s_Instance = nullptr;
+PoisonPillTask* PoisonPillTask::s_Instance = nullptr;
 
 Engine::Engine()
 {
 	Window::Init();
+	LoadingThread::Init();
 	m_Renderer = new Renderer();
 	m_Renderer->AddRenderPass(new ScenePrepareRenderPass());
 	m_Renderer->AddRenderPass(new DepthPrepassRenderPass());
@@ -23,6 +27,7 @@ Engine::Engine()
 Engine::~Engine()
 {
 	delete m_Renderer;
+	LoadingThread::Destroy();
 	Window::Destroy();
 }
 
