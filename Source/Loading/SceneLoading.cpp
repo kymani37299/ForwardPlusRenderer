@@ -92,26 +92,34 @@ namespace SceneLoading
 			return mesh;
 		}
 
+		TextureID LoadTexture(const LoadingContext& context, cgltf_texture* texture, cgltf_float fallback[4])
+		{
+			if (texture)
+			{
+				const std::string textureURI = texture->image->uri;
+				const std::string texutrePath = context.RelativePath + "/" + textureURI;
+				return GFX::LoadTexture(texutrePath);
+			}
+			else
+			{
+				ColorUNORM color{ fallback[0], fallback[1], fallback[2], fallback[3] };
+				return GFX::CreateTexture(1, 1, DXGI_FORMAT_R8G8B8A8_UNORM, &color);
+			}
+		}
+
 		Material LoadMaterial(const LoadingContext& context, cgltf_material* materialData)
 		{
 			ASSERT(materialData->has_pbr_metallic_roughness, "[SceneLoading] Every material must have a base color texture!");
 
+			cgltf_pbr_metallic_roughness& mat = materialData->pbr_metallic_roughness;
+			cgltf_float metallicRoughnessColor[] = { mat.metallic_factor, mat.roughness_factor, 0.0f, 0.0f };
+			cgltf_float normalColor[] = { 0.5f, 0.5f, 1.0f, 0.0f };
+
 			Material material;
 			material.UseBlend = materialData->alpha_mode == cgltf_alpha_mode_blend;
-
-			if (materialData->pbr_metallic_roughness.base_color_texture.texture)
-			{
-				std::string imageURI = materialData->pbr_metallic_roughness.base_color_texture.texture->image->uri;
-				std::string diffuseTexturePath = context.RelativePath + "/" + imageURI;
-				material.Albedo = GFX::LoadTexture(diffuseTexturePath);
-			}
-			else
-			{
-				cgltf_float* diffuseColorFloat = materialData->pbr_metallic_roughness.base_color_factor;
-				ColorUNORM diffuseColor{ diffuseColorFloat[0],diffuseColorFloat[1],diffuseColorFloat[2],diffuseColorFloat[3] };
-				material.Albedo = GFX::CreateTexture(1, 1, DXGI_FORMAT_R8G8B8A8_UNORM, &diffuseColor);
-			}
-			
+			material.Albedo = LoadTexture(context, mat.base_color_texture.texture, mat.base_color_factor);
+			material.MetallicRoughness = LoadTexture(context, mat.metallic_roughness_texture.texture, metallicRoughnessColor);
+			material.Normal = LoadTexture(context, materialData->normal_texture.texture, normalColor);
 			return material;
 		}
 

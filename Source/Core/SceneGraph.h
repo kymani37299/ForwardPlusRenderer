@@ -11,6 +11,8 @@ struct Material
 {
 	bool UseBlend = false;
 	TextureID Albedo = TextureID_Invalid;
+	TextureID MetallicRoughness = TextureID_Invalid;
+	TextureID Normal = TextureID_Invalid;
 };
 
 struct Mesh

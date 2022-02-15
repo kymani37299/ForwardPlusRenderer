@@ -116,7 +116,7 @@ void GeometryRenderPass::OnDraw(ID3D11DeviceContext1* context)
 
 	{
 		ID3D11ShaderResourceView* srv = GFX::DX_GetBufferSRV(MainSceneGraph.LightsBuffer);
-		context->PSSetShaderResources(1, 1, &srv);
+		context->PSSetShaderResources(3, 1, &srv);
 	}
 
 	for (Entity e : MainSceneGraph.Entities)
@@ -132,8 +132,8 @@ void GeometryRenderPass::OnDraw(ID3D11DeviceContext1* context)
 			GFX::Cmd::BindVertexBuffers(context, { m.Position, m.UV, m.Normal, m.Tangent });
 			GFX::Cmd::BindIndexBuffer(context, m.Indices);
 
-			ID3D11ShaderResourceView* srv = GFX::DX_GetTextureSRV(d.Material.Albedo);
-			context->PSSetShaderResources(0, 1, &srv);
+			ID3D11ShaderResourceView* srv[] = { GFX::DX_GetTextureSRV(d.Material.Albedo), GFX::DX_GetTextureSRV(d.Material.MetallicRoughness), GFX::DX_GetTextureSRV(d.Material.Normal) };
+			context->PSSetShaderResources(0, 3, srv);
 
 			context->DrawIndexed(GFX::GetNumBufferElements(m.Indices), 0, 0);
 		}

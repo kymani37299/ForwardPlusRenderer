@@ -50,7 +50,10 @@ cbuffer SceneCB : register(b2)
 }
 
 Texture2D AlbedoTexture : register(t0);
-StructuredBuffer<Light> Lights : register(t1);
+Texture2D MetallicRoughnessTexture : register(t1);
+Texture2D NormalTexture : register(t2);
+
+StructuredBuffer<Light> Lights : register(t3);
 
 VertexOut VS(VertexInput IN)
 {
@@ -72,7 +75,7 @@ float4 PS(VertexOut IN) : SV_Target
 	Material mat;
 	mat.Albedo = AlbedoTexture.Sample(s_LinearWrap, IN.UV);
 	mat.FresnelR0 = float3(0.05f, 0.05f, 0.05f);
-	mat.Roughness = 0.2f;
+	mat.Roughness = MetallicRoughnessTexture.Sample(s_LinearWrap, IN.UV);
 
 	float3 normal = normalize(IN.Normal);
 	float3 view = normalize(CamData.Position - IN.WorldPosition);
