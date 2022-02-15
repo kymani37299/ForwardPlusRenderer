@@ -56,7 +56,7 @@ VertexOut VS(VertexInput IN)
 
 float4 PS(VertexOut IN) : SV_Target
 {
-	float4 albedo = AlbedoTexture.Sample(s_LinearWrap, IN.UV);
+	float4 albedo = AlbedoTexture.Sample(s_AnisoWrap, IN.UV);
 
 #ifdef ALPHA_DISCARD
 	if (albedo.a < 0.05f)

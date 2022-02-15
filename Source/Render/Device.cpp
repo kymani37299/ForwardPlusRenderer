@@ -95,7 +95,7 @@ void Device::DeferredInit()
 
 void Device::CreateStaticSamplers()
 {
-    m_StaticSamplers.resize(1);
+    m_StaticSamplers.resize(2);
 
     D3D11_SAMPLER_DESC samplerDesc{};
     
@@ -105,6 +105,13 @@ void Device::CreateStaticSamplers()
     samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
     samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
     m_Device->CreateSamplerState(&samplerDesc, &m_StaticSamplers[0]);
+
+    // s_AnisoWrap
+    samplerDesc.Filter = D3D11_FILTER_ANISOTROPIC;
+    samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+    samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+    samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+    m_Device->CreateSamplerState(&samplerDesc, &m_StaticSamplers[1]);
 }
 
 void Device::Present(RenderTargetID finalRT)
