@@ -29,7 +29,7 @@ public:
 	bool IsCursorShown() const { return  m_ShowCursor; }
 
 	void ShowCursor(bool show);
-
+	void AddToTitle(const std::string& title);
 private:
 	Window();
 

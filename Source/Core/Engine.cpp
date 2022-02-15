@@ -1,5 +1,7 @@
 #include "Engine.h"
 
+#include <sstream>
+
 #include "Core/Renderer.h"
 #include "Core/SceneGraph.h"
 #include "Core/RenderPasses.h"
@@ -42,9 +44,16 @@ void Engine::UpdateInput(float dt)
 
 void Engine::Run()
 {
-	float dt = m_FrameTimer.GetTimeMS();
 	while (Window::Get()->IsRunning())
 	{
+		const float dt = m_FrameTimer.GetTimeMS();
+
+		// Update frame time title
+		char* title = (char*)calloc(15, sizeof(char));
+		snprintf(title, 15, " (%.2f ms)", dt);
+		Window::Get()->AddToTitle(std::string(title));
+		free(title);
+
 		m_FrameTimer.Start();
 		WindowInput::InputFrameBegin();
 
