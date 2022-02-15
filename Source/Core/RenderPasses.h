@@ -7,6 +7,17 @@ class ScenePrepareRenderPass : public RenderPass
 {
 public:
 	void OnInit(ID3D11DeviceContext1* context) override;
+	void OnDraw(ID3D11DeviceContext1* context) override;
+};
+
+class DepthPrepassRenderPass : public RenderPass
+{
+public:
+	void OnInit(ID3D11DeviceContext1* context) override;
+	void OnDraw(ID3D11DeviceContext1* context) override;
+
+private:
+	ShaderID m_Shader;
 };
 
 class GeometryRenderPass : public RenderPass

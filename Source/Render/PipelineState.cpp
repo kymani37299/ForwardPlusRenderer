@@ -25,7 +25,7 @@ namespace GFX
 
 		ps.DS.DepthEnable = false;
         ps.DS.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-        ps.DS.DepthFunc = D3D11_COMPARISON_LESS;
+        ps.DS.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
 		ps.DS.StencilEnable = false;
         ps.DS.StencilReadMask = 0xff;
         ps.DS.StencilWriteMask = 0xff;

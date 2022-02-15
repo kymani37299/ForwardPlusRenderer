@@ -45,6 +45,51 @@ void ScenePrepareRenderPass::OnInit(ID3D11DeviceContext1* context)
 	MainSceneGraph.UpdateRenderData(context);
 }
 
+void ScenePrepareRenderPass::OnDraw(ID3D11DeviceContext1* context)
+{
+	MainSceneGraph.MainCamera.UpdateBuffer(context);
+}
+
+///////////////////////////////////////////////////
+///////			DepthPrepass			//////////
+/////////////////////////////////////////////////
+
+void DepthPrepassRenderPass::OnInit(ID3D11DeviceContext1* context)
+{
+	m_Shader = GFX::CreateShader("Source/Shaders/depth.hlsl", {}, SCF_VS);
+}
+
+void DepthPrepassRenderPass::OnDraw(ID3D11DeviceContext1* context)
+{
+	PipelineState pso = GFX::DefaultPipelineState();
+	pso.DS.DepthEnable = true;
+
+	GFX::Cmd::SetPipelineState(context, pso);
+	GFX::Cmd::BindShader(context, m_Shader, true);
+
+	{
+		ID3D11Buffer* cbv = GFX::DX_GetBuffer(MainSceneGraph.MainCamera.CameraBuffer);
+		context->VSSetConstantBuffers(0, 1, &cbv);
+		context->PSSetConstantBuffers(0, 1, &cbv);
+	}
+
+	for (Entity e : MainSceneGraph.Entities)
+	{
+		{
+			ID3D11Buffer* cbv = GFX::DX_GetBuffer(e.EntityBuffer);
+			context->VSSetConstantBuffers(1, 1, &cbv);
+		}
+
+		for (Drawable d : e.Drawables)
+		{
+			Mesh& m = d.Mesh;
+			GFX::Cmd::BindVertexBuffers(context, { m.Position, m.UV, m.Normal, m.Tangent });
+			GFX::Cmd::BindIndexBuffer(context, m.Indices);
+			context->DrawIndexed(GFX::GetNumBufferElements(m.Indices), 0, 0);
+		}
+	}
+}
+
 ///////////////////////////////////////////////////
 ///////			Geometry				//////////
 /////////////////////////////////////////////////
@@ -56,8 +101,6 @@ void GeometryRenderPass::OnInit(ID3D11DeviceContext1* context)
 
 void GeometryRenderPass::OnDraw(ID3D11DeviceContext1* context)
 {
-	MainSceneGraph.MainCamera.UpdateBuffer(context);
-
 	PipelineState pso = GFX::DefaultPipelineState();
 	pso.DS.DepthEnable = true;
 
