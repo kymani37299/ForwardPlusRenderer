@@ -84,3 +84,5 @@ struct SceneGraph
 
 	BufferID LightsBuffer = BufferID_Invalid;
 };
+
+extern SceneGraph MainSceneGraph;

@@ -4,6 +4,8 @@
 #include "Render/Buffer.h"
 #include "System/ApplicationConfiguration.h"
 
+SceneGraph MainSceneGraph;
+
 namespace
 {
 	float DegreesToRadians(float deg)

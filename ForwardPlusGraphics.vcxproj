@@ -159,7 +159,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Source\Core\Engine.cpp" />
     <ClCompile Include="Source\Core\Renderer.cpp" />
+    <ClCompile Include="Source\Core\RenderPasses.cpp" />
     <ClCompile Include="Source\Core\SceneGraph.cpp" />
     <ClCompile Include="Source\Loading\SceneLoading.cpp" />
     <ClCompile Include="Source\main.cpp" />
@@ -170,12 +172,15 @@
     <ClCompile Include="Source\Render\Resource.cpp" />
     <ClCompile Include="Source\Render\Shader.cpp" />
     <ClCompile Include="Source\Render\Texture.cpp" />
+    <ClCompile Include="Source\System\Input.cpp" />
     <ClCompile Include="Source\System\Window.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\Common.h" />
+    <ClInclude Include="Source\Core\Engine.h" />
     <ClInclude Include="Source\Core\Renderer.h" />
     <ClInclude Include="Source\Core\RenderPass.h" />
+    <ClInclude Include="Source\Core\RenderPasses.h" />
     <ClInclude Include="Source\Core\SceneGraph.h" />
     <ClInclude Include="Source\Loading\SceneLoading.h" />
     <ClInclude Include="Source\Render\Buffer.h" />
@@ -193,6 +198,7 @@
     <ClInclude Include="Source\System\Window.h" />
     <ClInclude Include="Source\Utility\PathUtility.h" />
     <ClInclude Include="Source\Utility\StringUtility.h" />
+    <ClInclude Include="Source\Utility\Timer.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
