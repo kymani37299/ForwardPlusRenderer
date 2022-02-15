@@ -6,7 +6,7 @@
 #include <d3d11_1.h>
 
 #ifdef DEBUG
-#define API_CALL(X) {HRESULT hr = X; ASSERT(SUCCEEDED(hr), "DX ERROR");}
+#define API_CALL(X) {HRESULT hr = X; ASSERT(SUCCEEDED(hr), "DX ERROR: " << hr);}
 #else
 #define API_CALL(X) X
 #endif // DEBUG

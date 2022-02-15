@@ -41,6 +41,22 @@ Device::Device()
 
     API_CALL(baseDeviceContext->QueryInterface(IID_PPV_ARGS(m_Context.GetAddressOf())));
     baseDeviceContext->Release();
+
+#ifdef DEBUG
+    ID3D11Debug* d3dDebug = nullptr;
+    m_Device->QueryInterface(__uuidof(ID3D11Debug), (void**)&d3dDebug);
+    if (d3dDebug)
+    {
+        ID3D11InfoQueue* d3dInfoQueue = nullptr;
+        if (SUCCEEDED(d3dDebug->QueryInterface(__uuidof(ID3D11InfoQueue), (void**)&d3dInfoQueue)))
+        {
+            d3dInfoQueue->SetBreakOnSeverity(D3D11_MESSAGE_SEVERITY_CORRUPTION, true);
+            d3dInfoQueue->SetBreakOnSeverity(D3D11_MESSAGE_SEVERITY_ERROR, true);
+            d3dInfoQueue->Release();
+        }
+        d3dDebug->Release();
+    }
+#endif // DEBUG
 }
 
 Device::~Device()
@@ -93,6 +109,7 @@ void Device::CreateStaticSamplers()
 
 void Device::Present(RenderTargetID finalRT)
 {
+    GFX::Cmd::MarkerBegin(m_Context.Get(), "Present");
     GFX::Cmd::BindShader(m_Context.Get(), m_CopyShader);
     m_Context->OMSetRenderTargets(1, m_SwapchainView.GetAddressOf(), nullptr);
     GFX::Cmd::BindVertexBuffer(m_Context.Get(), m_QuadBuffer);
@@ -105,6 +122,7 @@ void Device::Present(RenderTargetID finalRT)
     m_Context->PSSetShaderResources(0, 1, &srv);
 
     m_Swapchain->Present(AppConfig.VSyncEnabled ? 1 : 0, 0);
+    GFX::Cmd::MarkerEnd(m_Context.Get());
 }
 
 void Device::CreateSwapchain()

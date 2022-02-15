@@ -6,6 +6,8 @@
 class ScenePrepareRenderPass : public RenderPass
 {
 public:
+	virtual std::string GetPassName() const { return "Scene Prepare"; }
+
 	void OnInit(ID3D11DeviceContext1* context) override;
 	void OnDraw(ID3D11DeviceContext1* context) override;
 };
@@ -13,6 +15,8 @@ public:
 class DepthPrepassRenderPass : public RenderPass
 {
 public:
+	virtual std::string GetPassName() const { return "Depth Prepass"; }
+
 	void OnInit(ID3D11DeviceContext1* context) override;
 	void OnDraw(ID3D11DeviceContext1* context) override;
 
@@ -23,6 +27,8 @@ private:
 class GeometryRenderPass : public RenderPass
 {
 public:
+	virtual std::string GetPassName() const { return "Geometry"; }
+
 	void OnInit(ID3D11DeviceContext1* context) override;
 	void OnDraw(ID3D11DeviceContext1* context) override;
 

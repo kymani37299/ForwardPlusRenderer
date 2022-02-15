@@ -2,6 +2,7 @@
 
 #include "System/ApplicationConfiguration.h"
 #include "Render/Resource.h"
+#include "Utility/StringUtility.h"
 
 namespace GFX
 {
@@ -22,6 +23,22 @@ namespace GFX
 
 	namespace Cmd
 	{
+		static ComPtr<ID3DUserDefinedAnnotation> DebugMarkerHandle;
+
+		void MarkerBegin(ID3D11DeviceContext* context, const std::string& markerName)
+		{
+			if(!DebugMarkerHandle.Get()) API_CALL(context->QueryInterface(IID_PPV_ARGS(DebugMarkerHandle.GetAddressOf())));
+
+			std::wstring wDebugName = StringUtility::ToWideString(markerName);
+			DebugMarkerHandle->BeginEvent(wDebugName.c_str());
+		}
+		
+		void MarkerEnd(ID3D11DeviceContext* context)
+		{
+			ASSERT(DebugMarkerHandle, "[Cmd::MarkerEnd] Called MarkerEnd without MarkerBegin before it!");
+			DebugMarkerHandle->EndEvent();
+		}
+
 		void ResetContext(ID3D11DeviceContext1* context)
 		{
 			context->ClearState();

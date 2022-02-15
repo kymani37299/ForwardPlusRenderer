@@ -5,6 +5,7 @@
 #include "Render/Resource.h"
 #include "Render/Texture.h"
 #include "Render/Commands.h"
+#include "Utility/StringUtility.h"
 
 Renderer::Renderer()
 {
@@ -50,14 +51,18 @@ void Renderer::Update(float dt)
 void Renderer::Render()
 {
 	ID3D11DeviceContext1* context = Device::Get()->GetContext();
+	GFX::Cmd::MarkerBegin(context, "Frame");
 	GFX::Cmd::ResetContext(context);
 	GFX::Cmd::ClearRenderTarget(context, m_FinalRT);
 	GFX::Cmd::BindRenderTarget(context, m_FinalRT);
 	for (RenderPass* renderPass : m_Schedule)
 	{
+		GFX::Cmd::MarkerBegin(context, renderPass->GetPassName());
 		renderPass->OnDraw(context);
+		GFX::Cmd::MarkerEnd(context);
 	}
 	Device::Get()->Present(m_FinalRT);
+	GFX::Cmd::MarkerEnd(context);
 }
 
 void Renderer::AddRenderPass(RenderPass* renderPass)

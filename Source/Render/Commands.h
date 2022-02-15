@@ -10,6 +10,8 @@ namespace GFX
 {
 	namespace Cmd
 	{
+		void MarkerBegin(ID3D11DeviceContext* context, const std::string& markerName);
+		void MarkerEnd(ID3D11DeviceContext* context);
 		void ResetContext(ID3D11DeviceContext1* context);
 
 		void BindShader(ID3D11DeviceContext1* context, ShaderID shaderID, bool multiInput = false);
