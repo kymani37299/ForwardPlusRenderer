@@ -134,6 +134,23 @@ namespace GFX
             }
         }
 
+        D3D_SHADER_MACRO* CompileConfiguration(const std::vector<std::string>& configuration)
+        {
+            if (configuration.size() == 0) return nullptr;
+
+            const size_t numConfigs = configuration.size();
+            D3D_SHADER_MACRO* compiledConfig = (D3D_SHADER_MACRO*)malloc(sizeof(D3D_SHADER_MACRO) * (numConfigs + 1));
+            for (size_t i = 0; i < numConfigs; i++)
+            {
+                compiledConfig[i].Name = configuration[i].c_str();
+                compiledConfig[i].Definition = "";
+            }
+            compiledConfig[numConfigs].Name = NULL;
+            compiledConfig[numConfigs].Definition = NULL;
+
+            return compiledConfig;
+        }
+
         ID3DBlob* ReadBlobFromFile(const std::string& shaderCode, const std::string& entry, const std::string& hlsl_target, D3D_SHADER_MACRO* configuration)
         {
             ID3DBlob* shaderCompileErrorsBlob, * blob;
@@ -198,11 +215,13 @@ namespace GFX
     
     static const std::string SHADER_VERSION = "5_0";
 
-	ShaderID CreateShader(const std::string& path)
+	ShaderID CreateShader(const std::string& path, const std::vector<std::string>& defines, uint32_t creationFlags)
 	{
 		ShaderID id;
 		Shader& shader = Storage::CreateShader(id);
         shader.Path = path;
+        shader.Defines = defines;
+        shader.CreationFlags = creationFlags;
         ReloadShader(id);
         return id;
 	}
@@ -215,8 +234,10 @@ namespace GFX
         std::string shaderCode;
         ReadShaderFile(shader.Path, shaderCode);
 
-        ID3DBlob* vsBlob = ReadBlobFromFile(shaderCode, "VS", "vs_" + SHADER_VERSION, nullptr);
-        ID3DBlob* psBlob = ReadBlobFromFile(shaderCode, "PS", "ps_" + SHADER_VERSION, nullptr);
+        D3D_SHADER_MACRO* configuration = CompileConfiguration(shader.Defines);
+        ID3DBlob* vsBlob = shader.CreationFlags & SCF_VS ? ReadBlobFromFile(shaderCode, "VS", "vs_" + SHADER_VERSION, configuration) : nullptr;
+        ID3DBlob* psBlob = shader.CreationFlags & SCF_PS ? ReadBlobFromFile(shaderCode, "PS", "ps_" + SHADER_VERSION, configuration) : nullptr;
+        free(configuration);
 
         ID3D11Device* device = Device::Get()->GetHandle();
 

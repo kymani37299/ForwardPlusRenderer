@@ -20,7 +20,11 @@ float Rand2()
 	return Rand() * 2.0f - 1.0f;
 }
 
-void GeometryRenderPass::OnInit(ID3D11DeviceContext1* context)
+///////////////////////////////////////////////////
+///////			ScenePrepare			//////////
+/////////////////////////////////////////////////
+
+void ScenePrepareRenderPass::OnInit(ID3D11DeviceContext1* context)
 {
 	MainSceneGraph.Lights.push_back(Light::CreateAmbient(Float3(0.1f, 0.1f, 0.15f)));
 	MainSceneGraph.Lights.push_back(Light::CreateDirectional(Float3(-1.0f, -1.0f, -1.0f), Float3(0.2f, 0.2f, 0.23f)));
@@ -39,7 +43,14 @@ void GeometryRenderPass::OnInit(ID3D11DeviceContext1* context)
 	MainSceneGraph.Entities.push_back(std::move(sponza));
 	//MainSceneGraph.Entities.push_back(SceneLoading::LoadEntity("Resources/cube/cube.gltf"));
 	MainSceneGraph.UpdateRenderData(context);
+}
 
+///////////////////////////////////////////////////
+///////			Geometry				//////////
+/////////////////////////////////////////////////
+
+void GeometryRenderPass::OnInit(ID3D11DeviceContext1* context)
+{
 	m_Shader = GFX::CreateShader("Source/Shaders/geometry.hlsl");
 }
 

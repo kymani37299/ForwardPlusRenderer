@@ -15,6 +15,7 @@ Engine::Engine()
 {
 	Window::Init();
 	m_Renderer = new Renderer();
+	m_Renderer->AddRenderPass(new ScenePrepareRenderPass());
 	m_Renderer->AddRenderPass(new GeometryRenderPass());
 }
 

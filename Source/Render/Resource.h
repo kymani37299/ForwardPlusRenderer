@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include "Render/ResourceID.h"
 #include "Render/RenderAPI.h"
 
@@ -75,6 +77,8 @@ struct Shader
 	ComPtr<ID3D11InputLayout> MIL;
 
 	std::string Path;
+	std::vector<std::string> Defines;
+	uint32_t CreationFlags;
 };
 
 namespace GFX

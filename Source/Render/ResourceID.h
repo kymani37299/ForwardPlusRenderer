@@ -18,7 +18,7 @@ struct RenderTargetID
 
 enum ResourceCreationFlags : uint64_t
 {
-	None = 0,
+	RCF_None = 0,
 
 	// Bindings
 	RCF_Bind_VB = 1 << 0,
@@ -30,5 +30,13 @@ enum ResourceCreationFlags : uint64_t
 	// Access
 	RCF_CPU_Write = RCF_Bind_UAV << 1,
 	RCF_CPU_Read = RCF_CPU_Write << 1,
+};
+
+enum ShaderCreationFlags : uint32_t
+{
+	SCF_None = 0,
+
+	SCF_VS = 1 << 0,
+	SCF_PS = SCF_VS << 1,
 };
 
