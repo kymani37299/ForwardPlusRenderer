@@ -1,14 +1,4 @@
-struct CameraData
-{
-	float4x4 WorldToView;
-	float4x4 ViewToClip;
-	float3 Position;
-};
-
-struct EntityData
-{
-	float4x4 ModelToWorld;
-};
+#include "scene.h"
 
 cbuffer CameraCB : register(b0)
 {

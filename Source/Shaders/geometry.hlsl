@@ -1,4 +1,5 @@
 #include "samplers.h"
+#include "scene.h"
 #include "lighting.h"
 
 struct VertexInput
@@ -15,26 +16,6 @@ struct VertexOut
 	float3 WorldPosition : WORLD_POS;
 	float3 Normal : NORMAL;
 	float2 UV : TEXCOORD;
-};
-
-struct CameraData
-{
-	float4x4 WorldToView;
-	float4x4 ViewToClip;
-	float3 Position;
-};
-
-struct EntityData
-{
-	float4x4 ModelToWorld;
-};
-
-struct MaterialParams
-{
-	float3 AlbedoFactor;
-	float3 FresnelR0;
-	float MetallicFactor;
-	float RoughnessFactor;
 };
 
 cbuffer CameraCB : register(b0)
@@ -75,8 +56,15 @@ VertexOut VS(VertexInput IN)
 
 float4 PS(VertexOut IN) : SV_Target
 {
+	float4 albedo = AlbedoTexture.Sample(s_LinearWrap, IN.UV);
+
+#ifdef ALPHA_DISCARD
+	if (albedo.a < 0.05f)
+		clip(-1.0f);
+#endif // ALPHA_DISCARD
+
 	Material mat;
-	mat.Albedo = AlbedoTexture.Sample(s_LinearWrap, IN.UV);
+	mat.Albedo = albedo;
 	mat.Albedo.rgb *= MatParams.AlbedoFactor;
 	mat.FresnelR0 = MatParams.FresnelR0;
 	mat.Roughness = MetallicRoughnessTexture.Sample(s_LinearWrap, IN.UV).g * MatParams.RoughnessFactor;
@@ -109,11 +97,11 @@ float4 PS(VertexOut IN) : SV_Target
 		}
 	}
 
-#ifdef USE_ALPHA
+#ifdef ALPHA_BLEND
 	litColor.a = mat.Albedo.a;
 #else
 	litColor.a = 1.0f;
-#endif // USE_ALPHA
+#endif // ALPHA_BLEND
 
 	return litColor;
 }
