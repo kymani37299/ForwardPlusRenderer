@@ -1,14 +1,15 @@
 #pragma once
 
+#include "Render/Device.h"
 #include "Utility/Multithreading.h"
 
-struct ID3D11DeviceContext1;
+struct ID3D11DeviceContext;
 
 class LoadingTask
 {
 public:
     virtual ~LoadingTask() {}
-    virtual void Run(ID3D11DeviceContext1* context) = 0;
+    virtual void Run(ID3D11DeviceContext* context) = 0;
 
     inline bool ShouldStop() const { return !m_Running; }
     inline bool IsRunning() const { return m_Running; }
@@ -23,7 +24,7 @@ class PoisonPillTask : public LoadingTask
     static PoisonPillTask* s_Instance;
 public:
     static PoisonPillTask* Get() { if (!s_Instance) s_Instance = new PoisonPillTask(); return s_Instance; }
-    void Run(ID3D11DeviceContext1*) override {}
+    void Run(ID3D11DeviceContext*) override {}
 private:
     PoisonPillTask() {}
 };
@@ -59,20 +60,19 @@ public:
     void Run()
     {
         m_Running = true;
-        ID3D11DeviceContext1* context = nullptr; // TODO: Create deferred context
         while (m_Running)
         {
+            ID3D11DeviceContext* context = Device::Get()->CreateDeferredContext();
             m_CurrentTask = m_TaskQueue.Pop();
             if (m_CurrentTask.load() == PoisonPillTask::Get()) break;
             m_CurrentTask.load()->SetRunning(true);
             m_CurrentTask.load()->Run(context);
-            // TODO: Submit context
             m_CurrentTask.load()->SetRunning(false);
+            Device::Get()->SubmitDeferredContext(context);
 
             LoadingTask* lastTask = m_CurrentTask.exchange(nullptr);
             delete lastTask;
         }
-        // TODO: Release context
     }
 
     void ResetAndWait()

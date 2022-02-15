@@ -24,7 +24,7 @@ namespace MTR
 	class MutexVector
 	{
 	public:
-		MutexVector() { m_Mutex = new std::recursive_mutex(); }
+		MutexVector() { m_Mutex = new std::mutex(); }
 		~MutexVector() { delete m_Mutex; }
 
 		inline void Lock() { m_Mutex->lock(); }
@@ -87,7 +87,7 @@ namespace MTR
 		// TODO: Add foreach override
 
 	private:
-		std::recursive_mutex* m_Mutex;
+		std::mutex* m_Mutex;
 		std::vector<T> m_Data;
 	};
 

@@ -6,11 +6,11 @@
 #include "Render/ResourceID.h"
 #include "Utility/Multithreading.h"
 
-struct ID3D11DeviceContext1;
+struct ID3D11DeviceContext;
 
 struct Material
 {
-	void UpdateBuffer(ID3D11DeviceContext1* context);
+	void UpdateBuffer(ID3D11DeviceContext* context);
 
 	bool UseBlend = false;
 	bool UseAlphaDiscard = false;
@@ -42,7 +42,7 @@ struct Drawable
 
 struct Entity
 {
-	void UpdateBuffer(ID3D11DeviceContext1* context);
+	void UpdateBuffer(ID3D11DeviceContext* context);
 
 	Float3 Position = Float3(0.0f, 0.0f, 0.0f);
 	Float3 Scale = Float3(1.0f, 1.0f, 1.0f);
@@ -54,7 +54,7 @@ struct Entity
 struct Camera
 {
 	Camera(Float3 position, Float3 Forward, float fov);
-	void UpdateBuffer(ID3D11DeviceContext1* context);
+	void UpdateBuffer(ID3D11DeviceContext* context);
 
 	float FOV;
 	Float3 Position;
@@ -88,7 +88,7 @@ struct Light
 
 struct SceneGraph
 {
-	void UpdateRenderData(ID3D11DeviceContext1* context);
+	void UpdateRenderData(ID3D11DeviceContext* context);
 
 	Camera MainCamera{ {0.0f, 2.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, 75.0f };
 	std::vector<Entity> Entities;

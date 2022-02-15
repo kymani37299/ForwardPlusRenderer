@@ -67,6 +67,13 @@ Device::~Device()
     }
 }
 
+ID3D11DeviceContext* Device::CreateDeferredContext() const
+{
+    ID3D11DeviceContext* context;
+    API_CALL(m_Device->CreateDeferredContext(0, &context));
+    return context;
+}
+
 void Device::DeferredInit()
 {
     CreateSwapchain();
@@ -114,22 +121,42 @@ void Device::CreateStaticSamplers()
     m_Device->CreateSamplerState(&samplerDesc, &m_StaticSamplers[1]);
 }
 
-void Device::Present(RenderTargetID finalRT)
+void Device::EndFrame(RenderTargetID finalRT)
 {
-    GFX::Cmd::MarkerBegin(m_Context.Get(), "Present");
-    GFX::Cmd::BindShader(m_Context.Get(), m_CopyShader);
-    m_Context->OMSetRenderTargets(1, m_SwapchainView.GetAddressOf(), nullptr);
-    GFX::Cmd::BindVertexBuffer(m_Context.Get(), m_QuadBuffer);
+    // Present
+    {
+        GFX::Cmd::MarkerBegin(m_Context.Get(), "Present");
+        GFX::Cmd::BindShader(m_Context.Get(), m_CopyShader);
+        m_Context->OMSetRenderTargets(1, m_SwapchainView.GetAddressOf(), nullptr);
+        GFX::Cmd::BindVertexBuffer(m_Context.Get(), m_QuadBuffer);
 
-    ID3D11ShaderResourceView* srv = GFX::DX_GetTextureSRV(finalRT.ColorTexture);
-    m_Context->PSSetShaderResources(0, 1,  &srv);
-    m_Context->Draw(6, 0);
+        ID3D11ShaderResourceView* srv = GFX::DX_GetTextureSRV(finalRT.ColorTexture);
+        m_Context->PSSetShaderResources(0, 1, &srv);
+        m_Context->Draw(6, 0);
 
-    srv = nullptr;
-    m_Context->PSSetShaderResources(0, 1, &srv);
+        srv = nullptr;
+        m_Context->PSSetShaderResources(0, 1, &srv);
 
-    m_Swapchain->Present(AppConfig.VSyncEnabled ? 1 : 0, 0);
-    GFX::Cmd::MarkerEnd(m_Context.Get());
+        m_Swapchain->Present(AppConfig.VSyncEnabled ? 1 : 0, 0);
+        GFX::Cmd::MarkerEnd(m_Context.Get());
+    }
+
+    // Submit deferred contexts
+    if(!m_PendingDeferredContexts.Empty())
+    {
+        GFX::Cmd::MarkerBegin(m_Context.Get(), "Submit deferred contexts");
+
+        const auto func = [this](ID3D11DeviceContext* context) {
+            ID3D11CommandList* cmdList;
+            context->FinishCommandList(false, &cmdList);
+            context->Release();
+            this->GetContext()->ExecuteCommandList(cmdList, false);
+            cmdList->Release();
+        };
+        m_PendingDeferredContexts.ForEachAndClear(func);
+
+        GFX::Cmd::MarkerEnd(m_Context.Get());
+    }
 }
 
 void Device::CreateSwapchain()

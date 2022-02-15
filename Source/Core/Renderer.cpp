@@ -15,7 +15,7 @@ Renderer::Renderer()
 
 Renderer::~Renderer()
 {
-	ID3D11DeviceContext1* context = Device::Get()->GetContext();
+	ID3D11DeviceContext* context = Device::Get()->GetContext();
 	for (RenderPass* renderPass : m_Schedule)
 	{
 		renderPass->OnDestroy(context);
@@ -27,7 +27,7 @@ Renderer::~Renderer()
 
 void Renderer::Update(float dt)
 {
-	ID3D11DeviceContext1* context = Device::Get()->GetContext();
+	ID3D11DeviceContext* context = Device::Get()->GetContext();
 	for (RenderPass* renderPass : m_Schedule)
 	{
 		renderPass->OnUpdate(context, dt);
@@ -50,7 +50,7 @@ void Renderer::Update(float dt)
 
 void Renderer::Render()
 {
-	ID3D11DeviceContext1* context = Device::Get()->GetContext();
+	ID3D11DeviceContext* context = Device::Get()->GetContext();
 	GFX::Cmd::MarkerBegin(context, "Frame");
 	GFX::Cmd::ResetContext(context);
 	GFX::Cmd::ClearRenderTarget(context, m_FinalRT);
@@ -61,13 +61,13 @@ void Renderer::Render()
 		renderPass->OnDraw(context);
 		GFX::Cmd::MarkerEnd(context);
 	}
-	Device::Get()->Present(m_FinalRT);
+	Device::Get()->EndFrame(m_FinalRT);
 	GFX::Cmd::MarkerEnd(context);
 }
 
 void Renderer::AddRenderPass(RenderPass* renderPass)
 { 
-	ID3D11DeviceContext1* context = Device::Get()->GetContext();
+	ID3D11DeviceContext* context = Device::Get()->GetContext();
 	renderPass->OnInit(context);
 	m_Schedule.push_back(renderPass); 
 }

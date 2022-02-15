@@ -17,8 +17,9 @@ PoisonPillTask* PoisonPillTask::s_Instance = nullptr;
 Engine::Engine()
 {
 	Window::Init();
-	LoadingThread::Init();
 	m_Renderer = new Renderer();
+	LoadingThread::Init();
+
 	m_Renderer->AddRenderPass(new ScenePrepareRenderPass());
 	m_Renderer->AddRenderPass(new DepthPrepassRenderPass());
 	m_Renderer->AddRenderPass(new GeometryRenderPass());

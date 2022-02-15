@@ -6,6 +6,7 @@
 
 #include "Render/RenderAPI.h"
 #include "Render/ResourceID.h"
+#include "Utility/Multithreading.h"
 
 class Device
 {
@@ -32,11 +33,18 @@ public:
 	Device();
 	~Device();
 
-	void Present(RenderTargetID finalRT);
+	void EndFrame(RenderTargetID finalRT);
 	void CreateSwapchain();
 
 	ID3D11Device* GetHandle() const { return m_Device; }
 	ID3D11DeviceContext1* GetContext() const { return m_Context.Get(); }
+
+	ID3D11DeviceContext* CreateDeferredContext() const;
+	void SubmitDeferredContext(ID3D11DeviceContext*& context) // Dot not use context after this function
+	{
+		m_PendingDeferredContexts.Add(context);
+		context = nullptr;
+	}
 
 	std::vector<ID3D11SamplerState*>& GetStaticSamplers() { return m_StaticSamplers; }
 private:
@@ -55,4 +63,6 @@ private:
 
 	ShaderID m_CopyShader;
 	BufferID m_QuadBuffer;
+
+	MTR::MutexVector<ID3D11DeviceContext*> m_PendingDeferredContexts;
 };

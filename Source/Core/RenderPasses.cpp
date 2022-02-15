@@ -24,7 +24,7 @@ float Rand2()
 ///////			ScenePrepare			//////////
 /////////////////////////////////////////////////
 
-void ScenePrepareRenderPass::OnInit(ID3D11DeviceContext1* context)
+void ScenePrepareRenderPass::OnInit(ID3D11DeviceContext* context)
 {
 	MainSceneGraph.Lights.push_back(Light::CreateAmbient(Float3(0.1f, 0.1f, 0.15f)));
 	MainSceneGraph.Lights.push_back(Light::CreateDirectional(Float3(-1.0f, -1.0f, -1.0f), Float3(0.2f, 0.2f, 0.23f)));
@@ -47,7 +47,7 @@ void ScenePrepareRenderPass::OnInit(ID3D11DeviceContext1* context)
 	MainSceneGraph.UpdateRenderData(context);
 }
 
-void ScenePrepareRenderPass::OnDraw(ID3D11DeviceContext1* context)
+void ScenePrepareRenderPass::OnDraw(ID3D11DeviceContext* context)
 {
 	MainSceneGraph.MainCamera.UpdateBuffer(context);
 }
@@ -56,12 +56,12 @@ void ScenePrepareRenderPass::OnDraw(ID3D11DeviceContext1* context)
 ///////			DepthPrepass			//////////
 /////////////////////////////////////////////////
 
-void DepthPrepassRenderPass::OnInit(ID3D11DeviceContext1* context)
+void DepthPrepassRenderPass::OnInit(ID3D11DeviceContext* context)
 {
 	m_Shader = GFX::CreateShader("Source/Shaders/depth.hlsl", {}, SCF_VS);
 }
 
-void DepthPrepassRenderPass::OnDraw(ID3D11DeviceContext1* context)
+void DepthPrepassRenderPass::OnDraw(ID3D11DeviceContext* context)
 {
 	PipelineState pso = GFX::DefaultPipelineState();
 	pso.DS.DepthEnable = true;
@@ -95,12 +95,12 @@ void DepthPrepassRenderPass::OnDraw(ID3D11DeviceContext1* context)
 ///////			Geometry				//////////
 /////////////////////////////////////////////////
 
-void GeometryRenderPass::OnInit(ID3D11DeviceContext1* context)
+void GeometryRenderPass::OnInit(ID3D11DeviceContext* context)
 {
 	m_Shader = GFX::CreateShader("Source/Shaders/geometry.hlsl");
 }
 
-void GeometryRenderPass::OnDraw(ID3D11DeviceContext1* context)
+void GeometryRenderPass::OnDraw(ID3D11DeviceContext* context)
 {
 	PipelineState pso = GFX::DefaultPipelineState();
 	pso.DS.DepthEnable = true;

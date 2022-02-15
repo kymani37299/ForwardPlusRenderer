@@ -15,7 +15,7 @@ namespace
 	}
 }
 
-void Material::UpdateBuffer(ID3D11DeviceContext1* context)
+void Material::UpdateBuffer(ID3D11DeviceContext* context)
 {
 	using namespace DirectX;
 	struct MaterialCB
@@ -35,7 +35,7 @@ void Material::UpdateBuffer(ID3D11DeviceContext1* context)
 	GFX::Cmd::UploadToBuffer(context, MaterialParams, &matCB, sizeof(MaterialCB));
 }
 
-void Entity::UpdateBuffer(ID3D11DeviceContext1* context)
+void Entity::UpdateBuffer(ID3D11DeviceContext* context)
 {
 	using namespace DirectX;
 	struct EntityCB
@@ -58,7 +58,7 @@ Camera::Camera(Float3 position, Float3 forward, float fov):
 	FOV(fov)
 { }
 
-void Camera::UpdateBuffer(ID3D11DeviceContext1* context)
+void Camera::UpdateBuffer(ID3D11DeviceContext* context)
 {
 	using namespace DirectX;
 	struct CameraCB
@@ -106,7 +106,7 @@ Light Light::CreatePoint(Float3 position, Float3 color, Float2 falloff)
 	return l;
 }
 
-void SceneGraph::UpdateRenderData(ID3D11DeviceContext1* context)
+void SceneGraph::UpdateRenderData(ID3D11DeviceContext* context)
 {
 	for (Entity& e : Entities)
 	{

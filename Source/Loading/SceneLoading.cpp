@@ -175,7 +175,7 @@ namespace SceneLoading
 			m_Entity(entity) {}
 
 
-		void Run(ID3D11DeviceContext1* context) override
+		void Run(ID3D11DeviceContext* context) override
 		{
 			const std::string& ext = PathUtility::GetFileExtension(m_Path);
 			if (ext != "gltf")
@@ -207,6 +207,11 @@ namespace SceneLoading
 
 					if (drawables.size() >= BATCH_SIZE)
 					{
+						for (Drawable& d : drawables)
+						{
+							//d.Material.UpdateBuffer(context);
+						}
+
 						entity.Drawables.AddAll(drawables);
 					}
 					

@@ -39,7 +39,7 @@ namespace GFX
 			DebugMarkerHandle->EndEvent();
 		}
 
-		void ResetContext(ID3D11DeviceContext1* context)
+		void ResetContext(ID3D11DeviceContext* context)
 		{
 			context->ClearState();
 
@@ -51,7 +51,7 @@ namespace GFX
 			SetPipelineState(context, defaultState);
 		}
 
-		void BindShader(ID3D11DeviceContext1* context, ShaderID shaderID, bool multiInput)
+		void BindShader(ID3D11DeviceContext* context, ShaderID shaderID, bool multiInput)
 		{
 			const Shader& shader = GFX::Storage::GetShader(shaderID);
 			context->VSSetShader(shader.VS.Get(), nullptr, 0);
@@ -62,12 +62,12 @@ namespace GFX
 				context->IASetInputLayout(shader.IL.Get());
 		}
 
-		void BindVertexBuffer(ID3D11DeviceContext1* context, BufferID bufferID)
+		void BindVertexBuffer(ID3D11DeviceContext* context, BufferID bufferID)
 		{
 			BindVertexBuffers(context, { bufferID });
 		}
 
-		void BindVertexBuffers(ID3D11DeviceContext1* context, std::vector<BufferID> buffers)
+		void BindVertexBuffers(ID3D11DeviceContext* context, std::vector<BufferID> buffers)
 		{
 			std::vector<ID3D11Buffer*> bufferHandles;
 			std::vector<uint32_t> offsets;
@@ -85,13 +85,13 @@ namespace GFX
 			context->IASetVertexBuffers(0, buffers.size(), bufferHandles.data(), strides.data(), offsets.data());
 		}
 
-		void BindIndexBuffer(ID3D11DeviceContext1* context, BufferID bufferID)
+		void BindIndexBuffer(ID3D11DeviceContext* context, BufferID bufferID)
 		{
 			const Buffer& buffer = GFX::Storage::GetBuffer(bufferID);
 			context->IASetIndexBuffer(buffer.Handle.Get(), IndexStrideToDXGIFormat(buffer.ElementStride), 0);
 		}
 
-		void BindRenderTarget(ID3D11DeviceContext1* context, RenderTargetID rtID)
+		void BindRenderTarget(ID3D11DeviceContext* context, RenderTargetID rtID)
 		{
 			const Texture& colorTexture = GFX::Storage::GetTexture(rtID.ColorTexture);
 			ID3D11DepthStencilView* dsv = nullptr;
@@ -103,20 +103,20 @@ namespace GFX
 			context->OMSetRenderTargets(1, colorTexture.RTV.GetAddressOf(), dsv);
 		}
 
-		void BindTextureSRV(ID3D11DeviceContext1* context, TextureID textureID, uint32_t slot)
+		void BindTextureSRV(ID3D11DeviceContext* context, TextureID textureID, uint32_t slot)
 		{
 			const Texture& colorTex = GFX::Storage::GetTexture(textureID);
 			ID3D11ShaderResourceView* srv = colorTex.SRV.Get();
 			context->PSSetShaderResources(slot, 1, &srv);
 		}
 
-		void SetPipelineState(ID3D11DeviceContext1* context, const PipelineState& pipelineState)
+		void SetPipelineState(ID3D11DeviceContext* context, const PipelineState& pipelineState)
 		{
 			const CompiledPipelineState& compiledState = GFX::CompilePipelineState(pipelineState);
 			SetPipelineState(context, compiledState);
 		}
 
-		void SetPipelineState(ID3D11DeviceContext1* context, const CompiledPipelineState& pipelineState)
+		void SetPipelineState(ID3D11DeviceContext* context, const CompiledPipelineState& pipelineState)
 		{
 			const float blendFactor[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 
@@ -125,7 +125,7 @@ namespace GFX
 			context->OMSetBlendState(pipelineState.BS.Get(), blendFactor, 0xffffffff);
 		}
 
-		void ClearRenderTarget(ID3D11DeviceContext1* context, RenderTargetID rtID)
+		void ClearRenderTarget(ID3D11DeviceContext* context, RenderTargetID rtID)
 		{
 			const float clearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
@@ -138,7 +138,7 @@ namespace GFX
 			}
 		}
 
-		void UploadToBuffer(ID3D11DeviceContext1* context, BufferID bufferID, const void* data, uint64_t dataSize, uint64_t offset)
+		void UploadToBuffer(ID3D11DeviceContext* context, BufferID bufferID, const void* data, uint64_t dataSize, uint64_t offset)
 		{
 			const Buffer& buffer = GFX::Storage::GetBuffer(bufferID);
 			const uint8_t* dataBytePtr = reinterpret_cast<const uint8_t*>(data);
