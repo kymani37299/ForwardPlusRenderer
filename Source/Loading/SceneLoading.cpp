@@ -92,7 +92,7 @@ namespace SceneLoading
 			return mesh;
 		}
 
-		TextureID LoadTexture(const LoadingContext& context, cgltf_texture* texture, cgltf_float fallback[4])
+		TextureID LoadTexture(const LoadingContext& context, cgltf_texture* texture, ColorUNORM defaultColor = {1.0f, 1.0f, 1.0f, 1.0f})
 		{
 			if (texture)
 			{
@@ -102,9 +102,13 @@ namespace SceneLoading
 			}
 			else
 			{
-				ColorUNORM color{ fallback[0], fallback[1], fallback[2], fallback[3] };
-				return GFX::CreateTexture(1, 1, DXGI_FORMAT_R8G8B8A8_UNORM, &color);
+				return GFX::CreateTexture(1, 1, DXGI_FORMAT_R8G8B8A8_UNORM, &defaultColor);
 			}
+		}
+
+		static Float3 ToFloat3(cgltf_float color[3])
+		{
+			return Float3{ color[0], color[1], color[2] };
 		}
 
 		Material LoadMaterial(const LoadingContext& context, cgltf_material* materialData)
@@ -112,14 +116,16 @@ namespace SceneLoading
 			ASSERT(materialData->has_pbr_metallic_roughness, "[SceneLoading] Every material must have a base color texture!");
 
 			cgltf_pbr_metallic_roughness& mat = materialData->pbr_metallic_roughness;
-			cgltf_float metallicRoughnessColor[] = { mat.metallic_factor, mat.roughness_factor, 0.0f, 0.0f };
-			cgltf_float normalColor[] = { 0.5f, 0.5f, 1.0f, 0.0f };
 
 			Material material;
 			material.UseBlend = materialData->alpha_mode == cgltf_alpha_mode_blend;
-			material.Albedo = LoadTexture(context, mat.base_color_texture.texture, mat.base_color_factor);
-			material.MetallicRoughness = LoadTexture(context, mat.metallic_roughness_texture.texture, metallicRoughnessColor);
-			material.Normal = LoadTexture(context, materialData->normal_texture.texture, normalColor);
+			material.UseAlphaDiscard = materialData->alpha_mode == cgltf_alpha_mode_mask;
+			material.Albedo = LoadTexture(context, mat.base_color_texture.texture);
+			material.AlbedoFactor = ToFloat3(mat.base_color_factor);
+			material.MetallicRoughness = LoadTexture(context, mat.metallic_roughness_texture.texture);
+			material.MetallicFactor = mat.metallic_factor;
+			material.RoughnessFactor = mat.roughness_factor;
+			material.Normal = LoadTexture(context, materialData->normal_texture.texture, ColorUNORM(0.5f, 0.5f, 1.0f, 1.0f));
 			return material;
 		}
 

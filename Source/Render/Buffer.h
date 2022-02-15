@@ -25,7 +25,7 @@ namespace GFX
 	template<typename ConstantType>
 	BufferID CreateConstantBuffer()
 	{
-		constexpr uint32_t stride = sizeof(ConstantType);
+		constexpr uint32_t stride = (sizeof(ConstantType) + 255) & ~255;
 		return CreateBuffer(stride, stride, RCF_Bind_CB | RCF_CPU_Write);
 	}
 

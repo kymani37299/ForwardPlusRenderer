@@ -41,7 +41,7 @@ void ScenePrepareRenderPass::OnInit(ID3D11DeviceContext1* context)
 	Entity sponza = SceneLoading::LoadEntity("Resources/sponza/sponza.gltf");
 	sponza.Scale *= 0.1f;
 	MainSceneGraph.Entities.push_back(std::move(sponza));
-	//MainSceneGraph.Entities.push_back(SceneLoading::LoadEntity("Resources/cube/cube.gltf"));
+	MainSceneGraph.Entities.push_back(SceneLoading::LoadEntity("Resources/cube/cube.gltf"));
 	MainSceneGraph.UpdateRenderData(context);
 }
 
@@ -128,6 +128,11 @@ void GeometryRenderPass::OnDraw(ID3D11DeviceContext1* context)
 
 		for (Drawable d : e.Drawables)
 		{
+			{
+				ID3D11Buffer* cbv = GFX::DX_GetBuffer(d.Material.MaterialParams);
+				context->PSSetConstantBuffers(2, 1, &cbv);
+			}
+
 			Mesh& m = d.Mesh;
 			GFX::Cmd::BindVertexBuffers(context, { m.Position, m.UV, m.Normal, m.Tangent });
 			GFX::Cmd::BindIndexBuffer(context, m.Indices);

@@ -15,6 +15,26 @@ namespace
 	}
 }
 
+void Material::UpdateBuffer(ID3D11DeviceContext1* context)
+{
+	using namespace DirectX;
+	struct MaterialCB
+	{
+		Float3 AlbedoFactor; float _padding;
+		Float3 FresnelR0; float _padding1;
+		float MetallicFactor;
+		float RoughnessFactor;
+	};
+
+	MaterialCB matCB{};
+	matCB.AlbedoFactor = AlbedoFactor;
+	matCB.FresnelR0 = FresnelR0;
+	matCB.MetallicFactor = MetallicFactor;
+	matCB.RoughnessFactor = RoughnessFactor;
+	if (MaterialParams == BufferID_Invalid) MaterialParams = GFX::CreateConstantBuffer<MaterialCB>();
+	GFX::Cmd::UploadToBuffer(context, MaterialParams, &matCB, sizeof(MaterialCB));
+}
+
 void Entity::UpdateBuffer(ID3D11DeviceContext1* context)
 {
 	using namespace DirectX;
@@ -27,6 +47,8 @@ void Entity::UpdateBuffer(ID3D11DeviceContext1* context)
 	entityCB.ModelToWorld = XMMatrixTranspose(XMMatrixAffineTransformation(Scale.ToXM(), Float3(0.0f, 0.0f, 0.0f).ToXM(), Float4(0.0f, 0.0f, 0.0f, 0.0f).ToXM(), Position.ToXM()));
 	if(EntityBuffer == BufferID_Invalid) EntityBuffer = GFX::CreateConstantBuffer<EntityCB>();
 	GFX::Cmd::UploadToBuffer(context, EntityBuffer, &entityCB, sizeof(EntityCB));
+
+	for (Drawable& d : Drawables) d.Material.UpdateBuffer(context);
 }
 
 Camera::Camera(Float3 position, Float3 forward, float fov):

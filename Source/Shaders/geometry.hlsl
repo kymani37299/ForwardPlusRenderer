@@ -29,9 +29,12 @@ struct EntityData
 	float4x4 ModelToWorld;
 };
 
-struct SceneData
+struct MaterialParams
 {
-	uint NumLights;
+	float3 AlbedoFactor;
+	float3 FresnelR0;
+	float MetallicFactor;
+	float RoughnessFactor;
 };
 
 cbuffer CameraCB : register(b0)
@@ -44,9 +47,9 @@ cbuffer EntityCB : register(b1)
 	EntityData EntData;
 }
 
-cbuffer SceneCB : register(b2)
+cbuffer MaterialCB : register(b2)
 {
-	SceneData ScnData;
+	MaterialParams MatParams;
 }
 
 Texture2D AlbedoTexture : register(t0);
@@ -74,8 +77,9 @@ float4 PS(VertexOut IN) : SV_Target
 {
 	Material mat;
 	mat.Albedo = AlbedoTexture.Sample(s_LinearWrap, IN.UV);
-	mat.FresnelR0 = float3(0.05f, 0.05f, 0.05f);
-	mat.Roughness = MetallicRoughnessTexture.Sample(s_LinearWrap, IN.UV);
+	mat.Albedo.rgb *= MatParams.AlbedoFactor;
+	mat.FresnelR0 = MatParams.FresnelR0;
+	mat.Roughness = MetallicRoughnessTexture.Sample(s_LinearWrap, IN.UV).g * MatParams.RoughnessFactor;
 
 	float3 normal = normalize(IN.Normal);
 	float3 view = normalize(CamData.Position - IN.WorldPosition);

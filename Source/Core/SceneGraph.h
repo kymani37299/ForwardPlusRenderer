@@ -9,7 +9,16 @@ struct ID3D11DeviceContext1;
 
 struct Material
 {
+	void UpdateBuffer(ID3D11DeviceContext1* context);
+
 	bool UseBlend = false;
+	bool UseAlphaDiscard = false;
+	Float3 AlbedoFactor = { 1.0f, 1.0f, 1.0f };
+	Float3 FresnelR0 = { 0.05f, 0.05f, 0.05f };
+	float MetallicFactor = 1.0f;
+	float RoughnessFactor = 1.0f;
+
+	BufferID MaterialParams = BufferID_Invalid;
 	TextureID Albedo = TextureID_Invalid;
 	TextureID MetallicRoughness = TextureID_Invalid;
 	TextureID Normal = TextureID_Invalid;
