@@ -71,7 +71,7 @@ void Device::DeferredInit()
         FCVert{	{-1.0,-1.0},	{0.0,1.0}}
     };
 
-    m_CopyShader = GFX::CreateShader("Source/Render/Shaders/copy.hlsl");
+    m_CopyShader = GFX::CreateShader("Source/Shaders/copy.hlsl");
     m_QuadBuffer = GFX::CreateVertexBuffer<FCVert>(fcVBData.size(), fcVBData.data());
 
     GFX::Cmd::ResetContext(m_Context.Get());

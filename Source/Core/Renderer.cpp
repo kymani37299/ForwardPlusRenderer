@@ -31,6 +31,20 @@ void Renderer::Update(float dt)
 	{
 		renderPass->OnUpdate(context, dt);
 	}
+
+	if (AppConfig.WindowSizeDirty)
+	{
+		// TODO: Delete old RT
+		m_FinalRT = GFX::CreateRenderTarget(AppConfig.WindowWidth, AppConfig.WindowHeight, true);
+		Device::Get()->CreateSwapchain();
+
+		for (RenderPass* renderPass : m_Schedule)
+		{
+			renderPass->OnWindowResize(context);
+		}
+
+		AppConfig.WindowSizeDirty = false;
+	}
 }
 
 void Renderer::Render()

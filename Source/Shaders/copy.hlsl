@@ -1,3 +1,5 @@
+#include "samplers.h"
+
 struct VertexInput
 {
 	float2 pos : SV_POSITION;
@@ -22,6 +24,5 @@ VertexOut VS(VertexInput IN)
 
 float4 PS(VertexOut IN) : SV_Target
 {
-	uint3 pixelCoord = uint3(IN.uv * float2(1024, 768), 0);
-	return src.Load(pixelCoord);
+	return src.Sample(s_LinearWrap, IN.uv);
 }
