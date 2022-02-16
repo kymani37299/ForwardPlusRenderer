@@ -1,6 +1,7 @@
 #include "Resource.h"
 
 #include <vector>
+#include <mutex>
 
 #include "Render/RenderAPI.h"
 #include "Render/Shader.h"
@@ -9,55 +10,60 @@ namespace GFX
 {
 	namespace
 	{
-		std::vector<Buffer> BufferStorage;
-		std::vector<Texture> TextureStorage;
-		std::vector<Shader> ShaderStorage;
+		template<typename ResourceID, typename ResourceHandle>
+		class ResourceStorage
+		{
+		public:
+			ResourceHandle& Allocate(ResourceID& id)
+			{
+				m_Mutex.lock();
+				id = m_Storage.size();
+				m_Storage.resize(id + 1);
+				m_Mutex.unlock();
+				return m_Storage[id];
+			}
+
+			uint32_t Size()
+			{
+				return m_Storage.size();
+			}
+
+			void Clear()
+			{
+				m_Mutex.lock();
+				m_Storage.clear();
+				m_Mutex.unlock();
+			}
+
+			ResourceHandle& operator[](ResourceID id)
+			{
+				ASSERT(m_Storage.size() > id, "[ResourceStorage] Invalid ID");
+				return m_Storage[id];
+			}
+
+		private:
+			std::mutex m_Mutex;
+			std::vector<ResourceHandle> m_Storage;
+		};
+
+		ResourceStorage<BufferID, Buffer> BufferStorage;
+		ResourceStorage<TextureID, Texture> TextureStorage;
+		ResourceStorage<ShaderID, Shader> ShaderStorage;
 	}
 
 	namespace Storage
 	{
-		const Buffer& GetBuffer(BufferID id)
-		{
-			ASSERT(BufferStorage.size() > id, "[GetBuffer] Invalid ID");
-			return BufferStorage[id];
-		}
+		const Buffer& GetBuffer(BufferID id) { return BufferStorage[id]; }
+		const Texture& GetTexture(TextureID id) { return TextureStorage[id]; }
+		const Shader& GetShader(ShaderID id) { return ShaderStorage[id]; }
 
-		const Texture& GetTexture(TextureID id)
-		{
-			ASSERT(TextureStorage.size() > id, "[GetTexture] Invalid ID");
-			return TextureStorage[id];
-		}
-
-		const Shader& GetShader(ShaderID id)
-		{
-			ASSERT(ShaderStorage.size() > id, "[GetShader] Invalid ID");
-			return ShaderStorage[id];
-		}
-
-		Buffer& CreateBuffer(BufferID& id)
-		{
-			id = BufferStorage.size();
-			BufferStorage.resize(id + 1);
-			return BufferStorage[id];
-		}
-
-		Texture& CreateTexture(TextureID& id)
-		{
-			id = TextureStorage.size();
-			TextureStorage.resize(id + 1);
-			return TextureStorage[id];
-		}
-
-		Shader& CreateShader(ShaderID& id)
-		{
-			id = ShaderStorage.size();
-			ShaderStorage.resize(id + 1);
-			return ShaderStorage[id];
-		}
+		Buffer& CreateBuffer(BufferID& id) { return BufferStorage.Allocate(id); }
+		Texture& CreateTexture(TextureID& id) { return TextureStorage.Allocate(id); }
+		Shader& CreateShader(ShaderID& id) { return ShaderStorage.Allocate(id); }
 
 		void ReloadAllShaders()
 		{
-			for (ShaderID id = 0; id < ShaderStorage.size(); id++)
+			for (ShaderID id = 0; id < ShaderStorage.Size(); id++)
 			{
 				ReloadShader(id);
 			}
@@ -65,9 +71,9 @@ namespace GFX
 
 		void ClearStorage()
 		{
-			BufferStorage.clear();
-			TextureStorage.clear();
-			ShaderStorage.clear();
+			BufferStorage.Clear();
+			TextureStorage.Clear();
+			ShaderStorage.Clear();
 		}
 	}
 }
