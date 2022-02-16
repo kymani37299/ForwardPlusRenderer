@@ -9,6 +9,10 @@ inline D3D11_USAGE GetUsageFlags(uint64_t creationFlags)
 {
 	if (creationFlags & RCF_CPU_Write) return D3D11_USAGE_DYNAMIC;
 	if (creationFlags & RCF_CPU_Read) return D3D11_USAGE_DEFAULT;
+	if (creationFlags & RCF_Bind_UAV) return D3D11_USAGE_DEFAULT;
+	if (creationFlags & RCF_Bind_RTV) return D3D11_USAGE_DEFAULT;
+	if (creationFlags & RCF_Bind_DSV) return D3D11_USAGE_DEFAULT;
+	if (creationFlags & RCF_Staging) return D3D11_USAGE_STAGING;
 	return D3D11_USAGE_IMMUTABLE;
 }
 
@@ -19,7 +23,10 @@ inline uint32_t GetBindFlags(uint64_t creationFlags)
 	if (creationFlags & RCF_Bind_IB) flags  |= D3D11_BIND_INDEX_BUFFER;
 	if (creationFlags & RCF_Bind_CB) flags  |= D3D11_BIND_CONSTANT_BUFFER;
 	if (creationFlags & RCF_Bind_SB) flags  |= D3D11_BIND_SHADER_RESOURCE;
-	if (creationFlags & RCF_Bind_UAV) flags |= D3D11_BIND_SHADER_RESOURCE;
+	if (creationFlags & RCF_Bind_SRV) flags |= D3D11_BIND_SHADER_RESOURCE;
+	if (creationFlags & RCF_Bind_UAV) flags |= D3D11_BIND_UNORDERED_ACCESS;
+	if (creationFlags & RCF_Bind_RTV) flags |= D3D11_BIND_RENDER_TARGET;
+	if (creationFlags & RCF_Bind_DSV) flags |= D3D11_BIND_DEPTH_STENCIL;
 	return flags;
 }
 
@@ -34,7 +41,8 @@ inline uint32_t GetCPUAccessFlags(uint64_t creationFlags)
 inline uint32_t GetMiscFlags(uint64_t creationFlags)
 {
 	uint32_t flags = 0;
-	if (creationFlags & RCF_Bind_SB) flags |= D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+	if (creationFlags & RCF_Bind_SB)		flags |= D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+	if (creationFlags & RCF_GenerateMips)	flags |= D3D11_RESOURCE_MISC_GENERATE_MIPS;
 	return flags;
 }
 
