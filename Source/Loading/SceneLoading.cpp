@@ -5,6 +5,7 @@
 #include <cgltf.h>
 
 #include "Loading/LoadingThread.h"
+#include "Render/Device.h"
 #include "Render/Buffer.h"
 #include "Render/Texture.h"
 #include "Utility/PathUtility.h"
@@ -184,6 +185,7 @@ namespace SceneLoading
 		void Run(ID3D11DeviceContext* context) override
 		{
 			m_Entity.UpdateBuffer(context);
+			GFX::Cmd::SubmitDeferredContext(context);
 
 			const std::string& ext = PathUtility::GetFileExtension(m_Path);
 			if (ext != "gltf")
@@ -191,8 +193,6 @@ namespace SceneLoading
 				ASSERT(0, "[SceneLoading] For now we only support glTF 3D format.");
 				return;
 			}
-
-			Entity entity;
 
 			cgltf_options options = {};
 			cgltf_data* data = NULL;
@@ -217,12 +217,14 @@ namespace SceneLoading
 
 					if (drawables.size() >= BATCH_SIZE)
 					{
-						entity.Drawables.AddAll(drawables);
+						GFX::Cmd::SubmitDeferredContext(context);
+						m_Entity.Drawables.AddAll(drawables);
+						drawables.clear();
 					}
 					
 				}
 			}
-			entity.Drawables.AddAll(drawables);
+			m_Entity.Drawables.AddAll(drawables);
 			cgltf_free(data);
 		}
 

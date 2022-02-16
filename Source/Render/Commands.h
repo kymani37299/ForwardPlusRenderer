@@ -13,6 +13,8 @@ namespace GFX
 		void MarkerBegin(ID3D11DeviceContext* context, const std::string& markerName);
 		void MarkerEnd(ID3D11DeviceContext* context);
 		void ResetContext(ID3D11DeviceContext* context);
+		ID3D11DeviceContext* CreateDeferredContext();
+		void SubmitDeferredContext(ID3D11DeviceContext* context);
 
 		void BindShader(ID3D11DeviceContext* context, ShaderID shaderID, bool multiInput = false);
 		void BindVertexBuffer(ID3D11DeviceContext* context, BufferID bufferID);

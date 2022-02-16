@@ -1,7 +1,7 @@
 #include "Resource.h"
 
 #include <vector>
-#include <mutex>
+#include <atomic>
 
 #include "Render/RenderAPI.h"
 #include "Render/Shader.h"
@@ -10,45 +10,46 @@ namespace GFX
 {
 	namespace
 	{
-		template<typename ResourceID, typename ResourceHandle>
+		template<typename ResourceHandle>
 		class ResourceStorage
 		{
 		public:
-			ResourceHandle& Allocate(ResourceID& id)
+			ResourceStorage(uint32_t size):
+				m_Size(size)
 			{
-				m_Mutex.lock();
-				id = m_Storage.size();
-				m_Storage.resize(id + 1);
-				m_Mutex.unlock();
+				m_Storage.resize(m_Size);
+			}
+
+			ResourceHandle& Allocate(uint32_t& id)
+			{
+				id = m_NextAlloc++;
+				ASSERT(id < m_Size, "[ResourceStorage] Memory overflow!");
 				return m_Storage[id];
 			}
 
-			uint32_t Size()
-			{
-				return m_Storage.size();
-			}
+			uint32_t Size() const { return m_Size; }
 
-			void Clear()
+			void Clear() // Note: Not threadsafe
 			{
-				m_Mutex.lock();
 				m_Storage.clear();
-				m_Mutex.unlock();
+				m_NextAlloc.store(0);
 			}
 
-			ResourceHandle& operator[](ResourceID id)
+			ResourceHandle& operator[](uint32_t id)
 			{
-				ASSERT(m_Storage.size() > id, "[ResourceStorage] Invalid ID");
+				ASSERT(m_Size > m_NextAlloc.load(), "[ResourceStorage] Invalid ID");
 				return m_Storage[id];
 			}
 
 		private:
-			std::mutex m_Mutex;
+			uint32_t m_Size;
+			std::atomic<uint32_t> m_NextAlloc;
 			std::vector<ResourceHandle> m_Storage;
 		};
 
-		ResourceStorage<BufferID, Buffer> BufferStorage;
-		ResourceStorage<TextureID, Texture> TextureStorage;
-		ResourceStorage<ShaderID, Shader> ShaderStorage;
+		ResourceStorage<Buffer> BufferStorage{ 1024 };
+		ResourceStorage<Texture> TextureStorage{ 1024 };
+		ResourceStorage<Shader> ShaderStorage{ 1024 };
 	}
 
 	namespace Storage
@@ -71,6 +72,10 @@ namespace GFX
 
 		void ClearStorage()
 		{
+			std::atomic<uint32_t> m_NextAlloc;
+			m_NextAlloc.fetch_add(1);
+			m_NextAlloc++;
+
 			BufferStorage.Clear();
 			TextureStorage.Clear();
 			ShaderStorage.Clear();

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Render/Device.h"
+#include "Render/Commands.h"
 #include "Utility/Multithreading.h"
 
 struct ID3D11DeviceContext;
@@ -35,7 +35,6 @@ public:
     static void Init() { s_Instance = new LoadingThread(); }
     static LoadingThread* Get() { return s_Instance; }
     static void Destroy() { SAFE_DELETE(s_Instance); }
-
 private:
     static LoadingThread* s_Instance;
 
@@ -60,15 +59,15 @@ public:
     void Run()
     {
         m_Running = true;
+        ID3D11DeviceContext* context = GFX::Cmd::CreateDeferredContext();
         while (m_Running)
         {
-            ID3D11DeviceContext* context = Device::Get()->CreateDeferredContext();
             m_CurrentTask = m_TaskQueue.Pop();
             if (m_CurrentTask.load() == PoisonPillTask::Get()) break;
             m_CurrentTask.load()->SetRunning(true);
             m_CurrentTask.load()->Run(context);
             m_CurrentTask.load()->SetRunning(false);
-            Device::Get()->SubmitDeferredContext(context);
+            GFX::Cmd::SubmitDeferredContext(context);
 
             LoadingTask* lastTask = m_CurrentTask.exchange(nullptr);
             delete lastTask;

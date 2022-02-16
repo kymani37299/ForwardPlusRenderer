@@ -27,8 +27,8 @@ Engine::Engine()
 
 Engine::~Engine()
 {
-	delete m_Renderer;
 	LoadingThread::Destroy();
+	delete m_Renderer;
 	Window::Destroy();
 }
 

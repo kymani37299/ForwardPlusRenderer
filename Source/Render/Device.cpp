@@ -67,11 +67,11 @@ Device::~Device()
     }
 }
 
-ID3D11DeviceContext* Device::CreateDeferredContext() const
+void Device::SubmitDeferredContext(ID3D11DeviceContext* context)
 {
-    ID3D11DeviceContext* context;
-    API_CALL(m_Device->CreateDeferredContext(0, &context));
-    return context;
+    ID3D11CommandList* cmdList;
+    context->FinishCommandList(false, &cmdList);
+    m_PendingCommandLists.Add(cmdList);
 }
 
 void Device::DeferredInit()
@@ -142,18 +142,15 @@ void Device::EndFrame(RenderTargetID finalRT)
     }
 
     // Submit deferred contexts
-    if(!m_PendingDeferredContexts.Empty())
+    if(!m_PendingCommandLists.Empty())
     {
         GFX::Cmd::MarkerBegin(m_Context.Get(), "Submit deferred contexts");
 
-        const auto func = [this](ID3D11DeviceContext* context) {
-            ID3D11CommandList* cmdList;
-            context->FinishCommandList(false, &cmdList);
-            context->Release();
+        const auto func = [this](ID3D11CommandList* cmdList) {
             this->GetContext()->ExecuteCommandList(cmdList, false);
             cmdList->Release();
         };
-        m_PendingDeferredContexts.ForEachAndClear(func);
+        m_PendingCommandLists.ForEachAndClear(func);
 
         GFX::Cmd::MarkerEnd(m_Context.Get());
     }

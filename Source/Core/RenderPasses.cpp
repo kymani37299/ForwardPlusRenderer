@@ -41,7 +41,7 @@ void ScenePrepareRenderPass::OnInit(ID3D11DeviceContext* context)
 	MainSceneGraph.Entities.resize(2);
 	MainSceneGraph.Entities[0].Scale *= 0.1f;
 
-	SceneLoading::LoadEntity("Resources/sponza/sponza.gltf", MainSceneGraph.Entities[0]);
+	SceneLoading::LoadEntityInBackground("Resources/sponza/sponza.gltf", MainSceneGraph.Entities[0]);
 	SceneLoading::LoadEntity("Resources/cube/cube.gltf", MainSceneGraph.Entities[1]);
 	
 	MainSceneGraph.UpdateRenderData(context);

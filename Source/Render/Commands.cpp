@@ -1,6 +1,7 @@
 #include "Commands.h"
 
 #include "System/ApplicationConfiguration.h"
+#include "Render/Device.h"
 #include "Render/Resource.h"
 #include "Utility/StringUtility.h"
 
@@ -49,6 +50,18 @@ namespace GFX
 
 			PipelineState defaultState = GFX::DefaultPipelineState();
 			SetPipelineState(context, defaultState);
+		}
+
+		ID3D11DeviceContext* CreateDeferredContext()
+		{
+			ID3D11DeviceContext* context;
+			API_CALL(Device::Get()->GetHandle()->CreateDeferredContext(0, &context));
+			return context;
+		}
+
+		void SubmitDeferredContext(ID3D11DeviceContext* context)
+		{
+			Device::Get()->SubmitDeferredContext(context);
 		}
 
 		void BindShader(ID3D11DeviceContext* context, ShaderID shaderID, bool multiInput)
