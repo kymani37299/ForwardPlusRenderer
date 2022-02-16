@@ -18,6 +18,7 @@ namespace SceneLoading
 		struct LoadingContext
 		{
 			std::string RelativePath;
+			ID3D11DeviceContext* GfxContext;
 		};
 
 		void* GetBufferData(cgltf_accessor* accessor)
@@ -141,6 +142,8 @@ namespace SceneLoading
 	
 	void LoadEntity(const std::string& path, Entity& entityOut)
 	{
+		entityOut.UpdateBuffer(Device::Get()->GetContext());
+
 		const std::string& ext = PathUtility::GetFileExtension(path);
 		if (ext != "gltf")
 		{
@@ -150,6 +153,7 @@ namespace SceneLoading
 
 		LoadingContext context{};
 		context.RelativePath = PathUtility::GetPathWitoutFile(path);
+		context.GfxContext = Device::Get()->GetContext();
 
 		cgltf_options options = {};
 		cgltf_data* data = NULL;
@@ -161,7 +165,9 @@ namespace SceneLoading
 			cgltf_mesh* meshData = (data->meshes + i);
 			for (size_t j = 0; j < meshData->primitives_count; j++)
 			{
-				entityOut.Drawables.Add(LoadDrawable(context, meshData->primitives + j));
+				Drawable d = LoadDrawable(context, meshData->primitives + j);
+				d.Material.UpdateBuffer(context.GfxContext);
+				entityOut.Drawables.Add(d);
 			}
 		}
 		cgltf_free(data);
@@ -177,6 +183,8 @@ namespace SceneLoading
 
 		void Run(ID3D11DeviceContext* context) override
 		{
+			m_Entity.UpdateBuffer(context);
+
 			const std::string& ext = PathUtility::GetFileExtension(m_Path);
 			if (ext != "gltf")
 			{
@@ -193,6 +201,7 @@ namespace SceneLoading
 
 			LoadingContext loadingContext{};
 			loadingContext.RelativePath = PathUtility::GetPathWitoutFile(m_Path);
+			loadingContext.GfxContext = context;
 
 			std::vector<Drawable> drawables;
 			for (size_t i = 0; i < data->meshes_count; i++)
@@ -203,15 +212,11 @@ namespace SceneLoading
 					if (ShouldStop()) break; // Something requested stop
 
 					Drawable d = LoadDrawable(loadingContext, meshData->primitives + j);
+					d.Material.UpdateBuffer(loadingContext.GfxContext);
 					drawables.push_back(d);
 
 					if (drawables.size() >= BATCH_SIZE)
 					{
-						for (Drawable& d : drawables)
-						{
-							//d.Material.UpdateBuffer(context);
-						}
-
 						entity.Drawables.AddAll(drawables);
 					}
 					

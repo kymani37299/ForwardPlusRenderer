@@ -108,11 +108,6 @@ Light Light::CreatePoint(Float3 position, Float3 color, Float2 falloff)
 
 void SceneGraph::UpdateRenderData(ID3D11DeviceContext* context)
 {
-	for (Entity& e : Entities)
-	{
-		e.UpdateBuffer(context);
-	}
-
 	MainCamera.UpdateBuffer(context);
 
 	// Lights
