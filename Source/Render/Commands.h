@@ -20,12 +20,12 @@ namespace GFX
 		void BindVertexBuffer(ID3D11DeviceContext* context, BufferID bufferID);
 		void BindVertexBuffers(ID3D11DeviceContext* context, std::vector<BufferID> buffers);
 		void BindIndexBuffer(ID3D11DeviceContext* context, BufferID bufferID);
-		void BindRenderTarget(ID3D11DeviceContext* context, RenderTargetID rtID);
+		void BindRenderTarget(ID3D11DeviceContext* context, TextureID colorID, TextureID depthID = TextureID_Invalid);
 
 		void SetPipelineState(ID3D11DeviceContext* context, const PipelineState& pipelineState);
 		void SetPipelineState(ID3D11DeviceContext* context, const CompiledPipelineState& pipelineState);
 
-		void ClearRenderTarget(ID3D11DeviceContext* context, RenderTargetID rtID);
+		void ClearRenderTarget(ID3D11DeviceContext* context, TextureID colorID, TextureID depthID = TextureID_Invalid);
 		void UploadToBuffer(ID3D11DeviceContext* context, BufferID bufferID, const void* data, uint64_t dataSize, uint64_t offset = 0);
 	}
 }

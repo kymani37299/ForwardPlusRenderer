@@ -33,7 +33,7 @@ public:
 	Device();
 	~Device();
 
-	void EndFrame(RenderTargetID finalRT);
+	void EndFrame(TextureID finalImage);
 	void CreateSwapchain();
 
 	ID3D11Device* GetHandle() const { return m_Device; }

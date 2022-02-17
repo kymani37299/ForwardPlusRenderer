@@ -17,6 +17,8 @@ public:
 	void AddRenderPass(RenderPass* renderPass);
 
 private:
-	RenderTargetID m_FinalRT;
 	std::vector<RenderPass*> m_Schedule;
 };
+
+extern TextureID FinalRT_Color;
+extern TextureID FinalRT_DepthStencil;

@@ -7,10 +7,20 @@
 #include "Render/Commands.h"
 #include "Utility/StringUtility.h"
 
+TextureID FinalRT_Color;
+TextureID FinalRT_DepthStencil;
+
+static void UpdateFinalRT()
+{
+	// TODO: Delete old resources
+	FinalRT_Color = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV);
+	FinalRT_DepthStencil = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_DSV);
+}
+
 Renderer::Renderer()
 {
 	Device::Init();
-	m_FinalRT = GFX::CreateRenderTarget(AppConfig.WindowWidth, AppConfig.WindowHeight, true);
+	UpdateFinalRT();
 }
 
 Renderer::~Renderer()
@@ -35,8 +45,7 @@ void Renderer::Update(float dt)
 
 	if (AppConfig.WindowSizeDirty)
 	{
-		// TODO: Delete old RT
-		m_FinalRT = GFX::CreateRenderTarget(AppConfig.WindowWidth, AppConfig.WindowHeight, true);
+		UpdateFinalRT();
 		Device::Get()->CreateSwapchain();
 
 		for (RenderPass* renderPass : m_Schedule)
@@ -53,15 +62,15 @@ void Renderer::Render()
 	ID3D11DeviceContext* context = Device::Get()->GetContext();
 	GFX::Cmd::MarkerBegin(context, "Frame");
 	GFX::Cmd::ResetContext(context);
-	GFX::Cmd::ClearRenderTarget(context, m_FinalRT);
-	GFX::Cmd::BindRenderTarget(context, m_FinalRT);
+	GFX::Cmd::ClearRenderTarget(context, FinalRT_Color, FinalRT_DepthStencil);
+	GFX::Cmd::BindRenderTarget(context, FinalRT_Color, FinalRT_DepthStencil);
 	for (RenderPass* renderPass : m_Schedule)
 	{
 		GFX::Cmd::MarkerBegin(context, renderPass->GetPassName());
 		renderPass->OnDraw(context);
 		GFX::Cmd::MarkerEnd(context);
 	}
-	Device::Get()->EndFrame(m_FinalRT);
+	Device::Get()->EndFrame(FinalRT_Color);
 	GFX::Cmd::MarkerEnd(context);
 }
 

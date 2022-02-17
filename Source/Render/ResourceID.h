@@ -10,12 +10,6 @@ static constexpr TextureID TextureID_Invalid = static_cast<TextureID>(-1);
 static constexpr BufferID BufferID_Invalid = static_cast<BufferID>(-1);
 static constexpr ShaderID ShaderID_Invalid = static_cast<ShaderID>(-1);
 
-struct RenderTargetID
-{
-	TextureID ColorTexture = TextureID_Invalid;
-	TextureID DepthTexture = TextureID_Invalid;
-};
-
 enum ResourceCreationFlags : uint64_t
 {
 	RCF_None = 0,

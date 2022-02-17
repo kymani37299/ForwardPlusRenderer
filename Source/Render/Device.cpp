@@ -121,7 +121,7 @@ void Device::CreateStaticSamplers()
     m_Device->CreateSamplerState(&samplerDesc, &m_StaticSamplers[1]);
 }
 
-void Device::EndFrame(RenderTargetID finalRT)
+void Device::EndFrame(TextureID finalImage)
 {
     // Present
     {
@@ -130,7 +130,7 @@ void Device::EndFrame(RenderTargetID finalRT)
         m_Context->OMSetRenderTargets(1, m_SwapchainView.GetAddressOf(), nullptr);
         GFX::Cmd::BindVertexBuffer(m_Context.Get(), m_QuadBuffer);
 
-        ID3D11ShaderResourceView* srv = GFX::DX_GetTextureSRV(finalRT.ColorTexture);
+        ID3D11ShaderResourceView* srv = GFX::DX_GetTextureSRV(finalImage);
         m_Context->PSSetShaderResources(0, 1, &srv);
         m_Context->Draw(6, 0);
 
