@@ -169,8 +169,7 @@ void GeometryRenderPass::OnDraw(ID3D11DeviceContext* context)
 	}
 
 	GFX::Cmd::BindShader(context, m_Shader, true);
-	context->PSSetSamplers(0, GFX::GetStaticSamplersNum(), GFX::GetStaticSamplers());
-
+	GFX::Cmd::SetupStaticSamplers<PS>(context);
 	GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 	GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 	GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.LightsBuffer, 3);

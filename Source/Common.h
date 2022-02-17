@@ -28,6 +28,17 @@ X& operator=(X const&) = delete;
 
 struct Float2
 {
+	Float2() : x(0), y(0) {}
+	Float2(float _x, float _y) : x(_x), y(_y) {}
+	Float2(DirectX::XMFLOAT3 xm) : x(xm.x), y(xm.y) {}
+	Float2(DirectX::XMVECTOR xm)
+	{
+		DirectX::XMFLOAT2 xmf;
+		DirectX::XMStoreFloat2(&xmf, xm);
+		x = xmf.x;
+		y = xmf.y;
+	}
+
 	float x;
 	float y;
 
@@ -52,11 +63,26 @@ struct Float2
 	friend Float2 operator/(float l, const Float2& r) { return r / Float2(l,l); }
 	friend Float2 operator/(Float2 l, const float& r) { return l / Float2(r,r); }
 
-	DirectX::XMVECTOR ToXM() { return DirectX::XMVectorSet(x, y, 0.0f, 0.0f); }
+	std::string ToString() const { return "(" + std::to_string(x) + ", " + std::to_string(y) + ")"; }
+	DirectX::XMVECTOR ToXM() const { return DirectX::XMVectorSet(x, y, 0.0f, 0.0f); }
+	DirectX::XMFLOAT2 ToXMF() const { return DirectX::XMFLOAT2{ x,y }; }
+	DirectX::XMFLOAT2A ToXMFA() const { return DirectX::XMFLOAT2A{ x,y }; }
 };
 
 struct Float3
 {
+	Float3() : x(0), y(0), z(0) {}
+	Float3(float _x, float _y, float _z): x(_x), y(_y), z(_z) {}
+	Float3(DirectX::XMFLOAT3 xm) : x(xm.x), y(xm.y), z(xm.z) {}
+	Float3(DirectX::XMVECTOR xm)
+	{
+		DirectX::XMFLOAT3 xmf;
+		DirectX::XMStoreFloat3(&xmf, xm);
+		x = xmf.x;
+		y = xmf.y;
+		z = xmf.z;
+	}
+
 	float x;
 	float y;
 	float z;
@@ -82,11 +108,27 @@ struct Float3
 	friend Float3 operator/(float l, const Float3& r) { return r / Float3(l, l, l); }
 	friend Float3 operator/(Float3 l, const float& r) { return l / Float3(r, r, r); }
 
-	DirectX::XMVECTOR ToXM() { return DirectX::XMVectorSet(x, y, z, 0.0f); }
+	std::string ToString() const { return "(" + std::to_string(x) + ", " + std::to_string(y) + ", " + std::to_string(z) + ")"; }
+	DirectX::XMVECTOR ToXM() const { return DirectX::XMVectorSet(x, y, z, 0.0f); }
+	DirectX::XMFLOAT3 ToXMF() const { return DirectX::XMFLOAT3{x,y,z}; }
+	DirectX::XMFLOAT3A ToXMFA() const { return DirectX::XMFLOAT3A{x,y,z}; }
 };
 
 struct Float4
 {
+	Float4() : x(0), y(0), z(0), w(0) {}
+	Float4(float _x, float _y, float _z, float _w) : x(_x), y(_y), z(_z), w(_w) {}
+	Float4(DirectX::XMFLOAT4 xm) : x(xm.x), y(xm.y), z(xm.z), w(xm.w) {}
+	Float4(DirectX::XMVECTOR xm)
+	{
+		DirectX::XMFLOAT4 xmf;
+		DirectX::XMStoreFloat4(&xmf, xm);
+		x = xmf.x;
+		y = xmf.y;
+		z = xmf.z;
+		w = xmf.w;
+	}
+
 	float x;
 	float y;
 	float z;
@@ -113,7 +155,10 @@ struct Float4
 	friend Float4 operator/(float l, const Float4& r) { return r / Float4(l, l, l, l); }
 	friend Float4 operator/(Float4 l, const float& r) { return l / Float4(r, r, r, r); }
 
-	DirectX::XMVECTOR ToXM() { return DirectX::XMVectorSet(x, y, z, w); }
+	std::string ToString() const { return "(" + std::to_string(x) + ", " + std::to_string(y) + ", " + std::to_string(z) + ", " + std::to_string(w) + ")"; }
+	DirectX::XMVECTOR ToXM() const { return DirectX::XMVectorSet(x, y, z, w); }
+	DirectX::XMFLOAT4 ToXMF() const { return DirectX::XMFLOAT4{ x,y,z,w }; }
+	DirectX::XMFLOAT4A ToXMFA() const { return DirectX::XMFLOAT4A{ x,y,z,w }; }
 };
 
 struct ColorUNORM

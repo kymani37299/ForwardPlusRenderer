@@ -35,20 +35,35 @@ Engine::~Engine()
 
 void Engine::UpdateInput(float dt)
 {
+	float dtSec = dt / 1000.0f;
+
 	if (Input::IsKeyJustPressed('R'))
 	{
 		GFX::Storage::ReloadAllShaders();
 	}
 
-	const float movement_speed = 0.1f;
+	const float movement_speed = 100.0f;
+	const float mouse_speed = 1000.0f;
 	char mov_inputs[] = { 'W', 'S', 'A', 'D', 'Q', 'E' };
-	Float3 mov_effects[] = { {1.0f, 0.0f, 0.0f},{-1.0f, 0.0f, 0.0f},{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, -1.0f},{0.0f, -1.0f, 0.0f},{0.0f, 1.0f, 0.0f} };
+	Float3 mov_effects[] = { {0.0f, 0.0f, 1.0f},{0.0f, 0.0f, -1.0f},{-1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f},{0.0f, -1.0f, 0.0f},{0.0f, 1.0f, 0.0f} };
 	static_assert(STATIC_ARRAY_SIZE(mov_inputs) == STATIC_ARRAY_SIZE(mov_effects));
+
+	Float3 moveDir{ 0.0f, 0.0f, 0.0f };
 	for (uint16_t i = 0; i < STATIC_ARRAY_SIZE(mov_inputs); i++)
 	{
 		if (Input::IsKeyPressed(mov_inputs[i]))
-			MainSceneGraph.MainCamera.Position += movement_speed * mov_effects[i];
+			moveDir += dtSec * movement_speed * mov_effects[i];
 	}
+	
+	Float4 moveDir4{ moveDir.x, moveDir.y, moveDir.z, 1.0f };
+	Float4 relativeDir = Float4(DirectX::XMVector4Transform(moveDir4.ToXM(), MainSceneGraph.MainCamera.WorldToView));
+	MainSceneGraph.MainCamera.Position += Float3(relativeDir.x, relativeDir.y, relativeDir.z);
+
+	Float2 mouseDelta = Input::GetMouseDelta();
+	Float3& cameraRot = MainSceneGraph.MainCamera.Rotation;
+	cameraRot.y -= dtSec * mouse_speed * mouseDelta.x;
+	cameraRot.x -= dtSec * mouse_speed * mouseDelta.y;
+	cameraRot.x = std::clamp(cameraRot.x, -1.5f, 1.5f);
 }
 
 void Engine::Run()

@@ -4,6 +4,7 @@
 
 #include "Render/RenderAPI.h"
 #include "Render/ResourceID.h"
+#include "Render/Texture.h"
 #include "Render/PipelineState.h"
 
 enum ShaderStage
@@ -35,6 +36,13 @@ namespace GFX
 		void UploadToBuffer(ID3D11DeviceContext* context, BufferID bufferID, const void* data, uint64_t dataSize, uint64_t offset = 0);
 		void UploadToTexture(ID3D11DeviceContext* context, void* data, TextureID textureID, uint32_t mipIndex = 0);
 		void CopyToTexture(ID3D11DeviceContext* context, TextureID srcTexture, TextureID dstTexture, uint32_t mipIndex = 0);
+
+		template<ShaderStage stage>
+		void SetupStaticSamplers(ID3D11DeviceContext* context)
+		{
+			if constexpr (stage == VS) context->VSSetSamplers(0, GFX::GetStaticSamplersNum(), GFX::GetStaticSamplers());
+			if constexpr (stage == PS) context->PSSetSamplers(0, GFX::GetStaticSamplersNum(), GFX::GetStaticSamplers());
+		}
 
 		template<ShaderStage stage>
 		void BindCBV(ID3D11DeviceContext* context, BufferID bufferID, uint32_t slot)

@@ -52,9 +52,26 @@ void Entity::UpdateBuffer(ID3D11DeviceContext* context)
 	Drawables.ForEach(func);
 }
 
-Camera::Camera(Float3 position, Float3 forward, float fov):
+namespace
+{
+	void RotToAxis(Float3 rot, Float3& forward, Float3& up, Float3& right)
+	{
+		using namespace DirectX;
+
+		// TODO: Calculate up based on roll
+		up = Float3(0.0f, 1.0f, 0.0f);
+		forward = Float3((float)(std::cos(rot.y) * std::cos(rot.x)), (float)(std::sin(rot.x)), (float)(std::sin(rot.y) * std::cos(rot.x)));
+		
+		XMVECTOR vec = XMVector3Cross(forward.ToXM(), up.ToXM());
+		vec = XMVector3Normalize(vec);
+		right = Float3(vec);
+	}
+}
+
+
+Camera::Camera(Float3 position, Float3 rotation, float fov):
 	Position(position),
-	Forward(forward),
+	Rotation(rotation),
 	FOV(fov)
 { }
 
@@ -65,16 +82,29 @@ void Camera::UpdateBuffer(ID3D11DeviceContext* context)
 	{
 		XMMATRIX WorldToView;
 		XMMATRIX ViewToClip;
-		Float3 Position;
+		XMFLOAT3 Position;
 	};
 
 	float aspectRatio = (float) AppConfig.WindowWidth / AppConfig.WindowHeight;
-	Float3 Up = Float3(0.0f, 1.0f, 0.0f);
+	Float3 Up;
+	Float3 Forward;
+	Float3 Right;
+	RotToAxis(Rotation, Forward, Up, Right);
+
+	XMMATRIX matView = XMMatrixTranspose(XMMatrixLookAtLH(Position.ToXM(), (Position + Forward).ToXM(), Up.ToXM()));
+	XMMATRIX matProj = XMMatrixTranspose(XMMatrixPerspectiveFovLH(DegreesToRadians(FOV), aspectRatio, 0.1f, 1000.0f));
+	
+	WorldToView = matView;
 
 	CameraCB cameraCB{};
-	cameraCB.WorldToView = XMMatrixTranspose(XMMatrixLookAtLH(Position.ToXM(), (Position + Forward).ToXM(), Up.ToXM()));
-	cameraCB.ViewToClip = XMMatrixTranspose(XMMatrixPerspectiveFovLH(DegreesToRadians(FOV), aspectRatio, 0.1f, 1000.0f));
-	cameraCB.Position = Position;
+	cameraCB.WorldToView = matView;
+	cameraCB.ViewToClip = matProj;
+	cameraCB.Position = Position.ToXMF();
+
+	//XMStoreFloat4x4(&WorldToView, matView);
+	//XMStoreFloat4x4(&cameraCB.WorldToView, matView);
+	//XMStoreFloat4x4(&cameraCB.ViewToClip, matView);
+	
 	if (!CameraBuffer.Valid()) CameraBuffer = GFX::CreateConstantBuffer<CameraCB>();
 	GFX::Cmd::UploadToBuffer(context, CameraBuffer, &cameraCB, sizeof(CameraCB));
 }

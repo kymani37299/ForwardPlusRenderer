@@ -53,12 +53,14 @@ struct Entity
 
 struct Camera
 {
-	Camera(Float3 position, Float3 Forward, float fov);
+	Camera(Float3 position, Float3 rotation, float fov);
 	void UpdateBuffer(ID3D11DeviceContext* context);
 
 	float FOV;
 	Float3 Position;
-	Float3 Forward;
+	Float3 Rotation; // (Pitch, Yaw, Roll)
+
+	DirectX::XMMATRIX WorldToView;
 
 	BufferID CameraBuffer;
 };
