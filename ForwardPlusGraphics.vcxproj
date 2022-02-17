@@ -201,6 +201,7 @@
     <ClInclude Include="Source\System\Input.h" />
     <ClInclude Include="Source\System\VSConsoleRedirect.h" />
     <ClInclude Include="Source\System\Window.h" />
+    <ClInclude Include="Source\Utility\DataTypes.h" />
     <ClInclude Include="Source\Utility\Multithreading.h" />
     <ClInclude Include="Source\Utility\PathUtility.h" />
     <ClInclude Include="Source\Utility\StringUtility.h" />
