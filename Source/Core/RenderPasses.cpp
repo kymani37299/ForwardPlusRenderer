@@ -82,10 +82,14 @@ void DepthPrepassRenderPass::OnDraw(ID3D11DeviceContext* context)
 			context->VSSetConstantBuffers(1, 1, &cbv);
 		}
 		const auto func = [&context](const Drawable& d) {
-			const Mesh& m = d.Mesh;
-			GFX::Cmd::BindVertexBuffers(context, { m.Position, m.UV, m.Normal, m.Tangent });
-			GFX::Cmd::BindIndexBuffer(context, m.Indices);
-			context->DrawIndexed(GFX::GetNumElements(m.Indices), 0, 0);
+			if (!d.Material.UseAlphaDiscard && !d.Material.UseBlend)
+			{
+				const Mesh& m = d.Mesh;
+				GFX::Cmd::BindVertexBuffers(context, { m.Position, m.UV, m.Normal, m.Tangent });
+				GFX::Cmd::BindIndexBuffer(context, m.Indices);
+				context->DrawIndexed(GFX::GetNumElements(m.Indices), 0, 0);
+			}
+
 		};
 		e.Drawables.ForEach(func);
 	}
@@ -98,6 +102,7 @@ void DepthPrepassRenderPass::OnDraw(ID3D11DeviceContext* context)
 void GeometryRenderPass::OnInit(ID3D11DeviceContext* context)
 {
 	m_Shader = GFX::CreateShader("Source/Shaders/geometry.hlsl");
+	m_AlphaDiscardShader = GFX::CreateShader("Source/Shaders/geometry.hlsl", { "ALPHA_DISCARD" });
 }
 
 void GeometryRenderPass::OnDraw(ID3D11DeviceContext* context)
@@ -120,29 +125,42 @@ void GeometryRenderPass::OnDraw(ID3D11DeviceContext* context)
 		context->PSSetShaderResources(3, 1, &srv);
 	}
 
+	const auto drawFunc = [&context](const Drawable& d)
+	{
+		{
+			ID3D11Buffer* cbv = GFX::DX_Buffer(d.Material.MaterialParams);
+			context->PSSetConstantBuffers(2, 1, &cbv);
+		}
+
+		const Mesh& m = d.Mesh;
+		GFX::Cmd::BindVertexBuffers(context, { m.Position, m.UV, m.Normal, m.Tangent });
+		GFX::Cmd::BindIndexBuffer(context, m.Indices);
+
+		ID3D11ShaderResourceView* srv[] = { GFX::DX_SRV(d.Material.Albedo), GFX::DX_SRV(d.Material.MetallicRoughness), GFX::DX_SRV(d.Material.Normal) };
+		context->PSSetShaderResources(0, 3, srv);
+
+		context->DrawIndexed(GFX::GetNumElements(m.Indices), 0, 0);
+	};
+
 	for (Entity& e : MainSceneGraph.Entities)
 	{
 		{
 			ID3D11Buffer* cbv = GFX::DX_Buffer(e.EntityBuffer);
 			context->VSSetConstantBuffers(1, 1, &cbv);
 		}
+		const auto draw = [&context, &drawFunc](const Drawable& d) { if (!d.Material.UseAlphaDiscard && !d.Material.UseBlend) drawFunc(d); };
+		e.Drawables.ForEach(draw);
+	}
 
-		const auto func = [&context](const Drawable& d) {
-			{
-				ID3D11Buffer* cbv = GFX::DX_Buffer(d.Material.MaterialParams);
-				context->PSSetConstantBuffers(2, 1, &cbv);
-			}
+	GFX::Cmd::BindShader(context, m_AlphaDiscardShader, true);
 
-			const Mesh& m = d.Mesh;
-			GFX::Cmd::BindVertexBuffers(context, { m.Position, m.UV, m.Normal, m.Tangent });
-			GFX::Cmd::BindIndexBuffer(context, m.Indices);
-
-			ID3D11ShaderResourceView* srv[] = { GFX::DX_SRV(d.Material.Albedo), GFX::DX_SRV(d.Material.MetallicRoughness), GFX::DX_SRV(d.Material.Normal) };
-			context->PSSetShaderResources(0, 3, srv);
-
-			context->DrawIndexed(GFX::GetNumElements(m.Indices), 0, 0);
-		};
-
-		e.Drawables.ForEach(func);
+	for (Entity& e : MainSceneGraph.Entities)
+	{
+		{
+			ID3D11Buffer* cbv = GFX::DX_Buffer(e.EntityBuffer);
+			context->VSSetConstantBuffers(1, 1, &cbv);
+		}
+		const auto draw = [&context, &drawFunc](const Drawable& d) { if (d.Material.UseAlphaDiscard) drawFunc(d); };
+		e.Drawables.ForEach(draw);
 	}
 }

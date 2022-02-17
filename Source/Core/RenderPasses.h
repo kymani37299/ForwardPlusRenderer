@@ -34,4 +34,5 @@ public:
 
 private:
 	ShaderID m_Shader;
+	ShaderID m_AlphaDiscardShader;
 };

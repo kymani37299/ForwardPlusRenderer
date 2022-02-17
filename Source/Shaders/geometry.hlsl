@@ -68,6 +68,7 @@ float4 PS(VertexOut IN) : SV_Target
 	mat.Albedo.rgb *= MatParams.AlbedoFactor;
 	mat.FresnelR0 = MatParams.FresnelR0;
 	mat.Roughness = MetallicRoughnessTexture.Sample(s_LinearWrap, IN.UV).g * MatParams.RoughnessFactor;
+	mat.Roughness = min(0.99f, mat.Roughness);
 
 	float3 normal = normalize(IN.Normal);
 	float3 view = normalize(CamData.Position - IN.WorldPosition);
