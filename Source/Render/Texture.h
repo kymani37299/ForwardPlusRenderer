@@ -14,6 +14,8 @@ namespace GFX
 	TextureID CreateTexture(uint32_t width, uint32_t height, uint64_t creationFlags, uint32_t numMips = 1, DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM, const void* initData = nullptr);
 
 	// Info
+	uint32_t GetNumMips(TextureID textureID);
+	ID3D11Texture2D* DX_Texture2D(TextureID textureID);
 	ID3D11ShaderResourceView* DX_SRV(TextureID textureID);
 
 	// Static samplers

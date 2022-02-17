@@ -43,7 +43,8 @@ enum ResourceCreationFlags : uint64_t
 
 	// Misc
 	RCF_Staging = RCF_CPU_Read << 1,
-	RCF_GenerateMips = RCF_Staging << 1
+	RCF_GenerateMips = RCF_Staging << 1,
+	RCF_CopyDest = RCF_GenerateMips << 1
 };
 
 enum ShaderCreationFlags : uint32_t

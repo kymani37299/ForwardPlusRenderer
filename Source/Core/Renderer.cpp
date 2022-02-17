@@ -12,7 +12,11 @@ TextureID FinalRT_DepthStencil;
 
 static void UpdateFinalRT()
 {
-	// TODO: Delete old resources
+	if (FinalRT_Color.Valid())
+	{
+		GFX::Storage::FreeTexture(FinalRT_Color);
+		GFX::Storage::FreeTexture(FinalRT_DepthStencil);
+	}
 	FinalRT_Color = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV);
 	FinalRT_DepthStencil = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_DSV);
 }

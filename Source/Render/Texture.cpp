@@ -53,18 +53,23 @@ namespace GFX
 
 	TextureID LoadTexture(ID3D11DeviceContext* context, const std::string& path, uint64_t creationFlags, uint32_t numMips)
 	{
+		static constexpr DXGI_FORMAT TEXTURE_FORMAT = DXGI_FORMAT_R8G8B8A8_UNORM;
 		int width, height, bpp;
 		void* texData = LoadTexture(path, width, height, bpp);
 		TextureID id;
 		if (numMips == 1)
 		{
-			id = CreateTexture(width, height, creationFlags, numMips, DXGI_FORMAT_R8G8B8A8_UNORM, texData);
+			id = CreateTexture(width, height, creationFlags, numMips, TEXTURE_FORMAT, texData);
 		}
 		else
 		{
-			id = CreateTexture(width, height, creationFlags | RCF_Bind_RTV | RCF_GenerateMips, numMips, DXGI_FORMAT_R8G8B8A8_UNORM);
-			GFX::Cmd::UploadToTexture(context, texData, id);
-			context->GenerateMips(DX_SRV(id));
+			TextureID stagingTexture = CreateTexture(width, height, RCF_Bind_SRV | RCF_Bind_RTV | RCF_GenerateMips, numMips, TEXTURE_FORMAT);
+			GFX::Cmd::UploadToTexture(context, texData, stagingTexture);
+			context->GenerateMips(DX_SRV(stagingTexture));
+
+			id = CreateTexture(width, height, creationFlags | RCF_CopyDest, numMips, TEXTURE_FORMAT);
+			for (uint32_t mip = 0; mip < GetNumMips(stagingTexture); mip++) GFX::Cmd::CopyToTexture(context, stagingTexture, id, mip);
+			GFX::Storage::FreeTexture(stagingTexture);
 		}
 		FreeTexture(texData);
 		return id;
@@ -145,6 +150,18 @@ namespace GFX
 		}
 
 		return id;
+	}
+
+	uint32_t GetNumMips(TextureID textureID)
+	{
+		const Texture& texture = GFX::Storage::GetTexture(textureID);
+		return texture.NumMips;
+	}
+
+	ID3D11Texture2D* DX_Texture2D(TextureID textureID)
+	{
+		const Texture& texture = GFX::Storage::GetTexture(textureID);
+		return texture.Handle.Get();
 	}
 
 	ID3D11ShaderResourceView* DX_SRV(TextureID textureID)

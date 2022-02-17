@@ -175,5 +175,16 @@ namespace GFX
 			uint32_t subresourceIndex = D3D11CalcSubresource(mipIndex, 0, texture.NumMips);
 			context->UpdateSubresource(texture.Handle.Get(), subresourceIndex, nullptr, data, texture.RowPitch, texture.SlicePitch);
 		}
+
+		void CopyToTexture(ID3D11DeviceContext* context, TextureID srcTexture, TextureID dstTexture, uint32_t mipIndex)
+		{
+			const Texture& srcTex = GFX::Storage::GetTexture(srcTexture);
+			const Texture& dstTex = GFX::Storage::GetTexture(dstTexture);
+			ASSERT(srcTex.RowPitch == dstTex.RowPitch
+				&& srcTex.SlicePitch == dstTex.SlicePitch
+				&& srcTex.NumMips == dstTex.NumMips, "[Cmd::CopyToTexture] SRC and DST are not compatible!");
+			uint32_t subresourceIndex = D3D11CalcSubresource(mipIndex, 0, srcTex.NumMips);
+			context->CopySubresourceRegion(dstTex.Handle.Get(), subresourceIndex, 0, 0, 0, srcTex.Handle.Get(), subresourceIndex, nullptr);
+		}
 	}
 }

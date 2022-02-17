@@ -12,6 +12,7 @@ inline D3D11_USAGE GetUsageFlags(uint64_t creationFlags)
 	if (creationFlags & RCF_Bind_UAV) return D3D11_USAGE_DEFAULT;
 	if (creationFlags & RCF_Bind_RTV) return D3D11_USAGE_DEFAULT;
 	if (creationFlags & RCF_Bind_DSV) return D3D11_USAGE_DEFAULT;
+	if (creationFlags & RCF_CopyDest) return D3D11_USAGE_DEFAULT;
 	if (creationFlags & RCF_Staging) return D3D11_USAGE_STAGING;
 	return D3D11_USAGE_IMMUTABLE;
 }
@@ -100,6 +101,11 @@ namespace GFX
 		Buffer& CreateBuffer(BufferID& id);
 		Texture& CreateTexture(TextureID& id);
 		Shader& CreateShader(ShaderID& id);
+
+		// TODO
+		void FreeBuffer(BufferID id) {}
+		void FreeTexture(TextureID id) {}
+		void FreeShader(ShaderID id) {}
 
 		void ReloadAllShaders();
 		void ClearStorage();
