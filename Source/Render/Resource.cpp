@@ -27,7 +27,7 @@ namespace GFX
 				return m_Storage[id];
 			}
 
-			uint32_t Size() const { return m_Size; }
+			uint32_t AllocatedSize() const { return m_NextAlloc.load(); }
 
 			void Clear() // Note: Not threadsafe
 			{
@@ -64,7 +64,7 @@ namespace GFX
 
 		void ReloadAllShaders()
 		{
-			for (uint32_t id = 0; id < ShaderStorage.Size(); id++)
+			for (uint32_t id = 0; id < ShaderStorage.AllocatedSize(); id++)
 			{
 				ReloadShader({ id });
 			}

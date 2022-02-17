@@ -151,7 +151,7 @@ namespace GFX
             return compiledConfig;
         }
 
-        ID3DBlob* ReadBlobFromFile(const std::string& shaderCode, const std::string& entry, const std::string& hlsl_target, D3D_SHADER_MACRO* configuration)
+        ID3DBlob* ReadBlobFromFile(const std::string& path, const std::string& shaderCode, const std::string& entry, const std::string& hlsl_target, D3D_SHADER_MACRO* configuration)
         {
             ID3DBlob* shaderCompileErrorsBlob, * blob;
             HRESULT hResult = D3DCompile(shaderCode.c_str(), shaderCode.size(), nullptr, configuration, nullptr, entry.c_str(), hlsl_target.c_str(), 0, 0, &blob, &shaderCompileErrorsBlob);
@@ -162,8 +162,7 @@ namespace GFX
                     errorString = (const char*)shaderCompileErrorsBlob->GetBufferPointer();
                     shaderCompileErrorsBlob->Release();
                 }
-                std::cout << errorString << std::endl;
-                ASSERT(0, "Shader compiler error!");
+                std::cout << "Shader compiler error for file: " << path << "\nError message:" << errorString << std::endl;
                 return nullptr;
             }
             return blob;
@@ -223,6 +222,7 @@ namespace GFX
         shader.Defines = defines;
         shader.CreationFlags = creationFlags;
         ReloadShader(id);
+        ASSERT(id.Valid(), "[CreateShader] Shader compilation failed!");
         return id;
 	}
 
@@ -235,24 +235,36 @@ namespace GFX
         ReadShaderFile(shader.Path, shaderCode);
 
         D3D_SHADER_MACRO* configuration = CompileConfiguration(shader.Defines);
-        ID3DBlob* vsBlob = shader.CreationFlags & SCF_VS ? ReadBlobFromFile(shaderCode, "VS", "vs_" + SHADER_VERSION, configuration) : nullptr;
-        ID3DBlob* psBlob = shader.CreationFlags & SCF_PS ? ReadBlobFromFile(shaderCode, "PS", "ps_" + SHADER_VERSION, configuration) : nullptr;
+        ID3DBlob* vsBlob = shader.CreationFlags & SCF_VS ? ReadBlobFromFile(shader.Path, shaderCode, "VS", "vs_" + SHADER_VERSION, configuration) : nullptr;
+        ID3DBlob* psBlob = shader.CreationFlags & SCF_PS ? ReadBlobFromFile(shader.Path, shaderCode, "PS", "ps_" + SHADER_VERSION, configuration) : nullptr;
         free(configuration);
 
         ID3D11Device* device = Device::Get()->GetHandle();
 
+        ID3D11VertexShader* vs = nullptr;
+        ID3D11PixelShader* ps = nullptr;
+
         bool success = vsBlob || psBlob;
-        if (vsBlob) success = success && SUCCEEDED(device->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, shader.VS.ReleaseAndGetAddressOf()));
-        if (psBlob) success = success && SUCCEEDED(device->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, shader.PS.ReleaseAndGetAddressOf()));
+        if (vsBlob) success = success && SUCCEEDED(device->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, &vs));
+        if (psBlob) success = success && SUCCEEDED(device->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &ps));
 
-        ASSERT(success, "[CreateShader] Shader compilation failed!");
-
-        if (vsBlob)
+        if (success)
         {
-            shader.IL.Reset();
-            shader.MIL.Reset();
-            shader.IL = CreateInputLayout(vsBlob, false);
-            shader.MIL = CreateInputLayout(vsBlob, true);
+            shader.VS = vs;
+            shader.PS = ps;
+
+            if (vsBlob)
+            {
+                shader.IL.Reset();
+                shader.MIL.Reset();
+                shader.IL = CreateInputLayout(vsBlob, false);
+                shader.MIL = CreateInputLayout(vsBlob, true);
+            }
+        }
+        else
+        {
+            SAFE_RELEASE(vs);
+            SAFE_RELEASE(ps);
         }
 
         SAFE_RELEASE(vsBlob);
