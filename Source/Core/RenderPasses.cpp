@@ -107,10 +107,13 @@ void GeometryRenderPass::OnInit(ID3D11DeviceContext* context)
 
 void GeometryRenderPass::OnDraw(ID3D11DeviceContext* context)
 {
-	PipelineState pso = GFX::DefaultPipelineState();
-	pso.DS.DepthEnable = true;
+	{
+		PipelineState pso = GFX::DefaultPipelineState();
+		pso.DS.DepthEnable = true;
+		pso.DS.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+		GFX::Cmd::SetPipelineState(context, pso);
+	}
 
-	GFX::Cmd::SetPipelineState(context, pso);
 	GFX::Cmd::BindShader(context, m_Shader, true);
 	context->PSSetSamplers(0, GFX::GetStaticSamplersNum(), GFX::GetStaticSamplers());
 
@@ -152,6 +155,11 @@ void GeometryRenderPass::OnDraw(ID3D11DeviceContext* context)
 		e.Drawables.ForEach(draw);
 	}
 
+	{
+		PipelineState pso = GFX::DefaultPipelineState();
+		pso.DS.DepthEnable = true;
+		GFX::Cmd::SetPipelineState(context, pso);
+	}
 	GFX::Cmd::BindShader(context, m_AlphaDiscardShader, true);
 
 	for (Entity& e : MainSceneGraph.Entities)
