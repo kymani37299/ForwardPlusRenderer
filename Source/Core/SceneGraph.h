@@ -19,19 +19,19 @@ struct Material
 	float MetallicFactor = 1.0f;
 	float RoughnessFactor = 1.0f;
 
-	BufferID MaterialParams = BufferID_Invalid;
-	TextureID Albedo = TextureID_Invalid;
-	TextureID MetallicRoughness = TextureID_Invalid;
-	TextureID Normal = TextureID_Invalid;
+	BufferID MaterialParams;
+	TextureID Albedo;
+	TextureID MetallicRoughness;
+	TextureID Normal;
 };
 
 struct Mesh
 {
-	BufferID Position = BufferID_Invalid; // Float3
-	BufferID UV = BufferID_Invalid; // Float2
-	BufferID Normal = BufferID_Invalid; // Float3
-	BufferID Tangent = BufferID_Invalid; // Float4
-	BufferID Indices = BufferID_Invalid; // uint16_t
+	BufferID Position; // Float3
+	BufferID UV; // Float2
+	BufferID Normal; // Float3
+	BufferID Tangent; // Float4
+	BufferID Indices; // uint16_t
 };
 
 struct Drawable
@@ -48,7 +48,7 @@ struct Entity
 	Float3 Scale = Float3(1.0f, 1.0f, 1.0f);
 
 	MTR::MutexVector<Drawable> Drawables;
-	BufferID EntityBuffer = BufferID_Invalid;
+	BufferID EntityBuffer;
 };
 
 struct Camera
@@ -60,7 +60,7 @@ struct Camera
 	Float3 Position;
 	Float3 Forward;
 
-	BufferID CameraBuffer = BufferID_Invalid;
+	BufferID CameraBuffer;
 };
 
 enum LightType : uint32_t
@@ -94,7 +94,7 @@ struct SceneGraph
 	std::vector<Entity> Entities;
 	std::vector<Light> Lights;
 
-	BufferID LightsBuffer = BufferID_Invalid;
+	BufferID LightsBuffer;
 };
 
 extern SceneGraph MainSceneGraph;

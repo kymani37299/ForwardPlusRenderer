@@ -85,10 +85,10 @@ namespace SceneLoading
 			}
 
 			unsigned int vertCount = meshData->attributes->data->count;
-			if (mesh.Position == BufferID_Invalid) mesh.Position = GetEmptyVB<Float3>(vertCount);
-			if (mesh.UV == BufferID_Invalid) mesh.UV = GetEmptyVB<Float2>(vertCount);
-			if (mesh.Normal == BufferID_Invalid) mesh.Normal = GetEmptyVB<Float3>(vertCount);
-			if (mesh.Tangent == BufferID_Invalid) mesh.Tangent = GetEmptyVB<Float4>(vertCount);
+			if (!mesh.Position.Valid()) mesh.Position = GetEmptyVB<Float3>(vertCount);
+			if (!mesh.UV.Valid()) mesh.UV = GetEmptyVB<Float2>(vertCount);
+			if (!mesh.Normal.Valid()) mesh.Normal = GetEmptyVB<Float3>(vertCount);
+			if (!mesh.Tangent.Valid()) mesh.Tangent = GetEmptyVB<Float4>(vertCount);
 
 			mesh.Indices = GetIndices(meshData->indices);
 

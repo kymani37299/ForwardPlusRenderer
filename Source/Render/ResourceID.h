@@ -2,13 +2,26 @@
 
 #include "Common.h"
 
-using BufferID = uint32_t;
-using TextureID = uint32_t;
-using ShaderID = uint32_t;
+struct BufferID
+{
+	static constexpr uint32_t InvalidID = static_cast<uint32_t>(-1);
+	uint32_t ID = InvalidID;
+	bool Valid() const { return ID != InvalidID; }
+};
 
-static constexpr TextureID TextureID_Invalid = static_cast<TextureID>(-1);
-static constexpr BufferID BufferID_Invalid = static_cast<BufferID>(-1);
-static constexpr ShaderID ShaderID_Invalid = static_cast<ShaderID>(-1);
+struct TextureID
+{
+	static constexpr uint32_t InvalidID = static_cast<uint32_t>(-1);
+	uint32_t ID = InvalidID;
+	bool Valid() const { return ID != InvalidID; }
+};
+
+struct ShaderID
+{
+	static constexpr uint32_t InvalidID = static_cast<uint32_t>(-1);
+	uint32_t ID = InvalidID;
+	bool Valid() const { return ID != InvalidID; }
+};
 
 enum ResourceCreationFlags : uint64_t
 {

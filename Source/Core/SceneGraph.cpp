@@ -31,7 +31,7 @@ void Material::UpdateBuffer(ID3D11DeviceContext* context)
 	matCB.FresnelR0 = FresnelR0;
 	matCB.MetallicFactor = MetallicFactor;
 	matCB.RoughnessFactor = RoughnessFactor;
-	if (MaterialParams == BufferID_Invalid) MaterialParams = GFX::CreateConstantBuffer<MaterialCB>();
+	if (!MaterialParams.Valid()) MaterialParams = GFX::CreateConstantBuffer<MaterialCB>();
 	GFX::Cmd::UploadToBuffer(context, MaterialParams, &matCB, sizeof(MaterialCB));
 }
 
@@ -45,7 +45,7 @@ void Entity::UpdateBuffer(ID3D11DeviceContext* context)
 
 	EntityCB entityCB{};
 	entityCB.ModelToWorld = XMMatrixTranspose(XMMatrixAffineTransformation(Scale.ToXM(), Float3(0.0f, 0.0f, 0.0f).ToXM(), Float4(0.0f, 0.0f, 0.0f, 0.0f).ToXM(), Position.ToXM()));
-	if(EntityBuffer == BufferID_Invalid) EntityBuffer = GFX::CreateConstantBuffer<EntityCB>();
+	if(!EntityBuffer.Valid()) EntityBuffer = GFX::CreateConstantBuffer<EntityCB>();
 	GFX::Cmd::UploadToBuffer(context, EntityBuffer, &entityCB, sizeof(EntityCB));
 
 	const auto func = [&context](Drawable& d) { d.Material.UpdateBuffer(context); };
@@ -75,7 +75,7 @@ void Camera::UpdateBuffer(ID3D11DeviceContext* context)
 	cameraCB.WorldToView = XMMatrixTranspose(XMMatrixLookAtLH(Position.ToXM(), (Position + Forward).ToXM(), Up.ToXM()));
 	cameraCB.ViewToClip = XMMatrixTranspose(XMMatrixPerspectiveFovLH(DegreesToRadians(FOV), aspectRatio, 0.1f, 1000.0f));
 	cameraCB.Position = Position;
-	if (CameraBuffer == BufferID_Invalid) CameraBuffer = GFX::CreateConstantBuffer<CameraCB>();
+	if (!CameraBuffer.Valid()) CameraBuffer = GFX::CreateConstantBuffer<CameraCB>();
 	GFX::Cmd::UploadToBuffer(context, CameraBuffer, &cameraCB, sizeof(CameraCB));
 }
 
@@ -124,9 +124,9 @@ void SceneGraph::UpdateRenderData(ID3D11DeviceContext* context)
 		};
 
 		// TODO: Resize buffer when new lights are added and update its data
-		if (LightsBuffer == BufferID_Invalid) LightsBuffer = GFX::CreateBuffer(sizeof(LightSB) * Lights.size(), sizeof(LightSB), RCF_Bind_SB | RCF_CPU_Write);
+		if (!LightsBuffer.Valid()) LightsBuffer = GFX::CreateBuffer(sizeof(LightSB) * Lights.size(), sizeof(LightSB), RCF_Bind_SB | RCF_CPU_Write);
 		
-		ASSERT(GFX::GetNumBufferElements(LightsBuffer) == Lights.size(), "TODO: Resize buffer when new lights are added and update its data");
+		ASSERT(GFX::GetNumElements(LightsBuffer) == Lights.size(), "TODO: Resize buffer when new lights are added and update its data");
 
 		std::vector<LightSB> sbLights;
 		sbLights.resize(Lights.size());

@@ -54,19 +54,19 @@ namespace GFX
 
 	namespace Storage
 	{
-		const Buffer& GetBuffer(BufferID id) { return BufferStorage[id]; }
-		const Texture& GetTexture(TextureID id) { return TextureStorage[id]; }
-		const Shader& GetShader(ShaderID id) { return ShaderStorage[id]; }
+		const Buffer& GetBuffer(BufferID id) { return BufferStorage[id.ID]; }
+		const Texture& GetTexture(TextureID id) { return TextureStorage[id.ID]; }
+		const Shader& GetShader(ShaderID id) { return ShaderStorage[id.ID]; }
 
-		Buffer& CreateBuffer(BufferID& id) { return BufferStorage.Allocate(id); }
-		Texture& CreateTexture(TextureID& id) { return TextureStorage.Allocate(id); }
-		Shader& CreateShader(ShaderID& id) { return ShaderStorage.Allocate(id); }
+		Buffer& CreateBuffer(BufferID& id) { return BufferStorage.Allocate(id.ID); }
+		Texture& CreateTexture(TextureID& id) { return TextureStorage.Allocate(id.ID); }
+		Shader& CreateShader(ShaderID& id) { return ShaderStorage.Allocate(id.ID); }
 
 		void ReloadAllShaders()
 		{
-			for (ShaderID id = 0; id < ShaderStorage.Size(); id++)
+			for (uint32_t id = 0; id < ShaderStorage.Size(); id++)
 			{
-				ReloadShader(id);
+				ReloadShader({ id });
 			}
 		}
 

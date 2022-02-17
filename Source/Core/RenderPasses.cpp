@@ -70,7 +70,7 @@ void DepthPrepassRenderPass::OnDraw(ID3D11DeviceContext* context)
 	GFX::Cmd::BindShader(context, m_Shader, true);
 
 	{
-		ID3D11Buffer* cbv = GFX::DX_GetBuffer(MainSceneGraph.MainCamera.CameraBuffer);
+		ID3D11Buffer* cbv = GFX::DX_Buffer(MainSceneGraph.MainCamera.CameraBuffer);
 		context->VSSetConstantBuffers(0, 1, &cbv);
 		context->PSSetConstantBuffers(0, 1, &cbv);
 	}
@@ -78,14 +78,14 @@ void DepthPrepassRenderPass::OnDraw(ID3D11DeviceContext* context)
 	for (Entity& e : MainSceneGraph.Entities)
 	{
 		{
-			ID3D11Buffer* cbv = GFX::DX_GetBuffer(e.EntityBuffer);
+			ID3D11Buffer* cbv = GFX::DX_Buffer(e.EntityBuffer);
 			context->VSSetConstantBuffers(1, 1, &cbv);
 		}
 		const auto func = [&context](const Drawable& d) {
 			const Mesh& m = d.Mesh;
 			GFX::Cmd::BindVertexBuffers(context, { m.Position, m.UV, m.Normal, m.Tangent });
 			GFX::Cmd::BindIndexBuffer(context, m.Indices);
-			context->DrawIndexed(GFX::GetNumBufferElements(m.Indices), 0, 0);
+			context->DrawIndexed(GFX::GetNumElements(m.Indices), 0, 0);
 		};
 		e.Drawables.ForEach(func);
 	}
@@ -110,26 +110,26 @@ void GeometryRenderPass::OnDraw(ID3D11DeviceContext* context)
 	context->PSSetSamplers(0, GFX::GetStaticSamplersNum(), GFX::GetStaticSamplers());
 
 	{
-		ID3D11Buffer* cbv = GFX::DX_GetBuffer(MainSceneGraph.MainCamera.CameraBuffer);
+		ID3D11Buffer* cbv = GFX::DX_Buffer(MainSceneGraph.MainCamera.CameraBuffer);
 		context->VSSetConstantBuffers(0, 1, &cbv);
 		context->PSSetConstantBuffers(0, 1, &cbv);
 	}
 
 	{
-		ID3D11ShaderResourceView* srv = GFX::DX_GetBufferSRV(MainSceneGraph.LightsBuffer);
+		ID3D11ShaderResourceView* srv = GFX::DX_SRV(MainSceneGraph.LightsBuffer);
 		context->PSSetShaderResources(3, 1, &srv);
 	}
 
 	for (Entity& e : MainSceneGraph.Entities)
 	{
 		{
-			ID3D11Buffer* cbv = GFX::DX_GetBuffer(e.EntityBuffer);
+			ID3D11Buffer* cbv = GFX::DX_Buffer(e.EntityBuffer);
 			context->VSSetConstantBuffers(1, 1, &cbv);
 		}
 
 		const auto func = [&context](const Drawable& d) {
 			{
-				ID3D11Buffer* cbv = GFX::DX_GetBuffer(d.Material.MaterialParams);
+				ID3D11Buffer* cbv = GFX::DX_Buffer(d.Material.MaterialParams);
 				context->PSSetConstantBuffers(2, 1, &cbv);
 			}
 
@@ -137,10 +137,10 @@ void GeometryRenderPass::OnDraw(ID3D11DeviceContext* context)
 			GFX::Cmd::BindVertexBuffers(context, { m.Position, m.UV, m.Normal, m.Tangent });
 			GFX::Cmd::BindIndexBuffer(context, m.Indices);
 
-			ID3D11ShaderResourceView* srv[] = { GFX::DX_GetTextureSRV(d.Material.Albedo), GFX::DX_GetTextureSRV(d.Material.MetallicRoughness), GFX::DX_GetTextureSRV(d.Material.Normal) };
+			ID3D11ShaderResourceView* srv[] = { GFX::DX_SRV(d.Material.Albedo), GFX::DX_SRV(d.Material.MetallicRoughness), GFX::DX_SRV(d.Material.Normal) };
 			context->PSSetShaderResources(0, 3, srv);
 
-			context->DrawIndexed(GFX::GetNumBufferElements(m.Indices), 0, 0);
+			context->DrawIndexed(GFX::GetNumElements(m.Indices), 0, 0);
 		};
 
 		e.Drawables.ForEach(func);

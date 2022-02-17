@@ -108,12 +108,12 @@ namespace GFX
 		{
 			ID3D11RenderTargetView* rtv = nullptr;
 			ID3D11DepthStencilView* dsv = nullptr;
-			if (colorID != TextureID_Invalid)
+			if (colorID.Valid())
 			{
 				const Texture& colorTexture = GFX::Storage::GetTexture(colorID);
 				rtv = colorTexture.RTV.Get();
 			}
-			if (depthID != TextureID_Invalid)
+			if (depthID.Valid())
 			{
 				const Texture& depthTexture = GFX::Storage::GetTexture(depthID);
 				dsv = depthTexture.DSV.Get();
@@ -145,13 +145,13 @@ namespace GFX
 
 		void ClearRenderTarget(ID3D11DeviceContext* context, TextureID colorID, TextureID depthID)
 		{
-			if (colorID != TextureID_Invalid)
+			if (colorID.Valid())
 			{
 				const float clearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 				const Texture& colorTexture = GFX::Storage::GetTexture(colorID);
 				context->ClearRenderTargetView(colorTexture.RTV.Get(), clearColor);
 			}
-			if (depthID != TextureID_Invalid)
+			if (depthID.Valid())
 			{
 				const Texture& depthTexture = GFX::Storage::GetTexture(depthID);
 				context->ClearDepthStencilView(depthTexture.DSV.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);

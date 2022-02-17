@@ -46,21 +46,21 @@ namespace GFX
 		return id;
 	}
 
-	ID3D11Buffer* DX_GetBuffer(BufferID bufferID)
+	ID3D11Buffer* DX_Buffer(BufferID bufferID)
 	{
 		const Buffer& buffer = Storage::GetBuffer(bufferID);
 		ASSERT(buffer.Handle.Get(), "[DX_GetBuffer] Null resource");
 		return buffer.Handle.Get();
 	}
 
-	ID3D11ShaderResourceView* DX_GetBufferSRV(BufferID bufferID)
+	ID3D11ShaderResourceView* DX_SRV(BufferID bufferID)
 	{
 		const Buffer& buffer = Storage::GetBuffer(bufferID);
 		ASSERT(buffer.SRV.Get(), "[DX_GetBuffer] Null resource");
 		return buffer.SRV.Get();
 	}
 
-	uint64_t GetNumBufferElements(BufferID bufferID)
+	uint64_t GetNumElements(BufferID bufferID)
 	{
 		const Buffer& buffer = Storage::GetBuffer(bufferID);
 		return buffer.ByteSize / buffer.ElementStride;
