@@ -53,6 +53,66 @@ void ScenePrepareRenderPass::OnDraw(ID3D11DeviceContext* context)
 }
 
 ///////////////////////////////////////////////////
+///////			Skybox					//////////
+/////////////////////////////////////////////////
+
+void SkyboxRenderPass::OnInit(ID3D11DeviceContext* context)
+{
+	static const float vbData[] = {
+	-1.0f,-1.0f,-1.0f,
+	-1.0f,-1.0f, 1.0f,
+	-1.0f, 1.0f, 1.0f,
+	1.0f, 1.0f,-1.0f,
+	-1.0f,-1.0f,-1.0f,
+	-1.0f, 1.0f,-1.0f,
+	1.0f,-1.0f, 1.0f,
+	-1.0f,-1.0f,-1.0f,
+	1.0f,-1.0f,-1.0f,
+	1.0f, 1.0f,-1.0f,
+	1.0f,-1.0f,-1.0f,
+	-1.0f,-1.0f,-1.0f,
+	-1.0f,-1.0f,-1.0f,
+	-1.0f, 1.0f, 1.0f,
+	-1.0f, 1.0f,-1.0f,
+	1.0f,-1.0f, 1.0f,
+	-1.0f,-1.0f, 1.0f,
+	-1.0f,-1.0f,-1.0f,
+	-1.0f, 1.0f, 1.0f,
+	-1.0f,-1.0f, 1.0f,
+	1.0f,-1.0f, 1.0f,
+	1.0f, 1.0f, 1.0f,
+	1.0f,-1.0f,-1.0f,
+	1.0f, 1.0f,-1.0f,
+	1.0f,-1.0f,-1.0f,
+	1.0f, 1.0f, 1.0f,
+	1.0f,-1.0f, 1.0f,
+	1.0f, 1.0f, 1.0f,
+	1.0f, 1.0f,-1.0f,
+	-1.0f, 1.0f,-1.0f,
+	1.0f, 1.0f, 1.0f,
+	-1.0f, 1.0f,-1.0f,
+	-1.0f, 1.0f, 1.0f,
+	1.0f, 1.0f, 1.0f,
+	-1.0f, 1.0f, 1.0f,
+	1.0f,-1.0f, 1.0f
+	};
+	static uint32_t numVertices = STATIC_ARRAY_SIZE(vbData) / 3;
+
+	m_Shader = GFX::CreateShader("Source/Shaders/skybox.hlsl");
+	m_SkyboxPanorama = GFX::LoadTextureHDR("Resources/skybox_panorama.hdr", RCF_Bind_SRV);
+	m_CubeVB = GFX::CreateVertexBuffer<Float3>(numVertices, (Float3*) vbData);
+}
+
+void SkyboxRenderPass::OnDraw(ID3D11DeviceContext* context)
+{
+	GFX::Cmd::BindShader(context, m_Shader);
+	GFX::Cmd::BindVertexBuffer(context, m_CubeVB);
+	GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
+	GFX::Cmd::BindSRV<PS>(context, m_SkyboxPanorama, 0);
+	context->Draw(GFX::GetNumElements(m_CubeVB), 0);
+}
+
+///////////////////////////////////////////////////
 ///////			DepthPrepass			//////////
 /////////////////////////////////////////////////
 
@@ -68,19 +128,13 @@ void DepthPrepassRenderPass::OnDraw(ID3D11DeviceContext* context)
 
 	GFX::Cmd::SetPipelineState(context, pso);
 	GFX::Cmd::BindShader(context, m_Shader, true);
-
-	{
-		ID3D11Buffer* cbv = GFX::DX_Buffer(MainSceneGraph.MainCamera.CameraBuffer);
-		context->VSSetConstantBuffers(0, 1, &cbv);
-		context->PSSetConstantBuffers(0, 1, &cbv);
-	}
+	GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
+	GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 
 	for (Entity& e : MainSceneGraph.Entities)
 	{
-		{
-			ID3D11Buffer* cbv = GFX::DX_Buffer(e.EntityBuffer);
-			context->VSSetConstantBuffers(1, 1, &cbv);
-		}
+		GFX::Cmd::BindCBV<VS>(context, e.EntityBuffer, 1);
+
 		const auto func = [&context](const Drawable& d) {
 			if (!d.Material.UseAlphaDiscard && !d.Material.UseBlend)
 			{
@@ -117,23 +171,13 @@ void GeometryRenderPass::OnDraw(ID3D11DeviceContext* context)
 	GFX::Cmd::BindShader(context, m_Shader, true);
 	context->PSSetSamplers(0, GFX::GetStaticSamplersNum(), GFX::GetStaticSamplers());
 
-	{
-		ID3D11Buffer* cbv = GFX::DX_Buffer(MainSceneGraph.MainCamera.CameraBuffer);
-		context->VSSetConstantBuffers(0, 1, &cbv);
-		context->PSSetConstantBuffers(0, 1, &cbv);
-	}
-
-	{
-		ID3D11ShaderResourceView* srv = GFX::DX_SRV(MainSceneGraph.LightsBuffer);
-		context->PSSetShaderResources(3, 1, &srv);
-	}
+	GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
+	GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
+	GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.LightsBuffer, 3);
 
 	const auto drawFunc = [&context](const Drawable& d)
 	{
-		{
-			ID3D11Buffer* cbv = GFX::DX_Buffer(d.Material.MaterialParams);
-			context->PSSetConstantBuffers(2, 1, &cbv);
-		}
+		GFX::Cmd::BindCBV<PS>(context, d.Material.MaterialParams, 2);
 
 		const Mesh& m = d.Mesh;
 		GFX::Cmd::BindVertexBuffers(context, { m.Position, m.UV, m.Normal, m.Tangent });
@@ -147,10 +191,7 @@ void GeometryRenderPass::OnDraw(ID3D11DeviceContext* context)
 
 	for (Entity& e : MainSceneGraph.Entities)
 	{
-		{
-			ID3D11Buffer* cbv = GFX::DX_Buffer(e.EntityBuffer);
-			context->VSSetConstantBuffers(1, 1, &cbv);
-		}
+		GFX::Cmd::BindCBV<VS>(context, e.EntityBuffer, 1);
 		const auto draw = [&context, &drawFunc](const Drawable& d) { if (!d.Material.UseAlphaDiscard && !d.Material.UseBlend) drawFunc(d); };
 		e.Drawables.ForEach(draw);
 	}
@@ -164,10 +205,7 @@ void GeometryRenderPass::OnDraw(ID3D11DeviceContext* context)
 
 	for (Entity& e : MainSceneGraph.Entities)
 	{
-		{
-			ID3D11Buffer* cbv = GFX::DX_Buffer(e.EntityBuffer);
-			context->VSSetConstantBuffers(1, 1, &cbv);
-		}
+		GFX::Cmd::BindCBV<VS>(context, e.EntityBuffer, 1);
 		const auto draw = [&context, &drawFunc](const Drawable& d) { if (d.Material.UseAlphaDiscard) drawFunc(d); };
 		e.Drawables.ForEach(draw);
 	}

@@ -121,10 +121,17 @@ namespace GFX
 			context->OMSetRenderTargets(1, &rtv, dsv);
 		}
 
-		void BindTextureSRV(ID3D11DeviceContext* context, TextureID textureID, uint32_t slot)
+		void BindCBV_VS(ID3D11DeviceContext* context, BufferID bufferID, uint32_t slot)
 		{
-			const Texture& colorTex = GFX::Storage::GetTexture(textureID);
-			ID3D11ShaderResourceView* srv = colorTex.SRV.Get();
+			const Buffer& buffer = GFX::Storage::GetBuffer(bufferID);
+			ID3D11Buffer* const cbv = buffer.Handle.Get();
+			context->VSSetConstantBuffers(slot, 1, &cbv);
+		}
+
+		void BindSRV_PS(ID3D11DeviceContext* context, TextureID textureID, uint32_t slot)
+		{
+			const Texture& texture = GFX::Storage::GetTexture(textureID);
+			ID3D11ShaderResourceView *const srv = texture.SRV.Get();
 			context->PSSetShaderResources(slot, 1, &srv);
 		}
 

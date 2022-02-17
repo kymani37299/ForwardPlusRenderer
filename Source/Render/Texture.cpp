@@ -30,6 +30,22 @@ namespace GFX
 			return data;
 		}
 
+		void* LoadTextureF(const std::string& path, int& width, int& height, int& bpp)
+		{
+			void* data = stbi_loadf(path.c_str(), &width, &height, &bpp, 4);
+
+			if (!data)
+			{
+				std::cout << "Warning: Failed to load texture: " << path << std::endl;
+				data = INVALID_TEXTURE_COLOR;
+				width = 1;
+				height = 1;
+				bpp = 4;
+			}
+
+			return data;
+		}
+
 		void FreeTexture(void* data)
 		{
 			if (data != INVALID_TEXTURE_COLOR)
@@ -43,12 +59,24 @@ namespace GFX
 		{
 			switch (format)
 			{
+			case DXGI_FORMAT_R32G32B32A32_FLOAT: return 16;
+			case DXGI_FORMAT_R16G16B16A16_FLOAT: return 8;
 			case DXGI_FORMAT_R8G8B8A8_UNORM: return 4;
 			case DXGI_FORMAT_R24G8_TYPELESS:  return 4;
 			default: NOT_IMPLEMENTED;
 			}
 			return 0;
 		}
+	}
+
+	TextureID LoadTextureHDR(const std::string& path, uint64_t creationFlags)
+	{
+		static constexpr DXGI_FORMAT TEXTURE_FORMAT = DXGI_FORMAT_R32G32B32A32_FLOAT;
+		int width, height, bpp;
+		void* texData = LoadTextureF(path, width, height, bpp);
+		TextureID id = CreateTexture(width, height, creationFlags, 1, TEXTURE_FORMAT, texData);
+		FreeTexture(texData);
+		return id;
 	}
 
 	TextureID LoadTexture(ID3D11DeviceContext* context, const std::string& path, uint64_t creationFlags, uint32_t numMips)

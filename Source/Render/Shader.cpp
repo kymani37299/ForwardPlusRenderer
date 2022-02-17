@@ -221,12 +221,12 @@ namespace GFX
         shader.Path = path;
         shader.Defines = defines;
         shader.CreationFlags = creationFlags;
-        ReloadShader(id);
-        ASSERT(id.Valid(), "[CreateShader] Shader compilation failed!");
+        bool result = ReloadShader(id);
+        ASSERT(result, "[CreateShader] Shader compilation failed!");
         return id;
 	}
 
-    void ReloadShader(ShaderID shaderID)
+    bool ReloadShader(ShaderID shaderID)
     {
         // Small hack in order to reload a shader
         Shader& shader = const_cast<Shader&>(Storage::GetShader(shaderID));
@@ -269,5 +269,7 @@ namespace GFX
 
         SAFE_RELEASE(vsBlob);
         SAFE_RELEASE(psBlob);
+
+        return success;
     }
 }
