@@ -101,11 +101,11 @@ namespace SceneLoading
 			{
 				const std::string textureURI = texture->image->uri;
 				const std::string texutrePath = context.RelativePath + "/" + textureURI;
-				return GFX::LoadTexture(texutrePath, RCF_Bind_SRV);
+				return GFX::LoadTexture(context.GfxContext, texutrePath, RCF_Bind_SRV, GFX::MAX_MIPS);
 			}
 			else
 			{
-				return GFX::CreateTexture(1, 1, RCF_Bind_SRV, DXGI_FORMAT_R8G8B8A8_UNORM, &defaultColor);
+				return GFX::CreateTexture(1, 1, RCF_Bind_SRV, 1, DXGI_FORMAT_R8G8B8A8_UNORM, &defaultColor);
 			}
 		}
 

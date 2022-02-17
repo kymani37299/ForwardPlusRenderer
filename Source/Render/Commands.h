@@ -27,5 +27,6 @@ namespace GFX
 
 		void ClearRenderTarget(ID3D11DeviceContext* context, TextureID colorID, TextureID depthID = TextureID{});
 		void UploadToBuffer(ID3D11DeviceContext* context, BufferID bufferID, const void* data, uint64_t dataSize, uint64_t offset = 0);
+		void UploadToTexture(ID3D11DeviceContext* context, void* data, TextureID textureID, uint32_t mipIndex = 0);
 	}
 }

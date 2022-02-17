@@ -39,8 +39,18 @@ namespace GFX
 			srvDesc.Buffer.ElementWidth = buffer.ElementStride;
 			srvDesc.Buffer.FirstElement = 0;
 			srvDesc.Buffer.NumElements = buffer.ByteSize / buffer.ElementStride;
-
 			API_CALL(Device::Get()->GetHandle()->CreateShaderResourceView(buffer.Handle.Get(), &srvDesc, buffer.SRV.GetAddressOf()));
+		}
+
+		if (creationFlags & RCF_Bind_UAV)
+		{
+			D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
+			uavDesc.Format = DXGI_FORMAT_UNKNOWN;
+			uavDesc.ViewDimension = D3D11_UAV_DIMENSION_BUFFER;
+			uavDesc.Buffer.FirstElement = 0;
+			uavDesc.Buffer.NumElements = buffer.ByteSize / buffer.ElementStride;
+			uavDesc.Buffer.Flags = 0;
+			API_CALL(Device::Get()->GetHandle()->CreateUnorderedAccessView(buffer.Handle.Get(), &uavDesc, buffer.UAV.GetAddressOf()));
 		}
 
 		return id;

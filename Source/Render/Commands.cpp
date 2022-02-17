@@ -168,5 +168,12 @@ namespace GFX
 			memcpy(mapResult.pData, dataBytePtr + offset, dataSize);
 			context->Unmap(buffer.Handle.Get(), 0);
 		}
+
+		void UploadToTexture(ID3D11DeviceContext* context, void* data, TextureID textureID, uint32_t mipIndex)
+		{
+			const Texture& texture = GFX::Storage::GetTexture(textureID);
+			uint32_t subresourceIndex = D3D11CalcSubresource(mipIndex, 0, texture.NumMips);
+			context->UpdateSubresource(texture.Handle.Get(), subresourceIndex, nullptr, data, texture.RowPitch, texture.SlicePitch);
+		}
 	}
 }

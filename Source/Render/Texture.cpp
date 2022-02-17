@@ -5,6 +5,7 @@
 
 #include "Render/Device.h"
 #include "Render/Resource.h"
+#include "Render/Commands.h"
 
 namespace GFX
 {
@@ -50,16 +51,26 @@ namespace GFX
 		}
 	}
 
-	TextureID LoadTexture(const std::string& path, uint64_t creationFlags)
+	TextureID LoadTexture(ID3D11DeviceContext* context, const std::string& path, uint64_t creationFlags, uint32_t numMips)
 	{
 		int width, height, bpp;
 		void* texData = LoadTexture(path, width, height, bpp);
-		TextureID id = CreateTexture(width, height, creationFlags, DXGI_FORMAT_R8G8B8A8_UNORM, texData);
+		TextureID id;
+		if (numMips == 1)
+		{
+			id = CreateTexture(width, height, creationFlags, numMips, DXGI_FORMAT_R8G8B8A8_UNORM, texData);
+		}
+		else
+		{
+			id = CreateTexture(width, height, creationFlags | RCF_Bind_RTV | RCF_GenerateMips, numMips, DXGI_FORMAT_R8G8B8A8_UNORM);
+			GFX::Cmd::UploadToTexture(context, texData, id);
+			context->GenerateMips(DX_SRV(id));
+		}
 		FreeTexture(texData);
 		return id;
 	}
 
-	TextureID CreateTexture(uint32_t width, uint32_t height, uint64_t creationFlags,  DXGI_FORMAT format, const void* initData)
+	TextureID CreateTexture(uint32_t width, uint32_t height, uint64_t creationFlags, uint32_t numMips, DXGI_FORMAT format, const void* initData)
 	{
 		if (creationFlags & RCF_Bind_DSV) format = DXGI_FORMAT_R24G8_TYPELESS;
 
@@ -68,7 +79,7 @@ namespace GFX
 
 		texture.Width = width;
 		texture.Height = height;
-		texture.NumMips = 1;
+		texture.NumMips = numMips == MAX_MIPS ? std::log2(max(width, height)) + 1 : numMips;
 		texture.Format = format;
 		texture.RowPitch = texture.Width * ToBPP(texture.Format);
 		texture.SlicePitch = texture.RowPitch * texture.Height;
@@ -76,6 +87,7 @@ namespace GFX
 		D3D11_SUBRESOURCE_DATA* initializationData = nullptr;
 		if (initData)
 		{
+			ASSERT(numMips == 1, "[CreateTexture] Initializing data on texture with mips is not supported!");
 			initializationData = new D3D11_SUBRESOURCE_DATA();
 			initializationData->pSysMem = initData;
 			initializationData->SysMemPitch = texture.RowPitch;
@@ -100,7 +112,7 @@ namespace GFX
 			D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc{};
 			srvDesc.Format = texture.Format;
 			srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-			srvDesc.Texture2D.MipLevels = 1;
+			srvDesc.Texture2D.MipLevels = texture.NumMips;
 			srvDesc.Texture2D.MostDetailedMip = 0;
 			API_CALL(Device::Get()->GetHandle()->CreateShaderResourceView(texture.Handle.Get(), &srvDesc, texture.SRV.GetAddressOf()));
 		}
