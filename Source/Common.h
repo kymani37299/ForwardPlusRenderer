@@ -161,6 +161,17 @@ struct Float4
 	DirectX::XMFLOAT4A ToXMFA() const { return DirectX::XMFLOAT4A{ x,y,z,w }; }
 };
 
+namespace XMUtility
+{
+	inline DirectX::XMFLOAT4X4 ToXMFloat4x4(DirectX::XMMATRIX xm)
+	{
+		using namespace DirectX;
+		XMFLOAT4X4 value;
+		XMStoreFloat4x4(&value, xm);
+		return value;
+	}
+}
+
 struct ColorUNORM
 {
 	ColorUNORM() : r(0), g(0), b(0), a(0) {}

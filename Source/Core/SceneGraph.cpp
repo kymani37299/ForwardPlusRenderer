@@ -20,15 +20,15 @@ void Material::UpdateBuffer(ID3D11DeviceContext* context)
 	using namespace DirectX;
 	struct MaterialCB
 	{
-		Float3 AlbedoFactor; float _padding;
-		Float3 FresnelR0; float _padding1;
+		XMFLOAT3A AlbedoFactor;
+		XMFLOAT3A FresnelR0;
 		float MetallicFactor;
 		float RoughnessFactor;
 	};
 
 	MaterialCB matCB{};
-	matCB.AlbedoFactor = AlbedoFactor;
-	matCB.FresnelR0 = FresnelR0;
+	matCB.AlbedoFactor = AlbedoFactor.ToXMFA();
+	matCB.FresnelR0 = FresnelR0.ToXMFA();
 	matCB.MetallicFactor = MetallicFactor;
 	matCB.RoughnessFactor = RoughnessFactor;
 	if (!MaterialParams.Valid()) MaterialParams = GFX::CreateConstantBuffer<MaterialCB>();
@@ -40,11 +40,12 @@ void Entity::UpdateBuffer(ID3D11DeviceContext* context)
 	using namespace DirectX;
 	struct EntityCB
 	{
-		XMMATRIX ModelToWorld;
+		XMFLOAT4X4 ModelToWorld;
 	};
 
+	XMMATRIX modelToWorld = XMMatrixTranspose(XMMatrixAffineTransformation(Scale.ToXM(), Float3(0.0f, 0.0f, 0.0f).ToXM(), Float4(0.0f, 0.0f, 0.0f, 0.0f).ToXM(), Position.ToXM()));
 	EntityCB entityCB{};
-	entityCB.ModelToWorld = XMMatrixTranspose(XMMatrixAffineTransformation(Scale.ToXM(), Float3(0.0f, 0.0f, 0.0f).ToXM(), Float4(0.0f, 0.0f, 0.0f, 0.0f).ToXM(), Position.ToXM()));
+	entityCB.ModelToWorld = XMUtility::ToXMFloat4x4(modelToWorld);
 	if(!EntityBuffer.Valid()) EntityBuffer = GFX::CreateConstantBuffer<EntityCB>();
 	GFX::Cmd::UploadToBuffer(context, EntityBuffer, &entityCB, sizeof(EntityCB));
 
@@ -80,8 +81,8 @@ void Camera::UpdateBuffer(ID3D11DeviceContext* context)
 	using namespace DirectX;
 	struct CameraCB
 	{
-		XMMATRIX WorldToView;
-		XMMATRIX ViewToClip;
+		XMFLOAT4X4 WorldToView;
+		XMFLOAT4X4 ViewToClip;
 		XMFLOAT3 Position;
 	};
 
@@ -97,14 +98,10 @@ void Camera::UpdateBuffer(ID3D11DeviceContext* context)
 	WorldToView = matView;
 
 	CameraCB cameraCB{};
-	cameraCB.WorldToView = matView;
-	cameraCB.ViewToClip = matProj;
+	cameraCB.WorldToView = XMUtility::ToXMFloat4x4(matView);
+	cameraCB.ViewToClip = XMUtility::ToXMFloat4x4(matProj);
 	cameraCB.Position = Position.ToXMF();
 
-	//XMStoreFloat4x4(&WorldToView, matView);
-	//XMStoreFloat4x4(&cameraCB.WorldToView, matView);
-	//XMStoreFloat4x4(&cameraCB.ViewToClip, matView);
-	
 	if (!CameraBuffer.Valid()) CameraBuffer = GFX::CreateConstantBuffer<CameraCB>();
 	GFX::Cmd::UploadToBuffer(context, CameraBuffer, &cameraCB, sizeof(CameraCB));
 }
@@ -143,13 +140,14 @@ void SceneGraph::UpdateRenderData(ID3D11DeviceContext* context)
 	// Lights
 	
 	{
+		using namespace DirectX;
 		struct LightSB
 		{
 			uint32_t LightType;
-			Float3 Position;
-			Float3 Strength;
-			Float2 Falloff;
-			Float3 Direction;
+			XMFLOAT3 Position;
+			XMFLOAT3 Strength;
+			XMFLOAT2 Falloff;
+			XMFLOAT3 Direction;
 			float SpotPower;
 		};
 
@@ -164,10 +162,10 @@ void SceneGraph::UpdateRenderData(ID3D11DeviceContext* context)
 		for (const Light& l : Lights)
 		{
 			sbLights[index].LightType = l.Type;
-			sbLights[index].Position = l.Position;
-			sbLights[index].Strength = l.Strength;
-			sbLights[index].Falloff = l.Falloff;
-			sbLights[index].Direction = l.Direction;
+			sbLights[index].Position = l.Position.ToXMF();
+			sbLights[index].Strength = l.Strength.ToXMF();
+			sbLights[index].Falloff = l.Falloff.ToXMF();
+			sbLights[index].Direction = l.Direction.ToXMF();
 			sbLights[index].SpotPower = l.SpotPower;
 			index++;
 		}
