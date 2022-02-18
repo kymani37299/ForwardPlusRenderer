@@ -21,5 +21,5 @@ namespace GFX
 
 	// Static samplers
 	ID3D11SamplerState** GetStaticSamplers();
-	uint16_t GetStaticSamplersNum();
+	size_t GetStaticSamplersNum();
 }

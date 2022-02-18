@@ -55,8 +55,8 @@ struct Buffer
 	ComPtr<ID3D11UnorderedAccessView> UAV;
 
 	// Data
-	uint64_t ByteSize;
-	uint64_t ElementStride;
+	uint32_t ByteSize;
+	uint32_t ElementStride;
 };
 
 struct Texture

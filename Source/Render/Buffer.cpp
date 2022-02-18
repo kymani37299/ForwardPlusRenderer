@@ -5,7 +5,7 @@
 
 namespace GFX
 {
-	BufferID CreateBuffer(uint64_t byteSize, uint64_t elementStride, uint64_t creationFlags, const void* initData)
+	BufferID CreateBuffer(uint32_t byteSize, uint32_t elementStride, uint64_t creationFlags, const void* initData)
 	{
 		BufferID id;
 		Buffer& buffer = Storage::CreateBuffer(id);
@@ -70,7 +70,7 @@ namespace GFX
 		return buffer.SRV.Get();
 	}
 
-	uint64_t GetNumElements(BufferID bufferID)
+	uint32_t GetNumElements(BufferID bufferID)
 	{
 		const Buffer& buffer = Storage::GetBuffer(bufferID);
 		return buffer.ByteSize / buffer.ElementStride;

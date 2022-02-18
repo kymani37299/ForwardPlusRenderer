@@ -10,7 +10,7 @@ public:
     {
         if (c != EOF) 
         {
-            TCHAR buf[] = { c, '\0' };
+            TCHAR buf[] = { (TCHAR) c, '\0' };
             OutputDebugString(buf);
         }
         return c;

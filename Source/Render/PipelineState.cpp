@@ -15,7 +15,7 @@ namespace GFX
 		ps.RS.CullMode = D3D11_CULL_NONE;
 		ps.RS.FillMode = D3D11_FILL_SOLID;
         ps.RS.AntialiasedLineEnable = false;
-        ps.RS.DepthBias = 0.0f;
+        ps.RS.DepthBias = 0;
         ps.RS.DepthBiasClamp = 0.0f;
         ps.RS.DepthClipEnable = true;
         ps.RS.FrontCounterClockwise = false;

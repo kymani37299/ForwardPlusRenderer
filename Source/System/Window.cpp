@@ -161,7 +161,7 @@ Window::Window()
         return;
     }
 
-    RECT initialRect = { 0, 0, AppConfig.WindowWidth, AppConfig.WindowHeight };
+    RECT initialRect = { 0, 0, (long) AppConfig.WindowWidth, (long) AppConfig.WindowHeight };
     AdjustWindowRectEx(&initialRect, WS_OVERLAPPEDWINDOW, FALSE, WS_EX_OVERLAPPEDWINDOW);
     const LONG initialWidth = initialRect.right - initialRect.left;
     const LONG initialHeight = initialRect.bottom - initialRect.top;

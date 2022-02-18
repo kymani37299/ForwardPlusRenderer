@@ -101,7 +101,7 @@ namespace GFX
 		void BindIndexBuffer(ID3D11DeviceContext* context, BufferID bufferID)
 		{
 			const Buffer& buffer = GFX::Storage::GetBuffer(bufferID);
-			context->IASetIndexBuffer(buffer.Handle.Get(), IndexStrideToDXGIFormat(buffer.ElementStride), 0);
+			context->IASetIndexBuffer(buffer.Handle.Get(), IndexStrideToDXGIFormat(buffer.ElementStride), 0u);
 		}
 
 		void BindRenderTarget(ID3D11DeviceContext* context, TextureID colorID, TextureID depthID)
@@ -165,7 +165,7 @@ namespace GFX
 			}
 		}
 
-		void UploadToBuffer(ID3D11DeviceContext* context, BufferID bufferID, const void* data, uint64_t dataSize, uint64_t offset)
+		void UploadToBuffer(ID3D11DeviceContext* context, BufferID bufferID, const void* data, size_t dataSize, size_t offset)
 		{
 			const Buffer& buffer = GFX::Storage::GetBuffer(bufferID);
 			const uint8_t* dataBytePtr = reinterpret_cast<const uint8_t*>(data);

@@ -33,7 +33,7 @@ namespace GFX
 		void SetPipelineState(ID3D11DeviceContext* context, const CompiledPipelineState& pipelineState);
 
 		void ClearRenderTarget(ID3D11DeviceContext* context, TextureID colorID, TextureID depthID = TextureID{});
-		void UploadToBuffer(ID3D11DeviceContext* context, BufferID bufferID, const void* data, uint64_t dataSize, uint64_t offset = 0);
+		void UploadToBuffer(ID3D11DeviceContext* context, BufferID bufferID, const void* data, size_t dataSize, size_t offset = 0);
 		void UploadToTexture(ID3D11DeviceContext* context, void* data, TextureID textureID, uint32_t mipIndex = 0);
 		void CopyToTexture(ID3D11DeviceContext* context, TextureID srcTexture, TextureID dstTexture, uint32_t mipIndex = 0);
 

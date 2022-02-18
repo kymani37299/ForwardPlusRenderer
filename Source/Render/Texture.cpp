@@ -112,7 +112,7 @@ namespace GFX
 
 		texture.Width = width;
 		texture.Height = height;
-		texture.NumMips = numMips == MAX_MIPS ? std::log2(max(width, height)) + 1 : numMips;
+		texture.NumMips = numMips == MAX_MIPS ? (uint32_t) std::log2(max(width, height)) + 1 : numMips;
 		texture.Format = format;
 		texture.RowPitch = texture.Width * ToBPP(texture.Format);
 		texture.SlicePitch = texture.RowPitch * texture.Height;
@@ -204,7 +204,7 @@ namespace GFX
 	}
 	
 	
-	uint16_t GetStaticSamplersNum()
+	size_t GetStaticSamplersNum()
 	{
 		return Device::Get()->GetStaticSamplers().size();
 	}

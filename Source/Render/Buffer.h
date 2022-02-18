@@ -8,9 +8,9 @@ struct ID3D11ShaderResourceView;
 namespace GFX
 {
 	// Creation
-	BufferID CreateBuffer(uint64_t byteSize, uint64_t elementStride, uint64_t creationFlags, const void* initData = nullptr);
+	BufferID CreateBuffer(uint32_t byteSize, uint32_t elementStride, uint64_t creationFlags, const void* initData = nullptr);
 
-	inline BufferID CreateIndexBuffer(uint64_t byteSize, uint32_t elementStride, const void* initData)
+	inline BufferID CreateIndexBuffer(uint32_t byteSize, uint32_t elementStride, const void* initData)
 	{
 		return CreateBuffer(byteSize, elementStride, RCF_Bind_IB, initData);
 	}
@@ -32,6 +32,6 @@ namespace GFX
 	// Info
 	ID3D11Buffer* DX_Buffer(BufferID bufferID);
 	ID3D11ShaderResourceView* DX_SRV(BufferID bufferID);
-	uint64_t GetNumElements(BufferID bufferID);
+	uint32_t GetNumElements(BufferID bufferID);
 
 }
