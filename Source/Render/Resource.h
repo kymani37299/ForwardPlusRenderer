@@ -104,10 +104,9 @@ namespace GFX
 		Texture& CreateTexture(TextureID& id);
 		Shader& CreateShader(ShaderID& id);
 
-		// TODO
-		void FreeBuffer(BufferID id) {}
-		void FreeTexture(TextureID id) {}
-		void FreeShader(ShaderID id) {}
+		void Free(BufferID& id);
+		void Free(TextureID& id);
+		void Free(ShaderID& id);
 
 		void ReloadAllShaders();
 		void ClearStorage();

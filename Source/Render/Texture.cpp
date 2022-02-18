@@ -97,7 +97,7 @@ namespace GFX
 
 			id = CreateTexture(width, height, creationFlags | RCF_CopyDest, numMips, TEXTURE_FORMAT);
 			for (uint32_t mip = 0; mip < GetNumMips(stagingTexture); mip++) GFX::Cmd::CopyToTexture(context, stagingTexture, id, mip);
-			GFX::Storage::FreeTexture(stagingTexture);
+			GFX::Storage::Free(stagingTexture);
 		}
 		FreeTexture(texData);
 		return id;

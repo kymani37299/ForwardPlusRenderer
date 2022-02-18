@@ -168,8 +168,8 @@ namespace
 			rtv->Release();
 		}
 
-		GFX::Storage::FreeShader(shader);
-		GFX::Storage::FreeBuffer(cameraCB);
+		GFX::Storage::Free(shader);
+		GFX::Storage::Free(cameraCB);
 
 		GFX::Cmd::MarkerEnd(context);
 
@@ -197,11 +197,11 @@ void SkyboxRenderPass::OnShaderReload(ID3D11DeviceContext* context)
 {
 	if (m_SkyboxCubemap.Valid())
 	{
-		GFX::Storage::FreeTexture(m_SkyboxCubemap);
+		GFX::Storage::Free(m_SkyboxCubemap);
 	}
 	TextureID skyboxPanorama = GFX::LoadTextureHDR("Resources/skybox_panorama.hdr", RCF_Bind_SRV);
 	m_SkyboxCubemap = PanoramaToCubemap(context, skyboxPanorama, 512);
-	GFX::Storage::FreeTexture(skyboxPanorama);
+	GFX::Storage::Free(skyboxPanorama);
 }
 
 ///////////////////////////////////////////////////

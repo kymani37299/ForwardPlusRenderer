@@ -1,7 +1,8 @@
 #include "Resource.h"
 
-#include <vector>
-#include <atomic>
+#include <array>
+#include <stack>
+#include <mutex>
 
 #include "Render/RenderAPI.h"
 #include "Render/Shader.h"
@@ -10,46 +11,59 @@ namespace GFX
 {
 	namespace
 	{
-		template<typename ResourceHandle>
+		template<typename ResourceHandle, uint32_t StorageSize>
 		class ResourceStorage
 		{
 		public:
-			ResourceStorage(uint32_t size):
-				m_Size(size)
-			{
-				m_Storage.resize(m_Size);
-			}
-
 			ResourceHandle& Allocate(uint32_t& id)
 			{
-				id = m_NextAlloc++;
-				ASSERT(id < m_Size, "[ResourceStorage] Memory overflow!");
-				return m_Storage[id];
+				m_Mutex.lock();
+				if (!m_AvailableElements.empty())
+				{
+					id = m_AvailableElements.top();
+					m_AvailableElements.pop();
+				}
+				else
+				{
+					ASSERT(m_NextAlloc < StorageSize, "[ResourceStorage] Memory overflow, initialize storage with more memory!");
+					id = m_NextAlloc++;
+				}
+				ResourceHandle& handle = m_Storage[id];
+				m_Mutex.unlock();
+				return handle;
 			}
 
-			uint32_t AllocatedSize() const { return m_NextAlloc.load(); }
-
-			void Clear() // Note: Not threadsafe
+			void Free(uint32_t id)
 			{
-				m_Storage.clear();
-				m_NextAlloc.store(0);
+				m_Mutex.lock();
+				m_AvailableElements.push(id);
+				m_Storage[id] = ResourceHandle{};
+				m_Mutex.unlock();
+			}
+
+			void Clear()
+			{
+				m_Mutex.lock();
+				for (ResourceHandle& handle : m_Storage) handle = ResourceHandle{};
+				while (!m_AvailableElements.empty()) m_AvailableElements.pop();
+				m_Mutex.unlock();
 			}
 
 			ResourceHandle& operator[](uint32_t id)
 			{
-				ASSERT(m_Size > m_NextAlloc.load(), "[ResourceStorage] Invalid ID");
 				return m_Storage[id];
 			}
 
 		private:
-			uint32_t m_Size;
-			std::atomic<uint32_t> m_NextAlloc;
-			std::vector<ResourceHandle> m_Storage;
+			std::mutex m_Mutex;
+			uint32_t m_NextAlloc = 0;
+			std::array<ResourceHandle, StorageSize> m_Storage;
+			std::stack<uint32_t> m_AvailableElements;
 		};
 
-		ResourceStorage<Buffer> BufferStorage{ 1024 };
-		ResourceStorage<Texture> TextureStorage{ 1024 };
-		ResourceStorage<Shader> ShaderStorage{ 1024 };
+		ResourceStorage<Buffer, 1024> BufferStorage;
+		ResourceStorage<Texture, 1024> TextureStorage;
+		ResourceStorage<Shader, 1024> ShaderStorage;
 	}
 
 	namespace Storage
@@ -62,20 +76,34 @@ namespace GFX
 		Texture& CreateTexture(TextureID& id) { return TextureStorage.Allocate(id.ID); }
 		Shader& CreateShader(ShaderID& id) { return ShaderStorage.Allocate(id.ID); }
 
+		void Free(BufferID& id)
+		{
+			ASSERT(id.Valid(), "[Storage::Free] Trying to free invalid resource");
+			BufferStorage.Free(id.ID);
+			id = BufferID{};
+		}
+		
+		void Free(TextureID& id)
+		{
+			ASSERT(id.Valid(), "[Storage::Free] Trying to free invalid resource");
+			TextureStorage.Free(id.ID);
+			id = TextureID{};
+		}
+		
+		void Free(ShaderID& id)
+		{
+			ASSERT(id.Valid(), "[Storage::Free] Trying to free invalid resource");
+			ShaderStorage.Free(id.ID);
+			id = ShaderID{};
+		}
+
 		void ReloadAllShaders()
 		{
-			for (uint32_t id = 0; id < ShaderStorage.AllocatedSize(); id++)
-			{
-				ReloadShader({ id });
-			}
+			// TODO:
 		}
 
 		void ClearStorage()
 		{
-			std::atomic<uint32_t> m_NextAlloc;
-			m_NextAlloc.fetch_add(1);
-			m_NextAlloc++;
-
 			BufferStorage.Clear();
 			TextureStorage.Clear();
 			ShaderStorage.Clear();
