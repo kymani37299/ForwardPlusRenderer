@@ -17,7 +17,7 @@ cbuffer CameraCB : register(b0)
 	CameraData CamData;
 }
 
-Texture2D CubemapPanorama : register(t0);
+TextureCube SkyboxTexture : register(t0);
 
 VertexOut VS(VertexInput IN)
 {
@@ -40,5 +40,5 @@ VertexOut VS(VertexInput IN)
 
 float4 PS(VertexOut IN) : SV_Target
 {
-	return float4(IN.SkyRay, 1.0f);
+	return SkyboxTexture.Sample(s_LinearWrap, IN.SkyRay);
 }

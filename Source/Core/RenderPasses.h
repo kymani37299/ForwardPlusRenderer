@@ -19,11 +19,11 @@ public:
 
 	void OnInit(ID3D11DeviceContext* context) override;
 	void OnDraw(ID3D11DeviceContext* context) override;
+	void OnShaderReload(ID3D11DeviceContext* context) override;
 
 private:
-	BufferID m_CubeVB;
 	ShaderID m_Shader;
-	TextureID m_SkyboxPanorama;
+	TextureID m_SkyboxCubemap;
 };
 
 class DepthPrepassRenderPass : public RenderPass

@@ -103,6 +103,42 @@ namespace GFX
 		return id;
 	}
 
+	TextureID LoadCubemap(const std::string& path, uint64_t creationFlags)
+	{
+		// Load tex
+		static constexpr DXGI_FORMAT TEXTURE_FORMAT = DXGI_FORMAT_R8G8B8A8_UNORM;
+		int width, height, bpp;
+		void* texData = LoadTexture(path, width, height, bpp);
+
+		// Prepare init data
+		std::vector<const void*> initData;
+		initData.resize(6);
+		uint32_t byteSizePerImg = width * height * bpp / 6;
+		uint8_t* bytePtr = (uint8_t*) texData;
+		for (size_t i = 0; i < 6; i++) initData[i] = (const void*) (bytePtr + i * byteSizePerImg);
+
+		// Create tex
+		TextureID id = CreateTextureArray(width, height / 6, 6, creationFlags, 1, TEXTURE_FORMAT, initData);
+		FreeTexture(texData);
+		return id;
+	}
+
+	D3D11_TEXTURE2D_DESC CreateTextureDesc(const Texture& texture, uint64_t creationFlags)
+	{
+		D3D11_TEXTURE2D_DESC textureDesc = {};
+		textureDesc.Width = texture.Width;
+		textureDesc.Height = texture.Height;
+		textureDesc.MipLevels = texture.NumMips;
+		textureDesc.ArraySize = texture.ArraySize;
+		textureDesc.Format = texture.Format;
+		textureDesc.SampleDesc.Count = 1;
+		textureDesc.Usage = GetUsageFlags(creationFlags);
+		textureDesc.BindFlags = GetBindFlags(creationFlags);
+		textureDesc.MiscFlags = GetMiscFlags(creationFlags);
+		textureDesc.CPUAccessFlags = GetCPUAccessFlags(creationFlags);
+		return textureDesc;
+	}
+
 	TextureID CreateTexture(uint32_t width, uint32_t height, uint64_t creationFlags, uint32_t numMips, DXGI_FORMAT format, const void* initData)
 	{
 		if (creationFlags & RCF_Bind_DSV) format = DXGI_FORMAT_R24G8_TYPELESS;
@@ -112,6 +148,7 @@ namespace GFX
 
 		texture.Width = width;
 		texture.Height = height;
+		texture.ArraySize = 1;
 		texture.NumMips = numMips == MAX_MIPS ? (uint32_t) std::log2(max(width, height)) + 1 : numMips;
 		texture.Format = format;
 		texture.RowPitch = texture.Width * ToBPP(texture.Format);
@@ -127,18 +164,9 @@ namespace GFX
 			initializationData->SysMemSlicePitch = texture.SlicePitch;
 		}
 
-		D3D11_TEXTURE2D_DESC textureDesc = {};
-		textureDesc.Width = texture.Width;
-		textureDesc.Height = texture.Height;
-		textureDesc.MipLevels = texture.NumMips;
-		textureDesc.ArraySize = 1;
-		textureDesc.Format = texture.Format;
-		textureDesc.SampleDesc.Count = 1;
-		textureDesc.Usage = GetUsageFlags(creationFlags);
-		textureDesc.BindFlags = GetBindFlags(creationFlags);
-		textureDesc.MiscFlags = GetMiscFlags(creationFlags);
-		textureDesc.CPUAccessFlags = GetCPUAccessFlags(creationFlags);
+		D3D11_TEXTURE2D_DESC textureDesc = CreateTextureDesc(texture, creationFlags);
 		API_CALL(Device::Get()->GetHandle()->CreateTexture2D(&textureDesc, initializationData, texture.Handle.GetAddressOf()));
+		SAFE_DELETE(initializationData);
 
 		if (creationFlags & RCF_Bind_SRV)
 		{
@@ -175,6 +203,76 @@ namespace GFX
 			dsvDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
 			dsvDesc.Texture2D.MipSlice = 0;
 			API_CALL(Device::Get()->GetHandle()->CreateDepthStencilView(texture.Handle.Get(), &dsvDesc, texture.DSV.GetAddressOf()));
+		}
+
+		return id;
+	}
+
+	TextureID CreateTextureArray(uint32_t width, uint32_t height, uint32_t arraySize, uint64_t creationFlags, uint32_t numMips, DXGI_FORMAT format, std::vector<const void*> initData)
+	{
+		TextureID id;
+		Texture& texture = Storage::CreateTexture(id);
+		texture.Width = width;
+		texture.Height = height;
+		texture.ArraySize = arraySize;
+		texture.NumMips = numMips == MAX_MIPS ? (uint32_t)std::log2(max(width, height)) + 1 : numMips;
+		texture.Format = format;
+		texture.RowPitch = texture.Width * ToBPP(texture.Format);
+		texture.SlicePitch = texture.RowPitch * texture.Height;
+
+		D3D11_SUBRESOURCE_DATA* initializationData = nullptr;
+		if (!initData.empty())
+		{
+			ASSERT(numMips == 1, "[CreateTextureArray] Initializing data on texture with mips is not supported!");
+			ASSERT(initData.size() == arraySize, "[CreateTextureArray] initData size must match arraySize!");
+
+			initializationData = new D3D11_SUBRESOURCE_DATA[initData.size()]();
+			for (size_t i = 0; i < initData.size(); i++)
+			{
+				initializationData = new D3D11_SUBRESOURCE_DATA();
+				initializationData->pSysMem = initData[i];
+				initializationData->SysMemPitch = texture.RowPitch;
+				initializationData->SysMemSlicePitch = texture.SlicePitch;
+			}
+		}
+
+		D3D11_TEXTURE2D_DESC textureDesc = CreateTextureDesc(texture, creationFlags);
+		API_CALL(Device::Get()->GetHandle()->CreateTexture2D(&textureDesc, initializationData, texture.Handle.GetAddressOf()));
+		if (initializationData != nullptr) delete[] initializationData;
+
+		if (creationFlags & RCF_Bind_SRV)
+		{
+			if (creationFlags & RCF_Cubemap)
+			{
+				D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+				srvDesc.Format = texture.Format;
+				srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
+				srvDesc.TextureCube.MipLevels = texture.NumMips;
+				srvDesc.TextureCube.MostDetailedMip = 0;
+				API_CALL(Device::Get()->GetHandle()->CreateShaderResourceView(texture.Handle.Get(), &srvDesc, texture.SRV.GetAddressOf()));
+			}
+			else
+			{
+				D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+				srvDesc.Format = texture.Format;
+				srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DARRAY;
+				srvDesc.Texture2DArray.ArraySize = texture.ArraySize;
+				srvDesc.Texture2DArray.FirstArraySlice = 0;
+				srvDesc.Texture2DArray.MipLevels = texture.NumMips;
+				srvDesc.Texture2DArray.MostDetailedMip = 0;
+				API_CALL(Device::Get()->GetHandle()->CreateShaderResourceView(texture.Handle.Get(), &srvDesc, texture.SRV.GetAddressOf()));
+			}
+		}
+
+		if (creationFlags & RCF_Bind_UAV)
+		{
+			D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
+			uavDesc.Format = texture.Format;
+			uavDesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2DARRAY;
+			uavDesc.Texture2DArray.ArraySize = texture.ArraySize;
+			uavDesc.Texture2DArray.FirstArraySlice = 0;
+			uavDesc.Texture2DArray.MipSlice = 0;
+			API_CALL(Device::Get()->GetHandle()->CreateUnorderedAccessView(texture.Handle.Get(), &uavDesc, texture.UAV.GetAddressOf()));
 		}
 
 		return id;

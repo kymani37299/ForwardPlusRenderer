@@ -44,6 +44,7 @@ inline uint32_t GetMiscFlags(uint64_t creationFlags)
 	uint32_t flags = 0;
 	if (creationFlags & RCF_Bind_SB)		flags |= D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
 	if (creationFlags & RCF_GenerateMips)	flags |= D3D11_RESOURCE_MISC_GENERATE_MIPS;
+	if (creationFlags & RCF_Cubemap)		flags |= D3D11_RESOURCE_MISC_TEXTURECUBE;
 	return flags;
 }
 
@@ -72,6 +73,7 @@ struct Texture
 	DXGI_FORMAT Format;
 	uint32_t Width;
 	uint32_t Height;
+	uint32_t ArraySize;
 	uint32_t NumMips;
 
 	uint32_t RowPitch;
