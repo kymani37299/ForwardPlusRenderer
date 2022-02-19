@@ -76,12 +76,8 @@ namespace WindowInput
             }
             else
             {
-                const RECT rc = GetClipRect();
-                const long rcCenterX = (rc.right - rc.left) / 2;
-                const long rcCenterY = (rc.bottom - rc.top) / 2;
-
-                s_MousePos = Float2((float)rcCenterX / AppConfig.WindowWidth, (float)rcCenterY / AppConfig.WindowHeight);
-                ASSERT(SetCursorPos(rcCenterX, rcCenterY), "[WinApi] SetCursorPos failed!");
+                s_MousePos = Float2(0.5f, 0.5f);
+                ASSERT(SetCursorPos(wr.left + AppConfig.WindowWidth / 2, wr.top + AppConfig.WindowHeight / 2), "[WinApi] SetCursorPos failed!");
             }
         }
     }

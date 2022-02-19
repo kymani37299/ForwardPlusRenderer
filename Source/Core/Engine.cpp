@@ -17,6 +17,7 @@ PoisonPillTask* PoisonPillTask::s_Instance = nullptr;
 Engine::Engine()
 {
 	Window::Init();
+	Window::Get()->ShowCursor(false);
 	m_Renderer = new Renderer();
 	LoadingThread::Init();
 
