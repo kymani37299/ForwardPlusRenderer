@@ -41,6 +41,7 @@ void Engine::UpdateInput(float dt)
 	if (Input::IsKeyJustPressed('R'))
 	{
 		GFX::Storage::ReloadAllShaders();
+		m_Renderer->OnShaderReload();
 	}
 
 	const float movement_speed = 100.0f;

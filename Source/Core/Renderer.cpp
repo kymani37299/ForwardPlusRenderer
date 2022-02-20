@@ -84,3 +84,12 @@ void Renderer::AddRenderPass(RenderPass* renderPass)
 	renderPass->OnInit(context);
 	m_Schedule.push_back(renderPass); 
 }
+
+void Renderer::OnShaderReload()
+{
+	ID3D11DeviceContext* context = Device::Get()->GetContext();
+	for (RenderPass* renderPass : m_Schedule)
+	{
+		renderPass->OnShaderReload(context);
+	}
+}

@@ -15,9 +15,19 @@ namespace GFX
 		class ResourceStorage
 		{
 		public:
-			ResourceHandle& Allocate(uint32_t& id)
+			void Lock()
 			{
 				m_Mutex.lock();
+			}
+
+			void Unlock()
+			{
+				m_Mutex.unlock();
+			}
+
+			ResourceHandle& Allocate(uint32_t& id)
+			{
+				Lock();
 				if (!m_AvailableElements.empty())
 				{
 					id = m_AvailableElements.top();
@@ -29,26 +39,32 @@ namespace GFX
 					id = m_NextAlloc++;
 				}
 				ResourceHandle& handle = m_Storage[id];
-				m_Mutex.unlock();
+				Unlock();
 				return handle;
 			}
 
 			void Free(uint32_t id)
 			{
-				m_Mutex.lock();
+				Lock();
 				m_AvailableElements.push(id);
 				m_Storage[id] = ResourceHandle{};
-				m_Mutex.unlock();
+				Unlock();
 			}
 
 			void Clear()
 			{
-				m_Mutex.lock();
+				Lock();
 				for (ResourceHandle& handle : m_Storage) handle = ResourceHandle{};
 				while (!m_AvailableElements.empty()) m_AvailableElements.pop();
-				m_Mutex.unlock();
+				Unlock();
 			}
 
+			uint32_t Size()
+			{
+				return StorageSize;
+			}
+
+			// Note: Not thread safe!
 			ResourceHandle& operator[](uint32_t id)
 			{
 				return m_Storage[id];
@@ -99,7 +115,15 @@ namespace GFX
 
 		void ReloadAllShaders()
 		{
-			// TODO:
+			ShaderStorage.Lock();
+			for (uint32_t i = 0; i < ShaderStorage.Size(); i++)
+			{
+				if (ShaderStorage[i].CreationFlags != 0)
+				{
+					ReloadShader({ i });
+				}
+			}
+			ShaderStorage.Unlock();
 		}
 
 		void ClearStorage()

@@ -16,6 +16,7 @@ public:
 
 	void AddRenderPass(RenderPass* renderPass);
 
+	void OnShaderReload();
 private:
 	std::vector<RenderPass*> m_Schedule;
 };
