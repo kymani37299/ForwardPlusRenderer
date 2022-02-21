@@ -135,6 +135,12 @@ namespace GFX
 			context->PSSetShaderResources(slot, 1, &srv);
 		}
 
+		void SetViewport(ID3D11DeviceContext* context, Float2 viewportSize)
+		{
+			const D3D11_VIEWPORT viewport = { 0.0f, 0.0f, (float)viewportSize.x, (float)viewportSize.y, 0.0f, 1.0f };
+			context->RSSetViewports(1, &viewport);
+		}
+
 		void SetPipelineState(ID3D11DeviceContext* context, const PipelineState& pipelineState)
 		{
 			const CompiledPipelineState& compiledState = GFX::CompilePipelineState(pipelineState);

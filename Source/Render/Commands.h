@@ -29,6 +29,7 @@ namespace GFX
 		void BindIndexBuffer(ID3D11DeviceContext* context, BufferID bufferID);
 		void BindRenderTarget(ID3D11DeviceContext* context, TextureID colorID, TextureID depthID = TextureID{});
 
+		void SetViewport(ID3D11DeviceContext* context, Float2 viewportSize);
 		void SetPipelineState(ID3D11DeviceContext* context, const PipelineState& pipelineState);
 		void SetPipelineState(ID3D11DeviceContext* context, const CompiledPipelineState& pipelineState);
 

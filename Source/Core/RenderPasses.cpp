@@ -117,18 +117,13 @@ namespace
 		const auto getCameraForFace = [](uint32_t faceIndex)
 		{
 			using namespace DirectX;
-			static Float3 forwards[6] = { Float3(1.0f,  0.0f,  0.0f), Float3(-1.0f,  0.0f,  0.0f), Float3(0.0f,  -1.0f,  0.0f), Float3(0.0f, 1.0f,  0.0f), Float3(0.0f,  0.0f,  1.0f), Float3(0.0f,  0.0f, -1.0f) };
-			//static Float3 ups[6] = { Float3(0.0f, -1.0f,  0.0f), Float3(0.0f, -1.0f,  0.0f), Float3(0.0f,  0.0f,  -1.0f), Float3(0.0f,  0.0f, 1.0f), Float3(0.0f, -1.0f,  0.0f), Float3(0.0f, -1.0f,  0.0f) };
-			//
-			//XMMATRIX viewMat = XMMatrixLookAtLH(Float3(0.0f, 0.0f, 0.0f).ToXM(), forwards[faceIndex].ToXM(), ups[faceIndex].ToXM());
+			static Float3 forwards[6] = { Float3(-1.0f,  0.0f,  0.0f), Float3(1.0f,  0.0f,  0.0f), Float3(0.0f,  -1.0f,  0.0f), Float3(0.0f, 1.0f,  0.0f), Float3(0.0f,  0.0f,  1.0f), Float3(0.0f,  0.0f, -1.0f) };
+			static Float3 ups[6] = { Float3(0.0f, -1.0f,  0.0f), Float3(0.0f, -1.0f,  0.0f), Float3(0.0f,  0.0f,  -1.0f), Float3(0.0f,  0.0f, 1.0f), Float3(0.0f, -1.0f,  0.0f), Float3(0.0f, -1.0f,  0.0f) };
 			
-			XMMATRIX viewMat = XMMatrixLookAtLH(Float3(0.0f, 0.0f, 0.0f).ToXM(), forwards[faceIndex].ToXM(), Float3(0.0f, 1.0f, 0.0f).ToXM());
-			viewMat = XMMatrixTranspose(viewMat);
-
+			XMMATRIX viewMat = XMMatrixLookAtLH(Float3(0.0f, 0.0f, 0.0f).ToXM(), forwards[faceIndex].ToXM(), ups[faceIndex].ToXM());
 			XMMATRIX projMat = XMMatrixPerspectiveFovLH(3.1415f / 2.0f, 1.0f, 0.1f, 10.0f);
-			projMat = XMMatrixTranspose(projMat);
-
 			XMMATRIX viewProj = XMMatrixMultiply(viewMat, projMat);
+			viewProj = XMMatrixTranspose(viewProj);
 			XMFLOAT4X4 ret;
 			XMStoreFloat4x4(&ret, viewProj);
 			return ret;
@@ -146,6 +141,7 @@ namespace
 		GFX::Cmd::BindCBV<VS>(context, cameraCB, 0);
 		GFX::Cmd::BindSRV<PS>(context, panoramaTexture, 0);
 		GFX::Cmd::SetupStaticSamplers<PS>(context);
+		GFX::Cmd::SetViewport(context, { (float) cubemapSize, (float) cubemapSize });
 
 		for (uint32_t i = 0; i < 6; i++)
 		{
@@ -172,6 +168,8 @@ namespace
 		GFX::Storage::Free(cameraCB);
 
 		GFX::Cmd::MarkerEnd(context);
+
+		GFX::Cmd::ResetContext(context);
 
 		return cubemapTex;
 	}
