@@ -26,6 +26,19 @@ private:
 	TextureID m_SkyboxCubemap;
 };
 
+class ShadowMapRenderPass : public RenderPass
+{
+public:
+	virtual std::string GetPassName() const { return "Shadowmap"; }
+
+	void OnInit(ID3D11DeviceContext* context) override;
+	void OnDraw(ID3D11DeviceContext* context) override;
+
+private:
+	ShaderID m_Shader;
+	BufferID m_TransformBuffer;
+};
+
 class DepthPrepassRenderPass : public RenderPass
 {
 public:

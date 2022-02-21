@@ -23,6 +23,7 @@ Engine::Engine()
 
 	m_Renderer->AddRenderPass(new ScenePrepareRenderPass());
 	m_Renderer->AddRenderPass(new SkyboxRenderPass());
+	m_Renderer->AddRenderPass(new ShadowMapRenderPass());
 	m_Renderer->AddRenderPass(new DepthPrepassRenderPass());
 	m_Renderer->AddRenderPass(new GeometryRenderPass());
 }

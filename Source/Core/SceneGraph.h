@@ -53,6 +53,8 @@ struct Entity
 
 struct Camera
 {
+	static void RotToAxis(Float3 rot, Float3& forward, Float3& up, Float3& right);
+
 	Camera(Float3 position, Float3 rotation, float fov);
 	void UpdateBuffer(ID3D11DeviceContext* context);
 
@@ -97,6 +99,8 @@ struct SceneGraph
 	std::vector<Light> Lights;
 
 	BufferID LightsBuffer;
+	BufferID ShadowTransformBuffer;
+	TextureID ShadowMapTexture;
 };
 
 extern SceneGraph MainSceneGraph;

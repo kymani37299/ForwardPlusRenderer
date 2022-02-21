@@ -57,6 +57,11 @@ void ScenePrepareRenderPass::OnInit(ID3D11DeviceContext* context)
 	
 	MainSceneGraph.UpdateRenderData(context);
 
+	// Shadows
+
+	MainSceneGraph.ShadowTransformBuffer = GFX::CreateConstantBuffer<DirectX::XMFLOAT4X4>();
+	MainSceneGraph.ShadowMapTexture = GFX::CreateTexture(512, 512, RCF_Bind_DSV | RCF_Bind_SRV);
+
 	// TODO: Add new renderpass for this
 	static const float vbData[] = {
 	-1.0f,-1.0f,-1.0f,
@@ -169,8 +174,6 @@ namespace
 
 		GFX::Cmd::MarkerEnd(context);
 
-		GFX::Cmd::ResetContext(context);
-
 		return cubemapTex;
 	}
 }
@@ -202,6 +205,66 @@ void SkyboxRenderPass::OnShaderReload(ID3D11DeviceContext* context)
 	GFX::Storage::Free(skyboxPanorama);
 }
 
+void ShadowMapRenderPass::OnInit(ID3D11DeviceContext* context)
+{
+	m_Shader = GFX::CreateShader("Source/Shaders/shadowmap.hlsl", {}, SCF_VS);
+	m_TransformBuffer = GFX::CreateConstantBuffer<DirectX::XMFLOAT4X4>();
+}
+
+void ShadowMapRenderPass::OnDraw(ID3D11DeviceContext* context)
+{
+	// Setup shadow data
+	{
+		using namespace DirectX;
+		Float3 camPos = MainSceneGraph.MainCamera.Position.ToXM();
+
+		Float3 f, u, r;
+		Camera::RotToAxis(MainSceneGraph.MainCamera.Rotation, f, u, r);
+
+		// TODO: Reduce number of variables used
+		XMMATRIX view = XMMatrixLookAtLH(camPos.ToXM(), (camPos + f).ToXM(), u.ToXM());
+		XMMATRIX proj = XMMatrixOrthographicLH(1.0f, 1.0f, -10.0f, 10.0f);
+		XMMATRIX viewProj = XMMatrixMultiply(view, proj);
+		XMMATRIX viewProjFinal = XMMatrixTranspose(viewProj);
+		XMMATRIX viewProjInv = XMMatrixInverse(nullptr, viewProj);
+		XMMATRIX viewProjInvFinal = XMMatrixTranspose(viewProjInv);
+
+		XMFLOAT4X4 shadowCamera;
+		XMFLOAT4X4 shadowTransform;
+		XMStoreFloat4x4(&shadowCamera, viewProjFinal);
+		XMStoreFloat4x4(&shadowTransform, viewProjInvFinal);
+
+		GFX::Cmd::UploadToBuffer(context, MainSceneGraph.ShadowTransformBuffer, &shadowTransform, sizeof(XMFLOAT4X4));
+		GFX::Cmd::UploadToBuffer(context, m_TransformBuffer, &shadowCamera, sizeof(XMFLOAT4X4));
+	}
+	//
+
+	PipelineState pso = GFX::DefaultPipelineState();
+	pso.DS.DepthEnable = true;
+
+	GFX::Cmd::SetPipelineState(context, pso);
+	GFX::Cmd::BindShader(context, m_Shader, true);
+	GFX::Cmd::BindCBV<VS>(context, m_TransformBuffer, 0);
+	GFX::Cmd::BindRenderTarget(context, TextureID{}, MainSceneGraph.ShadowMapTexture);
+
+	for (Entity& e : MainSceneGraph.Entities)
+	{
+		GFX::Cmd::BindCBV<VS>(context, e.EntityBuffer, 1);
+
+		const auto func = [&context](const Drawable& d) {
+			if (!d.Material.UseAlphaDiscard && !d.Material.UseBlend)
+			{
+				const Mesh& m = d.Mesh;
+				GFX::Cmd::BindVertexBuffer(context, m.Position);
+				GFX::Cmd::BindIndexBuffer(context, m.Indices);
+				context->DrawIndexed(GFX::GetNumElements(m.Indices), 0, 0);
+			}
+
+		};
+		e.Drawables.ForEach(func);
+	}
+}
+
 ///////////////////////////////////////////////////
 ///////			DepthPrepass			//////////
 /////////////////////////////////////////////////
@@ -229,6 +292,7 @@ void DepthPrepassRenderPass::OnDraw(ID3D11DeviceContext* context)
 			if (!d.Material.UseAlphaDiscard && !d.Material.UseBlend)
 			{
 				const Mesh& m = d.Mesh;
+				// TODO: Delete other buffers except Position , probably not needed
 				GFX::Cmd::BindVertexBuffers(context, { m.Position, m.UV, m.Normal, m.Tangent });
 				GFX::Cmd::BindIndexBuffer(context, m.Indices);
 				context->DrawIndexed(GFX::GetNumElements(m.Indices), 0, 0);

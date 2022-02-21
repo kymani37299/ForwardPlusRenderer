@@ -65,12 +65,15 @@ void Renderer::Render()
 {
 	ID3D11DeviceContext* context = Device::Get()->GetContext();
 	GFX::Cmd::MarkerBegin(context, "Frame");
-	GFX::Cmd::ResetContext(context);
 	GFX::Cmd::ClearRenderTarget(context, FinalRT_Color, FinalRT_DepthStencil);
-	GFX::Cmd::BindRenderTarget(context, FinalRT_Color, FinalRT_DepthStencil);
 	for (RenderPass* renderPass : m_Schedule)
 	{
 		GFX::Cmd::MarkerBegin(context, renderPass->GetPassName());
+		
+		// TODO: Try not to do this every render pass
+		GFX::Cmd::ResetContext(context);
+		GFX::Cmd::BindRenderTarget(context, FinalRT_Color, FinalRT_DepthStencil);
+
 		renderPass->OnDraw(context);
 		GFX::Cmd::MarkerEnd(context);
 	}

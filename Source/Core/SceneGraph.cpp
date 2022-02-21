@@ -53,22 +53,18 @@ void Entity::UpdateBuffer(ID3D11DeviceContext* context)
 	Drawables.ForEach(func);
 }
 
-namespace
+void Camera::RotToAxis(Float3 rot, Float3& forward, Float3& up, Float3& right)
 {
-	void RotToAxis(Float3 rot, Float3& forward, Float3& up, Float3& right)
-	{
-		using namespace DirectX;
+	using namespace DirectX;
 
-		// TODO: Calculate up based on roll
-		up = Float3(0.0f, 1.0f, 0.0f);
-		forward = Float3((float)(std::cos(rot.y) * std::cos(rot.x)), (float)(std::sin(rot.x)), (float)(std::sin(rot.y) * std::cos(rot.x)));
-		
-		XMVECTOR vec = XMVector3Cross(forward.ToXM(), up.ToXM());
-		vec = XMVector3Normalize(vec);
-		right = Float3(vec);
-	}
+	// TODO: Calculate up based on roll
+	up = Float3(0.0f, 1.0f, 0.0f);
+	forward = Float3((float)(std::cos(rot.y) * std::cos(rot.x)), (float)(std::sin(rot.x)), (float)(std::sin(rot.y) * std::cos(rot.x)));
+
+	XMVECTOR vec = XMVector3Cross(forward.ToXM(), up.ToXM());
+	vec = XMVector3Normalize(vec);
+	right = Float3(vec);
 }
-
 
 Camera::Camera(Float3 position, Float3 rotation, float fov):
 	Position(position),
