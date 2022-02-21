@@ -126,7 +126,7 @@ namespace
 			static Float3 ups[6] = { Float3(0.0f, -1.0f,  0.0f), Float3(0.0f, -1.0f,  0.0f), Float3(0.0f,  0.0f,  -1.0f), Float3(0.0f,  0.0f, 1.0f), Float3(0.0f, -1.0f,  0.0f), Float3(0.0f, -1.0f,  0.0f) };
 			
 			XMMATRIX viewMat = XMMatrixLookAtLH(Float3(0.0f, 0.0f, 0.0f).ToXM(), forwards[faceIndex].ToXM(), ups[faceIndex].ToXM());
-			XMMATRIX projMat = XMMatrixPerspectiveFovLH(3.1415f / 2.0f, 1.0f, 0.1f, 10.0f);
+			XMMATRIX projMat = XMMatrixOrthographicLH(2.0f, 2.0f, 0.1f, 10.0f);
 			XMMATRIX viewProj = XMMatrixMultiply(viewMat, projMat);
 			viewProj = XMMatrixTranspose(viewProj);
 			XMFLOAT4X4 ret;
@@ -222,8 +222,10 @@ void ShadowMapRenderPass::OnDraw(ID3D11DeviceContext* context)
 		Camera::RotToAxis(MainSceneGraph.MainCamera.Rotation, f, u, r);
 
 		// TODO: Reduce number of variables used
+		XMMATRIX model = XMMatrixAffineTransformation(Float3{ 0.5f, 0.5f, 0.5f }.ToXM(), Float3{ 0.0f, 0.0f, 0.0f }.ToXM(), Float4{ 0.0f, 0.0f, 0.0f, 0.0f }.ToXM(), Float3{ 0.0f, 0.0f, 0.0f }.ToXM());
 		XMMATRIX view = XMMatrixLookAtLH(camPos.ToXM(), (camPos + f).ToXM(), u.ToXM());
-		XMMATRIX proj = XMMatrixOrthographicLH(1.0f, 1.0f, -10.0f, 10.0f);
+		XMMATRIX proj = XMMatrixOrthographicLH(100.0f, 100.0f, -100.0f, 100.0f);
+		view = XMMatrixMultiply(model, view);
 		XMMATRIX viewProj = XMMatrixMultiply(view, proj);
 		XMMATRIX viewProjFinal = XMMatrixTranspose(viewProj);
 		XMMATRIX viewProjInv = XMMatrixInverse(nullptr, viewProj);
@@ -245,6 +247,7 @@ void ShadowMapRenderPass::OnDraw(ID3D11DeviceContext* context)
 	GFX::Cmd::SetPipelineState(context, pso);
 	GFX::Cmd::BindShader(context, m_Shader, true);
 	GFX::Cmd::BindCBV<VS>(context, m_TransformBuffer, 0);
+	GFX::Cmd::ClearRenderTarget(context, TextureID{}, MainSceneGraph.ShadowMapTexture);
 	GFX::Cmd::BindRenderTarget(context, TextureID{}, MainSceneGraph.ShadowMapTexture);
 
 	for (Entity& e : MainSceneGraph.Entities)
@@ -276,6 +279,8 @@ void DepthPrepassRenderPass::OnInit(ID3D11DeviceContext* context)
 
 void DepthPrepassRenderPass::OnDraw(ID3D11DeviceContext* context)
 {
+	// TODO: Bind only depth RT
+
 	PipelineState pso = GFX::DefaultPipelineState();
 	pso.DS.DepthEnable = true;
 
@@ -292,8 +297,7 @@ void DepthPrepassRenderPass::OnDraw(ID3D11DeviceContext* context)
 			if (!d.Material.UseAlphaDiscard && !d.Material.UseBlend)
 			{
 				const Mesh& m = d.Mesh;
-				// TODO: Delete other buffers except Position , probably not needed
-				GFX::Cmd::BindVertexBuffers(context, { m.Position, m.UV, m.Normal, m.Tangent });
+				GFX::Cmd::BindVertexBuffer(context, m.Position);
 				GFX::Cmd::BindIndexBuffer(context, m.Indices);
 				context->DrawIndexed(GFX::GetNumElements(m.Indices), 0, 0);
 			}
