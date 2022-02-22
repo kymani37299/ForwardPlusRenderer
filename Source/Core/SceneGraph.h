@@ -99,7 +99,7 @@ struct SceneGraph
 	std::vector<Light> Lights;
 
 	BufferID LightsBuffer;
-	BufferID ShadowTransformBuffer;
+	BufferID WorldToLightClip;
 	TextureID ShadowMapTexture;
 };
 

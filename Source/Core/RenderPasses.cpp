@@ -49,17 +49,33 @@ void ScenePrepareRenderPass::OnInit(ID3D11DeviceContext* context)
 		MainSceneGraph.Lights.push_back(Light::CreatePoint(position, color, falloff));
 	}
 
-	MainSceneGraph.Entities.resize(2);
-	MainSceneGraph.Entities[0].Scale *= 0.1f;
+	static constexpr bool useSimpleScene = false;
 
-	SceneLoading::LoadEntityInBackground("Resources/sponza/sponza.gltf", MainSceneGraph.Entities[0]);
-	SceneLoading::LoadEntity("Resources/cube/cube.gltf", MainSceneGraph.Entities[1]);
+	if constexpr (useSimpleScene)
+	{
+		MainSceneGraph.Entities.resize(2);
+		MainSceneGraph.Entities[0].Scale.x *= 10000.0f;
+		MainSceneGraph.Entities[0].Scale.z *= 10000.0f;
+		MainSceneGraph.Entities[0].Position.y = -10.0f;
+		MainSceneGraph.Entities[1].Position.x = 10.0f;
+		MainSceneGraph.Entities[1].Position.z = 10.0f;
+		SceneLoading::LoadEntity("Resources/cube/cube.gltf", MainSceneGraph.Entities[0]);
+		SceneLoading::LoadEntity("Resources/cube/cube.gltf", MainSceneGraph.Entities[1]);
+	}
+	else
+	{
+		MainSceneGraph.Entities.resize(2);
+		MainSceneGraph.Entities[0].Scale *= 0.1f;
+
+		SceneLoading::LoadEntityInBackground("Resources/sponza/sponza.gltf", MainSceneGraph.Entities[0]);
+		SceneLoading::LoadEntity("Resources/cube/cube.gltf", MainSceneGraph.Entities[1]);
+	}
+	
 	
 	MainSceneGraph.UpdateRenderData(context);
 
 	// Shadows
-
-	MainSceneGraph.ShadowTransformBuffer = GFX::CreateConstantBuffer<DirectX::XMFLOAT4X4>();
+	MainSceneGraph.WorldToLightClip = GFX::CreateConstantBuffer<DirectX::XMFLOAT4X4>();
 	MainSceneGraph.ShadowMapTexture = GFX::CreateTexture(512, 512, RCF_Bind_DSV | RCF_Bind_SRV);
 
 	// TODO: Add new renderpass for this
@@ -208,45 +224,18 @@ void SkyboxRenderPass::OnShaderReload(ID3D11DeviceContext* context)
 void ShadowMapRenderPass::OnInit(ID3D11DeviceContext* context)
 {
 	m_Shader = GFX::CreateShader("Source/Shaders/shadowmap.hlsl", {}, SCF_VS);
-	m_TransformBuffer = GFX::CreateConstantBuffer<DirectX::XMFLOAT4X4>();
 }
 
 void ShadowMapRenderPass::OnDraw(ID3D11DeviceContext* context)
 {
-	// Setup shadow data
-	{
-		using namespace DirectX;
-		Float3 camPos = MainSceneGraph.MainCamera.Position.ToXM();
-
-		Float3 f, u, r;
-		Camera::RotToAxis(MainSceneGraph.MainCamera.Rotation, f, u, r);
-
-		// TODO: Reduce number of variables used
-		XMMATRIX model = XMMatrixAffineTransformation(Float3{ 0.5f, 0.5f, 0.5f }.ToXM(), Float3{ 0.0f, 0.0f, 0.0f }.ToXM(), Float4{ 0.0f, 0.0f, 0.0f, 0.0f }.ToXM(), Float3{ 0.0f, 0.0f, 0.0f }.ToXM());
-		XMMATRIX view = XMMatrixLookAtLH(camPos.ToXM(), (camPos + f).ToXM(), u.ToXM());
-		XMMATRIX proj = XMMatrixOrthographicLH(100.0f, 100.0f, -100.0f, 100.0f);
-		view = XMMatrixMultiply(model, view);
-		XMMATRIX viewProj = XMMatrixMultiply(view, proj);
-		XMMATRIX viewProjFinal = XMMatrixTranspose(viewProj);
-		XMMATRIX viewProjInv = XMMatrixInverse(nullptr, viewProj);
-		XMMATRIX viewProjInvFinal = XMMatrixTranspose(viewProjInv);
-
-		XMFLOAT4X4 shadowCamera;
-		XMFLOAT4X4 shadowTransform;
-		XMStoreFloat4x4(&shadowCamera, viewProjFinal);
-		XMStoreFloat4x4(&shadowTransform, viewProjInvFinal);
-
-		GFX::Cmd::UploadToBuffer(context, MainSceneGraph.ShadowTransformBuffer, &shadowTransform, sizeof(XMFLOAT4X4));
-		GFX::Cmd::UploadToBuffer(context, m_TransformBuffer, &shadowCamera, sizeof(XMFLOAT4X4));
-	}
-	//
+	SetupShadowData(context);
 
 	PipelineState pso = GFX::DefaultPipelineState();
 	pso.DS.DepthEnable = true;
 
 	GFX::Cmd::SetPipelineState(context, pso);
 	GFX::Cmd::BindShader(context, m_Shader, true);
-	GFX::Cmd::BindCBV<VS>(context, m_TransformBuffer, 0);
+	GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.WorldToLightClip, 0);
 	GFX::Cmd::ClearRenderTarget(context, TextureID{}, MainSceneGraph.ShadowMapTexture);
 	GFX::Cmd::BindRenderTarget(context, TextureID{}, MainSceneGraph.ShadowMapTexture);
 
@@ -266,6 +255,36 @@ void ShadowMapRenderPass::OnDraw(ID3D11DeviceContext* context)
 		};
 		e.Drawables.ForEach(func);
 	}
+}
+
+void ShadowMapRenderPass::SetupShadowData(ID3D11DeviceContext* context)
+{
+	bool foundDirLight = false;
+	Float3 lightDirection;
+	for (const Light& l : MainSceneGraph.Lights)
+	{
+		if (l.Type == LT_Directional)
+		{
+			ASSERT(!foundDirLight, "Only one directional light is allowed per scene!");
+			foundDirLight = true;
+			lightDirection = l.Direction;
+		}
+	}
+	ASSERT(foundDirLight, "No directional light found! Please add a directional light to the scene!");
+
+	using namespace DirectX;
+	Float3 camPos = MainSceneGraph.MainCamera.Position.ToXM();
+
+	// TODO: Reduce number of variables used
+	XMMATRIX view = XMMatrixLookAtLH(camPos.ToXM(), (camPos + lightDirection).ToXM(), Float3(0.0f, -1.0f, 0.0f).ToXM());
+	XMMATRIX proj = XMMatrixOrthographicLH(100.0f, 100.0f, -100.0f, 100.0f);
+	XMMATRIX viewProj = XMMatrixMultiply(view, proj);
+	XMMATRIX viewProjFinal = XMMatrixTranspose(viewProj);
+
+	XMFLOAT4X4 worldToLightClip;
+	XMStoreFloat4x4(&worldToLightClip, viewProjFinal);
+
+	GFX::Cmd::UploadToBuffer(context, MainSceneGraph.WorldToLightClip, &worldToLightClip, sizeof(XMFLOAT4X4));
 }
 
 ///////////////////////////////////////////////////
@@ -330,7 +349,9 @@ void GeometryRenderPass::OnDraw(ID3D11DeviceContext* context)
 	GFX::Cmd::SetupStaticSamplers<PS>(context);
 	GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 	GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
+	GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.WorldToLightClip, 3);
 	GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.LightsBuffer, 3);
+	GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.ShadowMapTexture, 4);
 
 	const auto drawFunc = [&context](const Drawable& d)
 	{

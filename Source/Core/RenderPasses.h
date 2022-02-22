@@ -35,8 +35,10 @@ public:
 	void OnDraw(ID3D11DeviceContext* context) override;
 
 private:
+	void SetupShadowData(ID3D11DeviceContext* context);
+
+private:
 	ShaderID m_Shader;
-	BufferID m_TransformBuffer;
 };
 
 class DepthPrepassRenderPass : public RenderPass

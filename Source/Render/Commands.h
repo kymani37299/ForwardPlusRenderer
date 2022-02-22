@@ -4,6 +4,7 @@
 
 #include "Render/RenderAPI.h"
 #include "Render/ResourceID.h"
+#include "Render/Resource.h"
 #include "Render/Texture.h"
 #include "Render/PipelineState.h"
 

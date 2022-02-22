@@ -33,9 +33,16 @@ cbuffer MaterialCB : register(b2)
 	MaterialParams MatParams;
 }
 
+cbuffer LightSpaceCB : register(b3)
+{
+	float4x4 WorldToLightClip;
+}
+
 Texture2D AlbedoTexture : register(t0);
 Texture2D MetallicRoughnessTexture : register(t1);
 Texture2D NormalTexture : register(t2);
+
+Texture2D Shadowmap : register(t4);
 
 StructuredBuffer<Light> Lights : register(t3);
 
@@ -54,6 +61,20 @@ VertexOut VS(VertexInput IN)
 	return OUT;
 }
 
+bool IsInShadow(float3 worldPos)
+{
+	float4 lightClip = mul(float4(worldPos, 1.0f), WorldToLightClip);
+	float3 lightNDC = lightClip.xyz / lightClip.w;
+
+	float3 lightUV = lightNDC * 0.5f + 0.5f;
+	if (lightUV.x <= 0.0f || lightUV.x >= 1.0f || lightUV.y <= 0.0f || lightUV.y >= 1.0f)
+	{
+		return false;
+	}
+
+	return lightNDC.z < Shadowmap.Sample(s_LinearWrap, lightUV.xy).r;
+}
+
 float4 PS(VertexOut IN) : SV_Target
 {
 	float4 albedo = AlbedoTexture.Sample(s_AnisoWrap, IN.UV);
@@ -62,6 +83,11 @@ float4 PS(VertexOut IN) : SV_Target
 	if (albedo.a < 0.05f)
 		clip(-1.0f);
 #endif // ALPHA_DISCARD
+
+	if (IsInShadow(IN.WorldPosition))
+	{
+		return float4(0.0f, 0.0f, 0.0f, 1.0f);
+	}
 
 	Material mat;
 	mat.Albedo = albedo;
