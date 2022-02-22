@@ -1,6 +1,7 @@
 #pragma once
 #pragma once
 
+#include <vector>
 #include <string>
 #include <stringapiset.h>
 
@@ -33,5 +34,34 @@ namespace StringUtility
     inline bool Contains(const std::string& string, const std::string& param)
     {
         return string.find(param) != std::string::npos;
+    }
+
+    inline std::vector<std::string> Split(std::string input, const std::string& delimiter)
+    {
+        std::vector<std::string> result;
+        size_t pos = 0;
+        while ((pos = input.find(delimiter)) != std::string::npos) {
+            std::string token = input.substr(0, pos);
+            result.push_back(token);
+            input.erase(0, pos + delimiter.length());
+        }
+        result.push_back(input);
+        return result;
+    }
+
+    std::string ToLower(const std::string& input)
+    {
+        std::string result = input;
+        std::transform(result.begin(), result.end(), result.begin(),
+            [](unsigned char c) { return std::tolower(c); });
+        return result;
+    }
+
+    std::string ToUpper(const std::string& input)
+    {
+        std::string result = input;
+        std::transform(result.begin(), result.end(), result.begin(),
+            [](unsigned char c) { return std::toupper(c); });
+        return result;
     }
 }

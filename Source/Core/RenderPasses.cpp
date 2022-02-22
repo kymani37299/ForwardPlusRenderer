@@ -10,6 +10,8 @@
 #include "Render/Resource.h"
 #include "Render/Device.h"
 #include "Loading/SceneLoading.h"
+#include "System/ApplicationConfiguration.h"
+
 // [0,1]
 float Rand()
 {
@@ -49,9 +51,7 @@ void ScenePrepareRenderPass::OnInit(ID3D11DeviceContext* context)
 		MainSceneGraph.Lights.push_back(Light::CreatePoint(position, color, falloff));
 	}
 
-	static constexpr bool useSimpleScene = false;
-
-	if constexpr (useSimpleScene)
+	if(AppConfig.Settings.contains("SIMPLE_SCENE"))
 	{
 		MainSceneGraph.Entities.resize(2);
 		MainSceneGraph.Entities[0].Scale.x *= 10000.0f;
@@ -70,7 +70,6 @@ void ScenePrepareRenderPass::OnInit(ID3D11DeviceContext* context)
 		SceneLoading::LoadEntityInBackground("Resources/sponza/sponza.gltf", MainSceneGraph.Entities[0]);
 		SceneLoading::LoadEntity("Resources/cube/cube.gltf", MainSceneGraph.Entities[1]);
 	}
-	
 	
 	MainSceneGraph.UpdateRenderData(context);
 

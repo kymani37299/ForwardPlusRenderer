@@ -5,6 +5,19 @@
 #include "Core/Engine.h"
 #include "System/VSConsoleRedirect.h"
 #include "System/ApplicationConfiguration.h"
+#include "Utility/StringUtility.h"
+
+void ReadCommandArguments(const std::string& arguments)
+{
+	const auto argumentList = StringUtility::Split(arguments, " ");
+	for (const auto argument : argumentList)
+	{
+		std::string finalArgument = StringUtility::ToUpper(argument);
+		StringUtility::ReplaceAll(finalArgument, "-", "");
+		StringUtility::ReplaceAll(finalArgument, " ", "");
+		AppConfig.Settings.insert(finalArgument);
+	}
+}
 
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdParams, int showFlags)
 {
@@ -12,6 +25,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdParams, 
 	AppConfig.WindowTitle = "Forward plus graphics";
 	AppConfig.WindowWidth = 1024;
 	AppConfig.WindowHeight = 768;
+	ReadCommandArguments(std::string(cmdParams));
 
 	RedirectToVSConsoleScoped _vsConsoleRedirect;
 
