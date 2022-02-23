@@ -41,9 +41,9 @@ public:
 	void Reset();
 
 	inline void SetVisible(bool value) { m_Visible = value; }
-	inline void ToggleVisible() { m_Visible = !m_Visible; }
+	inline bool ToggleVisible() { return m_Visible = !m_Visible; }
 
 private:
-	bool m_Visible = true;
+	bool m_Visible = false;
 	std::vector<GUIElement*> m_Elements;
 };

@@ -48,7 +48,7 @@ void Engine::UpdateInput(float dt)
 
 	if (Input::IsKeyJustPressed(VK_TAB))
 	{
-		GUI::Get()->ToggleVisible();
+		Window::Get()->ShowCursor(GUI::Get()->ToggleVisible());
 	}
 
 	const float movement_speed = 10.0f;
@@ -68,11 +68,14 @@ void Engine::UpdateInput(float dt)
 	Float4 relativeDir = Float4(DirectX::XMVector4Transform(moveDir4.ToXM(), MainSceneGraph.MainCamera.WorldToView));
 	MainSceneGraph.MainCamera.Position += Float3(relativeDir.x, relativeDir.y, relativeDir.z);
 
-	Float2 mouseDelta = Input::GetMouseDelta();
-	Float3& cameraRot = MainSceneGraph.MainCamera.Rotation;
-	cameraRot.y -= dtSec * mouse_speed * mouseDelta.x;
-	cameraRot.x -= dtSec * mouse_speed * mouseDelta.y;
-	cameraRot.x = std::clamp(cameraRot.x, -1.5f, 1.5f);
+	if (!Window::Get()->IsCursorShown())
+	{
+		Float2 mouseDelta = Input::GetMouseDelta();
+		Float3& cameraRot = MainSceneGraph.MainCamera.Rotation;
+		cameraRot.y -= dtSec * mouse_speed * mouseDelta.x;
+		cameraRot.x -= dtSec * mouse_speed * mouseDelta.y;
+		cameraRot.x = std::clamp(cameraRot.x, -1.5f, 1.5f);
+	}
 }
 
 void Engine::Run()

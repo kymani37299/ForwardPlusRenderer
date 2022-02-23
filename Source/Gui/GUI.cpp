@@ -8,6 +8,7 @@
 #include "GUI/ImGui/imgui_impl_dx11.h"
 #include "GUI/ImGui/imgui_impl_win32.h"
 #include "System/ApplicationConfiguration.h"
+#include "System/Window.h"
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
@@ -19,7 +20,7 @@ GUI::GUI()
 	ImGui::CreateContext();
 	ImGui::StyleColorsDark();
 
-	ImGui_ImplWin32_Init(AppConfig.AppHandle);
+	ImGui_ImplWin32_Init(Window::Get()->GetHandle());
 	ImGui_ImplDX11_Init(Device::Get()->GetHandle(), Device::Get()->GetContext());
 }
 
@@ -57,10 +58,6 @@ void GUI::Render(ID3D11DeviceContext* context)
 	{
 		element->Render(context);
 	}
-
-	ImGui::Begin("Test");
-	ImGui::Text("TEST");
-	ImGui::End();
 
 	ImGui::Render();
 	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
