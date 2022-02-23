@@ -6,6 +6,7 @@
 #include "Core/SceneGraph.h"
 #include "Core/RenderPasses.h"
 #include "Loading/LoadingThread.h"
+#include "Gui/GUI.h"
 #include "System/ApplicationConfiguration.h"
 #include "System/Window.h"
 #include "System/Input.h"
@@ -45,7 +46,12 @@ void Engine::UpdateInput(float dt)
 		m_Renderer->OnShaderReload();
 	}
 
-	const float movement_speed = 100.0f;
+	if (Input::IsKeyJustPressed(VK_TAB))
+	{
+		GUI::Get()->ToggleVisible();
+	}
+
+	const float movement_speed = 10.0f;
 	const float mouse_speed = 1000.0f;
 	char mov_inputs[] = { 'W', 'S', 'A', 'D', 'Q', 'E' };
 	Float3 mov_effects[] = { {0.0f, 0.0f, 1.0f},{0.0f, 0.0f, -1.0f},{-1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f},{0.0f, -1.0f, 0.0f},{0.0f, 1.0f, 0.0f} };
@@ -75,18 +81,21 @@ void Engine::Run()
 	{
 		const float dt = m_FrameTimer.GetTimeMS();
 
+		m_FrameTimer.Start();
+		WindowInput::InputFrameBegin();
+
 		// Update frame time title
 		char* title = (char*)calloc(15, sizeof(char));
 		snprintf(title, 15, " (%.2f ms)", dt);
 		Window::Get()->AddToTitle(std::string(title));
 		free(title);
 
-		m_FrameTimer.Start();
-		WindowInput::InputFrameBegin();
-
+		// Update
 		Window::Get()->Update(dt);
 		UpdateInput(dt);
 		m_Renderer->Update(dt);
+
+		// Render
 		m_Renderer->Render();
 		
 		WindowInput::InputFrameEnd();

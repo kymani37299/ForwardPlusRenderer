@@ -4,6 +4,7 @@
 #include <debugapi.h>
 #include <string>
 
+#include "Gui/GUI.h"
 #include "System/ApplicationConfiguration.h"
 #include "Utility/StringUtility.h"
 
@@ -113,6 +114,11 @@ namespace WindowInput
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
     LRESULT result = 0;
+
+    if (GUI::Get()->HandleWndProc(hwnd, msg, wparam, lparam))
+    {
+        return true;
+    }
 
     switch (msg)
     {

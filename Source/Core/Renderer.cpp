@@ -5,6 +5,7 @@
 #include "Render/Resource.h"
 #include "Render/Texture.h"
 #include "Render/Commands.h"
+#include "Gui/GUI.h"
 #include "Utility/StringUtility.h"
 
 TextureID FinalRT_Color;
@@ -25,10 +26,12 @@ Renderer::Renderer()
 {
 	Device::Init();
 	UpdateFinalRT();
+	GUI::Init();
 }
 
 Renderer::~Renderer()
 {
+	GUI::Destroy();
 	ID3D11DeviceContext* context = Device::Get()->GetContext();
 	for (RenderPass* renderPass : m_Schedule)
 	{
@@ -46,6 +49,8 @@ void Renderer::Update(float dt)
 	{
 		renderPass->OnUpdate(context, dt);
 	}
+
+	GUI::Get()->Update(dt);
 
 	if (AppConfig.WindowSizeDirty)
 	{
@@ -77,6 +82,10 @@ void Renderer::Render()
 		renderPass->OnDraw(context);
 		GFX::Cmd::MarkerEnd(context);
 	}
+
+	GFX::Cmd::BindRenderTarget(context, FinalRT_Color);
+	GUI::Get()->Render(context);
+
 	Device::Get()->EndFrame(FinalRT_Color);
 	GFX::Cmd::MarkerEnd(context);
 }
