@@ -163,9 +163,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Source\App\ForwardPlus.cpp" />
     <ClCompile Include="Source\Core\Engine.cpp" />
-    <ClCompile Include="Source\Core\Renderer.cpp" />
-    <ClCompile Include="Source\Core\RenderPasses.cpp" />
     <ClCompile Include="Source\Core\SceneGraph.cpp" />
     <ClCompile Include="Source\Gui\GUI.cpp" />
     <ClCompile Include="Source\Gui\Imgui\imgui.cpp" />
@@ -188,11 +187,10 @@
     <ClCompile Include="Source\System\Window.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Source\App\Application.h" />
+    <ClInclude Include="Source\App\ForwardPlus.h" />
     <ClInclude Include="Source\Common.h" />
     <ClInclude Include="Source\Core\Engine.h" />
-    <ClInclude Include="Source\Core\Renderer.h" />
-    <ClInclude Include="Source\Core\RenderPass.h" />
-    <ClInclude Include="Source\Core\RenderPasses.h" />
     <ClInclude Include="Source\Core\SceneGraph.h" />
     <ClInclude Include="Source\Gui\GUI.h" />
     <ClInclude Include="Source\Gui\Imgui\imconfig.h" />

@@ -2,20 +2,18 @@
 
 #include "Utility/Timer.h"
 
-class Renderer;
+class Application;
 
 class Engine
 {
 public:
-	Engine();
+	Engine(Application* app);
 	~Engine();
 
 	void Run();
+	void ReloadShaders();
 
 private:
-	void UpdateInput(float dt);
-
-private:
-	Renderer* m_Renderer;
+	Application* m_Application;
 	Timer m_FrameTimer;
 };

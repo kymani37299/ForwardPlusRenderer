@@ -3,6 +3,7 @@
 #include <time.h>
 
 #include "Core/Engine.h"
+#include "App/ForwardPlus.h"
 #include "System/VSConsoleRedirect.h"
 #include "System/ApplicationConfiguration.h"
 #include "Utility/StringUtility.h"
@@ -31,6 +32,6 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdParams, 
 
 	srand((uint32_t)time(0));
 	
-	Engine e;
+	Engine e{new ForwardPlus()};
 	e.Run();
 }

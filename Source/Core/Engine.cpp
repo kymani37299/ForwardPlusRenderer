@@ -2,9 +2,9 @@
 
 #include <sstream>
 
-#include "Core/Renderer.h"
+#include "App/Application.h"
 #include "Core/SceneGraph.h"
-#include "Core/RenderPasses.h"
+#include "Render/Device.h"
 #include "Loading/LoadingThread.h"
 #include "Gui/GUI.h"
 #include "System/ApplicationConfiguration.h"
@@ -15,67 +15,27 @@ ApplicationConfiguration AppConfig;
 LoadingThread* LoadingThread::s_Instance = nullptr;
 PoisonPillTask* PoisonPillTask::s_Instance = nullptr;
 
-Engine::Engine()
+Engine::Engine(Application* app)
 {
 	Window::Init();
 	Window::Get()->ShowCursor(false);
-	m_Renderer = new Renderer();
+	Device::Init();
 	LoadingThread::Init();
-
-	m_Renderer->AddRenderPass(new ScenePrepareRenderPass());
-	m_Renderer->AddRenderPass(new SkyboxRenderPass());
-	m_Renderer->AddRenderPass(new ShadowMapRenderPass());
-	m_Renderer->AddRenderPass(new DepthPrepassRenderPass());
-	m_Renderer->AddRenderPass(new GeometryRenderPass());
+	GUI::Init();
+	m_Application = app;
+	m_Application->OnInit(Device::Get()->GetContext());
 }
 
 Engine::~Engine()
 {
+	ID3D11DeviceContext* context = Device::Get()->GetContext();
+	m_Application->OnDestroy(context);
+	GUI::Destroy();
+	delete m_Application;
 	LoadingThread::Destroy();
-	delete m_Renderer;
 	Window::Destroy();
-}
-
-void Engine::UpdateInput(float dt)
-{
-	float dtSec = dt / 1000.0f;
-
-	if (Input::IsKeyJustPressed('R'))
-	{
-		GFX::Storage::ReloadAllShaders();
-		m_Renderer->OnShaderReload();
-	}
-
-	if (Input::IsKeyJustPressed(VK_TAB))
-	{
-		Window::Get()->ShowCursor(GUI::Get()->ToggleVisible());
-	}
-
-	const float movement_speed = 10.0f;
-	const float mouse_speed = 1000.0f;
-	char mov_inputs[] = { 'W', 'S', 'A', 'D', 'Q', 'E' };
-	Float3 mov_effects[] = { {0.0f, 0.0f, 1.0f},{0.0f, 0.0f, -1.0f},{-1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f},{0.0f, -1.0f, 0.0f},{0.0f, 1.0f, 0.0f} };
-	static_assert(STATIC_ARRAY_SIZE(mov_inputs) == STATIC_ARRAY_SIZE(mov_effects));
-
-	Float3 moveDir{ 0.0f, 0.0f, 0.0f };
-	for (uint16_t i = 0; i < STATIC_ARRAY_SIZE(mov_inputs); i++)
-	{
-		if (Input::IsKeyPressed(mov_inputs[i]))
-			moveDir += dtSec * movement_speed * mov_effects[i];
-	}
-	
-	Float4 moveDir4{ moveDir.x, moveDir.y, moveDir.z, 1.0f };
-	Float4 relativeDir = Float4(DirectX::XMVector4Transform(moveDir4.ToXM(), MainSceneGraph.MainCamera.WorldToView));
-	MainSceneGraph.MainCamera.Position += Float3(relativeDir.x, relativeDir.y, relativeDir.z);
-
-	if (!Window::Get()->IsCursorShown())
-	{
-		Float2 mouseDelta = Input::GetMouseDelta();
-		Float3& cameraRot = MainSceneGraph.MainCamera.Rotation;
-		cameraRot.y -= dtSec * mouse_speed * mouseDelta.x;
-		cameraRot.x -= dtSec * mouse_speed * mouseDelta.y;
-		cameraRot.x = std::clamp(cameraRot.x, -1.5f, 1.5f);
-	}
+	GFX::Storage::ClearStorage();
+	Device::Destroy();
 }
 
 void Engine::Run()
@@ -83,6 +43,7 @@ void Engine::Run()
 	while (Window::Get()->IsRunning())
 	{
 		const float dt = m_FrameTimer.GetTimeMS();
+		ID3D11DeviceContext* context = Device::Get()->GetContext();
 
 		m_FrameTimer.Start();
 		WindowInput::InputFrameBegin();
@@ -95,13 +56,34 @@ void Engine::Run()
 
 		// Update
 		Window::Get()->Update(dt);
-		UpdateInput(dt);
-		m_Renderer->Update(dt);
+		
+		m_Application->OnUpdate(context, dt);
+		GUI::Get()->Update(dt);
+
+		// Update window size if needed
+		if (AppConfig.WindowSizeDirty)
+		{
+			Device::Get()->CreateSwapchain();
+			m_Application->OnWindowResize(context);
+			AppConfig.WindowSizeDirty = false;
+		}
 
 		// Render
-		m_Renderer->Render();
+		GFX::Cmd::ResetContext(context);
+		GFX::Cmd::MarkerBegin(context, "Frame");
+		
+		TextureID finalRT = m_Application->OnDraw(context);
+		GUI::Get()->Render(context);
+		Device::Get()->EndFrame(finalRT);
+		GFX::Cmd::MarkerEnd(context);
 		
 		WindowInput::InputFrameEnd();
 		m_FrameTimer.Stop();
 	}
+}
+
+void Engine::ReloadShaders()
+{
+	GFX::Storage::ReloadAllShaders();
+	m_Application->OnShaderReload(Device::Get()->GetContext());
 }
