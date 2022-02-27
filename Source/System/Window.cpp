@@ -203,9 +203,3 @@ void Window::ShowCursor(bool show)
     ::ShowCursor(show);
     m_ShowCursor = show;
 }
-
-void Window::AddToTitle(const std::string& title)
-{
-    const std::string fullTitle = AppConfig.WindowTitle + title;
-    SetWindowTextA(m_Handle, fullTitle.c_str());
-}

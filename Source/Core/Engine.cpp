@@ -48,12 +48,6 @@ void Engine::Run()
 		m_FrameTimer.Start();
 		WindowInput::InputFrameBegin();
 
-		// Update frame time title
-		char* title = (char*)calloc(15, sizeof(char));
-		snprintf(title, 15, " (%.2f ms)", dt);
-		Window::Get()->AddToTitle(std::string(title));
-		free(title);
-
 		// Update
 		Window::Get()->Update(dt);
 		

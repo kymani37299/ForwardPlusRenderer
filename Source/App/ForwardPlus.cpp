@@ -9,6 +9,7 @@
 #include "Render/Device.h"
 #include "Render/Resource.h"
 #include "Gui/GUI.h"
+#include "Gui/FPSCounterGUI.h"
 #include "System/Input.h"
 #include "System/Window.h"
 #include "System/ApplicationConfiguration.h"
@@ -177,6 +178,13 @@ namespace ForwardPlusPrivate
 void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 {
 	using namespace ForwardPlusPrivate;
+	
+	// Setup gui
+	{
+		GUI::Get()->AddElement(new FPSCounterGUI());
+	}
+
+	
 	// Prepare scene
 	{
 		MainSceneGraph.Lights.push_back(Light::CreateAmbient(Float3(0.1f, 0.1f, 0.15f)));
