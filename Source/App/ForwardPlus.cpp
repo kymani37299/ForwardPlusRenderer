@@ -75,7 +75,7 @@ namespace ForwardPlusPrivate
 			API_CALL(Device::Get()->GetHandle()->CreateRenderTargetView(cubemapTexHandle.Handle.Get(), &rtvDesc, &rtv));
 
 			DirectX::XMFLOAT4X4 worldToClip = getCameraForFace(i);
-			GFX::Cmd::UploadToBuffer(context, cameraCB, &worldToClip, sizeof(DirectX::XMFLOAT4X4));
+			GFX::Cmd::UploadToBuffer(context, cameraCB, 0, &worldToClip, 0, sizeof(DirectX::XMFLOAT4X4));
 
 			context->OMSetRenderTargets(1, &rtv, nullptr);
 			context->Draw(GFX::GetNumElements(CubeVB), 0);
@@ -130,7 +130,7 @@ namespace ForwardPlusPrivate
 		XMFLOAT4X4 worldToLightClip;
 		XMStoreFloat4x4(&worldToLightClip, viewProjFinal);
 
-		GFX::Cmd::UploadToBuffer(context, MainSceneGraph.WorldToLightClip, &worldToLightClip, sizeof(XMFLOAT4X4));
+		GFX::Cmd::UploadToBuffer(context, MainSceneGraph.WorldToLightClip, 0, &worldToLightClip, 0, sizeof(XMFLOAT4X4));
 	}
 
 	void UpdateInput(float dt, Application* app)

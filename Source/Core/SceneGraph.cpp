@@ -32,7 +32,7 @@ void Material::UpdateBuffer(ID3D11DeviceContext* context)
 	matCB.MetallicFactor = MetallicFactor;
 	matCB.RoughnessFactor = RoughnessFactor;
 	if (!MaterialParams.Valid()) MaterialParams = GFX::CreateConstantBuffer<MaterialCB>();
-	GFX::Cmd::UploadToBuffer(context, MaterialParams, &matCB, sizeof(MaterialCB));
+	GFX::Cmd::UploadToBuffer(context, MaterialParams, 0, &matCB, 0, sizeof(MaterialCB));
 }
 
 void Entity::UpdateBuffer(ID3D11DeviceContext* context)
@@ -47,7 +47,7 @@ void Entity::UpdateBuffer(ID3D11DeviceContext* context)
 	EntityCB entityCB{};
 	entityCB.ModelToWorld = XMUtility::ToXMFloat4x4(modelToWorld);
 	if(!EntityBuffer.Valid()) EntityBuffer = GFX::CreateConstantBuffer<EntityCB>();
-	GFX::Cmd::UploadToBuffer(context, EntityBuffer, &entityCB, sizeof(EntityCB));
+	GFX::Cmd::UploadToBuffer(context, EntityBuffer, 0, &entityCB, 0, sizeof(EntityCB));
 
 	const auto func = [&context](Drawable& d) { d.Material.UpdateBuffer(context); };
 	Drawables.ForEach(func);
@@ -99,7 +99,7 @@ void Camera::UpdateBuffer(ID3D11DeviceContext* context)
 	cameraCB.Position = Position.ToXMF();
 
 	if (!CameraBuffer.Valid()) CameraBuffer = GFX::CreateConstantBuffer<CameraCB>();
-	GFX::Cmd::UploadToBuffer(context, CameraBuffer, &cameraCB, sizeof(CameraCB));
+	GFX::Cmd::UploadToBuffer(context, CameraBuffer, 0, &cameraCB, 0, sizeof(CameraCB));
 }
 
 Light Light::CreateDirectional(Float3 direction, Float3 color)
@@ -166,6 +166,6 @@ void SceneGraph::UpdateRenderData(ID3D11DeviceContext* context)
 			index++;
 		}
 
-		GFX::Cmd::UploadToBuffer(context, LightsBuffer, sbLights.data(), sbLights.size() * sizeof(LightSB));
+		GFX::Cmd::UploadToBuffer(context, LightsBuffer, 0, sbLights.data(), 0, sbLights.size() * sizeof(LightSB));
 	}
 }

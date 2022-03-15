@@ -101,12 +101,6 @@ struct SceneGraph
 	BufferID LightsBuffer;
 	BufferID WorldToLightClip;
 	TextureID ShadowMapTexture;
-
-	BufferID PositionsBuffer; // Float3
-	BufferID UVBuffer; // Float2
-	BufferID NormalBuffer; // Float3
-	BufferID TangentBuffer; // Float4
-	BufferID IndicesBuffer; // uint16_t
 };
 
 extern SceneGraph MainSceneGraph;

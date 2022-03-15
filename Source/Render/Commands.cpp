@@ -171,14 +171,17 @@ namespace GFX
 			}
 		}
 
-		void UploadToBuffer(ID3D11DeviceContext* context, BufferID bufferID, const void* data, size_t dataSize, size_t offset)
+		void UploadToBuffer(ID3D11DeviceContext* context, BufferID bufferID, uint32_t dstOffset, const void* data, uint32_t srcOffset, size_t dataSize)
 		{
 			const Buffer& buffer = GFX::Storage::GetBuffer(bufferID);
-			const uint8_t* dataBytePtr = reinterpret_cast<const uint8_t*>(data);
-
+			
 			D3D11_MAPPED_SUBRESOURCE mapResult;
 			API_CALL(context->Map(buffer.Handle.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapResult));
-			memcpy(mapResult.pData, dataBytePtr + offset, dataSize);
+			
+			const uint8_t* srcPtr = reinterpret_cast<const uint8_t*>(data);
+			const uint8_t* dstPtr = reinterpret_cast<const uint8_t*>(mapResult.pData);
+
+			memcpy((void*)(dstPtr + dstOffset), srcPtr + srcOffset, dataSize);
 			context->Unmap(buffer.Handle.Get(), 0);
 		}
 
