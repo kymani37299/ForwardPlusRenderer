@@ -26,3 +26,6 @@ X& operator=(X const&) = delete;
 
 #define STATIC_ARRAY_SIZE(X) (sizeof(X)/(sizeof(X[0])))
 
+template<typename T> T MAX(const T & a, const T & b) { return a > b ? a : b; }
+template<typename T> T MIN(const T & a, const T & b) { return a < b ? a : b; }
+

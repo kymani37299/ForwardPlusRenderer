@@ -4,11 +4,13 @@
 
 struct ID3D11Buffer;
 struct ID3D11ShaderResourceView;
+struct ID3D11DeviceContext;
 
 namespace GFX
 {
 	// Creation
 	BufferID CreateBuffer(uint32_t byteSize, uint32_t elementStride, uint64_t creationFlags, const void* initData = nullptr);
+	void ResizeBuffer(ID3D11DeviceContext* context, BufferID bufferID, uint32_t byteSize);
 
 	inline BufferID CreateIndexBuffer(uint32_t byteSize, uint32_t elementStride, const void* initData)
 	{

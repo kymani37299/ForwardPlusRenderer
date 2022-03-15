@@ -84,10 +84,10 @@ float4 PS(VertexOut IN) : SV_Target
 		clip(-1.0f);
 #endif // ALPHA_DISCARD
 
-	if (IsInShadow(IN.WorldPosition))
-	{
-		return float4(0.0f, 0.0f, 0.0f, 1.0f);
-	}
+	//if (IsInShadow(IN.WorldPosition))
+	//{
+	//	return float4(0.0f, 0.0f, 0.0f, 1.0f);
+	//}
 
 	Material mat;
 	mat.Albedo = albedo;

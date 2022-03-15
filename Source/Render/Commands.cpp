@@ -199,5 +199,19 @@ namespace GFX
 			uint32_t subresourceIndex = D3D11CalcSubresource(mipIndex, 0, srcTex.NumMips);
 			context->CopySubresourceRegion(dstTex.Handle.Get(), subresourceIndex, 0, 0, 0, srcTex.Handle.Get(), subresourceIndex, nullptr);
 		}
+
+		void CopyToBuffer(ID3D11DeviceContext* context, BufferID srcBuffer, uint32_t srcOffset, BufferID dstBuffer, uint32_t dstOffset, uint32_t size)
+		{
+			const Buffer& srcBuf = GFX::Storage::GetBuffer(srcBuffer);
+			const Buffer& dstBuf = GFX::Storage::GetBuffer(dstBuffer);
+			D3D11_BOX sourceRegion;
+			sourceRegion.left = srcOffset;
+			sourceRegion.right = srcOffset + size;
+			sourceRegion.top = 0;
+			sourceRegion.bottom = 1;
+			sourceRegion.front = 0;
+			sourceRegion.back = 1;
+			context->CopySubresourceRegion(dstBuf.Handle.Get(), 0, dstOffset, 0, 0, srcBuf.Handle.Get(), 0, &sourceRegion);
+		}
 	}
 }

@@ -38,6 +38,7 @@ namespace GFX
 		void UploadToBuffer(ID3D11DeviceContext* context, BufferID bufferID, const void* data, size_t dataSize, size_t offset = 0);
 		void UploadToTexture(ID3D11DeviceContext* context, void* data, TextureID textureID, uint32_t mipIndex = 0);
 		void CopyToTexture(ID3D11DeviceContext* context, TextureID srcTexture, TextureID dstTexture, uint32_t mipIndex = 0);
+		void CopyToBuffer(ID3D11DeviceContext* context, BufferID srcBuffer, uint32_t srcOffset, BufferID dstBuffer, uint32_t dstOffset, uint32_t size);
 
 		template<ShaderStage stage>
 		void SetupStaticSamplers(ID3D11DeviceContext* context)

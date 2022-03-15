@@ -119,10 +119,11 @@ namespace ForwardPlusPrivate
 
 		using namespace DirectX;
 		Float3 camPos = MainSceneGraph.MainCamera.Position.ToXM();
-
+		
 		// TODO: Reduce number of variables used
 		XMMATRIX view = XMMatrixLookAtLH(camPos.ToXM(), (camPos + lightDirection).ToXM(), Float3(0.0f, -1.0f, 0.0f).ToXM());
-		XMMATRIX proj = XMMatrixOrthographicLH(100.0f, 100.0f, -100.0f, 100.0f);
+		//XMMATRIX proj = XMMatrixOrthographicLH(500.0f, 500.0f, -100.0f, 100.0f);
+		XMMATRIX proj = XMMatrixOrthographicOffCenterLH(-100.0f, 100.0f, -100.0f, 100.0f, -1000.0f, 1000.0f);
 		XMMATRIX viewProj = XMMatrixMultiply(view, proj);
 		XMMATRIX viewProjFinal = XMMatrixTranspose(viewProj);
 
@@ -132,13 +133,14 @@ namespace ForwardPlusPrivate
 		GFX::Cmd::UploadToBuffer(context, MainSceneGraph.WorldToLightClip, &worldToLightClip, sizeof(XMFLOAT4X4));
 	}
 
-	void UpdateInput(float dt)
+	void UpdateInput(float dt, Application* app)
 	{
 		float dtSec = dt / 1000.0f;
 
 		if (Input::IsKeyJustPressed('R'))
 		{
-			
+			GFX::Storage::ReloadAllShaders();
+			app->OnShaderReload(Device::Get()->GetContext());
 			//m_Renderer->OnShaderReload(); TODO
 		}
 
@@ -435,7 +437,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 void ForwardPlus::OnUpdate(ID3D11DeviceContext* context, float dt)
 {
 	using namespace ForwardPlusPrivate;
-	UpdateInput(dt);
+	UpdateInput(dt, this);
 }
 
 void ForwardPlus::OnShaderReload(ID3D11DeviceContext* context)

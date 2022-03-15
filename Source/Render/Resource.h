@@ -58,6 +58,8 @@ struct Buffer
 	// Data
 	uint32_t ByteSize;
 	uint32_t ElementStride;
+
+	uint64_t CreationFlags;
 };
 
 struct Texture
