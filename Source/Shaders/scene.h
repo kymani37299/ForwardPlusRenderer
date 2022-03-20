@@ -16,6 +16,9 @@ struct MaterialParams
 	float3 FresnelR0;
 	float MetallicFactor;
 	float RoughnessFactor;
+	uint Albedo;
+	uint MetallicRoughness;
+	uint Normal;
 };
 
 struct Light

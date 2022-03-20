@@ -34,9 +34,7 @@ cbuffer LightSpaceCB : register(b3)
 	float4x4 WorldToLightClip;
 }
 
-Texture2D AlbedoTexture : register(t0);
-Texture2D MetallicRoughnessTexture : register(t1);
-Texture2D NormalTexture : register(t2);
+Texture2DArray Textures : register(t0);
 StructuredBuffer<Light> Lights : register(t3);
 Texture2D Shadowmap : register(t4);
 StructuredBuffer<EntityData> Entities : register(t5);
@@ -73,7 +71,8 @@ bool IsInShadow(float3 worldPos)
 
 float4 PS(VertexOut IN) : SV_Target
 {
-	float4 albedo = AlbedoTexture.Sample(s_AnisoWrap, IN.UV);
+	MaterialParams matParams = Materials[MaterialIndex];
+	float4 albedo = Textures.Sample(s_AnisoWrap, float3(IN.UV, matParams.Albedo) );
 
 #ifdef ALPHA_DISCARD
 	if (albedo.a < 0.05f)
@@ -85,13 +84,11 @@ float4 PS(VertexOut IN) : SV_Target
 	//	return float4(0.0f, 0.0f, 0.0f, 1.0f);
 	//}
 
-	MaterialParams matParams = Materials[MaterialIndex];
-
 	Material mat;
 	mat.Albedo = albedo;
 	mat.Albedo.rgb *= matParams.AlbedoFactor;
 	mat.FresnelR0 = matParams.FresnelR0;
-	mat.Roughness = MetallicRoughnessTexture.Sample(s_LinearWrap, IN.UV).g * matParams.RoughnessFactor;
+	mat.Roughness = Textures.Sample(s_LinearWrap, float3(IN.UV, matParams.MetallicRoughness)).g * matParams.RoughnessFactor;
 	mat.Roughness = min(0.99f, mat.Roughness);
 
 	float3 normal = normalize(IN.Normal);

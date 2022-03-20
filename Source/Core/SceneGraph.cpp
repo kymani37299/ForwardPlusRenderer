@@ -20,6 +20,9 @@ namespace
 		DirectX::XMFLOAT3 FresnelR0;
 		float MetallicFactor;
 		float RoughnessFactor;
+		uint32_t Albedo;
+		uint32_t MetallicRoughness;
+		uint32_t Normal;
 	};
 
 	float DegreesToRadians(float deg)
@@ -40,6 +43,9 @@ void Drawable::UpdateBuffer(ID3D11DeviceContext* context)
 	matSB.FresnelR0 = mat.FresnelR0.ToXMFA();
 	matSB.MetallicFactor = mat.MetallicFactor;
 	matSB.RoughnessFactor = mat.RoughnessFactor;
+	matSB.Albedo = mat.Albedo;
+	matSB.MetallicRoughness = mat.MetallicRoughness;
+	matSB.Normal = mat.Normal;
 	GFX::Cmd::UploadToBuffer(context, MainSceneGraph.Materials.GetBuffer(), MaterialIndex * sizeof(MaterialSB), &matSB, 0, sizeof(MaterialSB));
 }
 
@@ -153,6 +159,8 @@ void SceneGraph::UpdateRenderData(ID3D11DeviceContext* context)
 	Entities.Initialize();
 	Materials.Initialize();
 	Meshes.Initialize();
+
+	Textures = GFX::CreateTextureArray(TEXTURE_SIZE, TEXTURE_SIZE, MAX_TEXTURES, RCF_Bind_SRV | RCF_Bind_RTV | RCF_GenerateMips, 8);
 
 	// Lights
 	{

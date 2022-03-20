@@ -17,9 +17,9 @@ struct Material
 	float MetallicFactor = 1.0f;
 	float RoughnessFactor = 1.0f;
 
-	TextureID Albedo;
-	TextureID MetallicRoughness;
-	TextureID Normal;
+	uint32_t Albedo;
+	uint32_t MetallicRoughness;
+	uint32_t Normal;
 };
 
 struct Mesh
@@ -155,6 +155,11 @@ struct SceneGraph
 	BufferID LightsBuffer;
 	BufferID WorldToLightClip;
 	TextureID ShadowMapTexture;
+
+	static constexpr uint32_t MAX_TEXTURES = 500;
+	static constexpr uint32_t TEXTURE_SIZE = 1024;
+	std::atomic<uint32_t> NextTextureIndex = 0;
+	TextureID Textures;
 
 	MTR::MutexVector<Drawable> DrawablesToUpdate;
 };

@@ -95,18 +95,66 @@ namespace SceneLoading
 			return mesh;
 		}
 
-		TextureID LoadTexture(const LoadingContext& context, cgltf_texture* texture, ColorUNORM defaultColor = {1.0f, 1.0f, 1.0f, 1.0f})
+		uint32_t AddTexture(const LoadingContext& context, TextureID texture)
 		{
+			const Texture& tex = GFX::Storage::GetTexture(MainSceneGraph.Textures);
+			const uint32_t textureIndex = MainSceneGraph.NextTextureIndex++;
+			ASSERT(textureIndex < MainSceneGraph.MAX_TEXTURES, "textureIndex < MainSceneGraph.MAX_TEXTURES");
+
+			D3D11_RENDER_TARGET_VIEW_DESC rtvDesc{};
+			rtvDesc.Format = tex.Format;
+			rtvDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2DARRAY;
+			rtvDesc.Texture2DArray.MipSlice = 0;
+			rtvDesc.Texture2DArray.FirstArraySlice = textureIndex;
+			rtvDesc.Texture2DArray.ArraySize = 1;
+
+			ComPtr<ID3D11RenderTargetView> rtv;
+			API_CALL(Device::Get()->GetHandle()->CreateRenderTargetView(tex.Handle.Get(), &rtvDesc, rtv.GetAddressOf()));
+
+			ID3D11DeviceContext* c = context.GfxContext;
+
+			GFX::Cmd::MarkerBegin(c, "CopyTexture");
+			GFX::Cmd::SetupStaticSamplers<PS>(c);
+			GFX::Cmd::BindShader(c, Device::Get()->GetCopyShader());
+			ID3D11RenderTargetView* _rtv = rtv.Get();
+			c->OMSetRenderTargets(1, &_rtv, nullptr);
+			GFX::Cmd::SetViewport(c, { (float) tex.Width, (float) tex.Height });
+			GFX::Cmd::BindVertexBuffer(c, Device::Get()->GetQuadBuffer());
+			GFX::Cmd::BindSRV<PS>(c, texture, 0);
+			c->Draw(6, 0);
+			GFX::Cmd::MarkerEnd(c);
+
+			D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+			srvDesc.Format = tex.Format;
+			srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+			srvDesc.Texture2DArray.MipLevels = tex.NumMips;
+			srvDesc.Texture2DArray.MostDetailedMip = 0;
+			srvDesc.Texture2DArray.ArraySize = 1;
+			srvDesc.Texture2DArray.FirstArraySlice = textureIndex;
+			ComPtr<ID3D11ShaderResourceView> srv;
+
+			API_CALL(Device::Get()->GetHandle()->CreateShaderResourceView(tex.Handle.Get(), &srvDesc, srv.GetAddressOf()));
+			c->GenerateMips(srv.Get());
+
+			GFX::Storage::Free(texture);
+			return textureIndex;
+		}
+
+		uint32_t LoadTexture(const LoadingContext& context, cgltf_texture* texture, ColorUNORM defaultColor = {1.0f, 1.0f, 1.0f, 1.0f})
+		{
+			TextureID tex;
 			if (texture)
 			{
 				const std::string textureURI = texture->image->uri;
 				const std::string texutrePath = context.RelativePath + "/" + textureURI;
-				return GFX::LoadTexture(context.GfxContext, texutrePath, RCF_Bind_SRV, GFX::MAX_MIPS);
+				tex = GFX::LoadTexture(context.GfxContext, texutrePath, RCF_Bind_SRV);
 			}
 			else
 			{
-				return GFX::CreateTexture(1, 1, RCF_Bind_SRV, 1, DXGI_FORMAT_R8G8B8A8_UNORM, &defaultColor);
+				tex = GFX::CreateTexture(1, 1, RCF_Bind_SRV, 1, DXGI_FORMAT_R8G8B8A8_UNORM, &defaultColor);
 			}
+			
+			return AddTexture(context, tex);
 		}
 
 		static Float3 ToFloat3(cgltf_float color[3])
@@ -178,8 +226,6 @@ namespace SceneLoading
 
 		void Run(ID3D11DeviceContext* context) override
 		{
-			GFX::Cmd::SubmitDeferredContext(context);
-
 			const std::string& ext = PathUtility::GetFileExtension(m_Path);
 			if (ext != "gltf")
 			{
@@ -210,6 +256,7 @@ namespace SceneLoading
 					if (drawables.size() >= BATCH_SIZE)
 					{
 						GFX::Cmd::SubmitDeferredContext(context);
+						GFX::Cmd::ResetContext(context);
 						m_Entity.Drawables.AddAll(drawables);
 						drawables.clear();
 					}

@@ -62,6 +62,7 @@ public:
         ID3D11DeviceContext* context = GFX::Cmd::CreateDeferredContext();
         while (m_Running)
         {
+            GFX::Cmd::ResetContext(context);
             m_CurrentTask = m_TaskQueue.Pop();
             if (m_CurrentTask.load() == PoisonPillTask::Get()) break;
             m_CurrentTask.load()->SetRunning(true);

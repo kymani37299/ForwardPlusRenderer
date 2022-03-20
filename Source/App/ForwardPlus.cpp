@@ -398,6 +398,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		GFX::Cmd::BindRenderTarget(context, m_FinalRT, m_FinalRT_Depth);
 		GFX::Cmd::BindShader(context, m_GeometryShader, true);
 		GFX::Cmd::SetupStaticSamplers<PS>(context);
+		GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Textures, 0);
 		GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.WorldToLightClip, 3);
@@ -406,6 +407,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Entities.GetBuffer(), 5);
 		GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Materials.GetBuffer(), 6);
 		GFX::Cmd::BindCBV<VS>(context, m_DrawBuffer, 1);
+		GFX::Cmd::BindCBV<PS>(context, m_DrawBuffer, 1);
 
 		uint32_t entityIndex = 0;
 		const auto drawFunc = [this, &context, &entityIndex](const Drawable& d)
@@ -418,8 +420,6 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			GFX::Cmd::BindIndexBuffer(context, m.Indices);
 			
 			const Material& mat = MainSceneGraph.Materials[d.MaterialIndex];
-			ID3D11ShaderResourceView* srv[] = { GFX::DX_SRV(mat.Albedo), GFX::DX_SRV(mat.MetallicRoughness), GFX::DX_SRV(mat.Normal) };
-			context->PSSetShaderResources(0, 3, srv);
 			
 			context->DrawIndexed(GFX::GetNumElements(m.Indices), 0, 0);
 		};

@@ -43,6 +43,12 @@ public:
 	void SubmitDeferredContext(ID3D11DeviceContext* context);
 
 	std::vector<ID3D11SamplerState*>& GetStaticSamplers() { return m_StaticSamplers; }
+
+	// Hack
+	ShaderID GetCopyShader() const { return m_CopyShader; }
+	BufferID GetQuadBuffer() const { return m_QuadBuffer; }
+	//
+
 private:
 	// Initialize components that will use Device::Get()
 	void DeferredInit();

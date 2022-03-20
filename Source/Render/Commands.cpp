@@ -28,6 +28,8 @@ namespace GFX
 
 		void MarkerBegin(ID3D11DeviceContext* context, const std::string& markerName)
 		{
+			if (!Device::Get()->IsMainContext(context)) return;
+
 			if(!DebugMarkerHandle.Get()) API_CALL(context->QueryInterface(IID_PPV_ARGS(DebugMarkerHandle.GetAddressOf())));
 
 			std::wstring wDebugName = StringUtility::ToWideString(markerName);
@@ -36,6 +38,8 @@ namespace GFX
 		
 		void MarkerEnd(ID3D11DeviceContext* context)
 		{
+			if (!Device::Get()->IsMainContext(context)) return;
+
 			ASSERT(DebugMarkerHandle, "[Cmd::MarkerEnd] Called MarkerEnd without MarkerBegin before it!");
 			DebugMarkerHandle->EndEvent();
 		}
