@@ -8,6 +8,7 @@ cbuffer CameraCB : register(b0)
 cbuffer EntityCB : register(b1)
 {
 	uint EntityIndex;
+	uint MaterialIndex;
 }
 
 StructuredBuffer<EntityData> Entities : register(t0);

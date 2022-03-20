@@ -38,6 +38,7 @@ public:
 
 	ID3D11Device* GetHandle() const { return m_Device; }
 	ID3D11DeviceContext1* GetContext() const { return m_Context.Get(); }
+	bool IsMainContext(ID3D11DeviceContext* context) const { return context == m_Context.Get(); }
 
 	void SubmitDeferredContext(ID3D11DeviceContext* context);
 

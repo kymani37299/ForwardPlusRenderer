@@ -134,10 +134,7 @@ namespace SceneLoading
 
 		Drawable LoadDrawable(const LoadingContext& context, cgltf_primitive* meshData)
 		{
-			Drawable drawable;
-			drawable.Mesh = LoadMesh(context, meshData);
-			drawable.Material = LoadMaterial(context, meshData->material);
-			return drawable;
+			return MainSceneGraph.CreateDrawable(context.GfxContext, LoadMaterial(context, meshData->material), LoadMesh(context, meshData));
 		}
 	}
 	
@@ -165,7 +162,6 @@ namespace SceneLoading
 			for (size_t j = 0; j < meshData->primitives_count; j++)
 			{
 				Drawable d = LoadDrawable(context, meshData->primitives + j);
-				d.Material.UpdateBuffer(context.GfxContext);
 				entityOut.Drawables.Add(d);
 			}
 		}
@@ -209,7 +205,6 @@ namespace SceneLoading
 					if (ShouldStop()) break; // Something requested stop
 
 					Drawable d = LoadDrawable(loadingContext, meshData->primitives + j);
-					d.Material.UpdateBuffer(loadingContext.GfxContext);
 					drawables.push_back(d);
 
 					if (drawables.size() >= BATCH_SIZE)

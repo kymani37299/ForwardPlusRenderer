@@ -10,8 +10,6 @@ struct ID3D11DeviceContext;
 
 struct Material
 {
-	void UpdateBuffer(ID3D11DeviceContext* context);
-
 	bool UseBlend = false;
 	bool UseAlphaDiscard = false;
 	Float3 AlbedoFactor = { 1.0f, 1.0f, 1.0f };
@@ -19,7 +17,6 @@ struct Material
 	float MetallicFactor = 1.0f;
 	float RoughnessFactor = 1.0f;
 
-	BufferID MaterialParams;
 	TextureID Albedo;
 	TextureID MetallicRoughness;
 	TextureID Normal;
@@ -36,8 +33,10 @@ struct Mesh
 
 struct Drawable
 {
-	Material Material;
-	Mesh Mesh;
+	void UpdateBuffer(ID3D11DeviceContext* context);
+
+	uint32_t MaterialIndex;
+	uint32_t MeshIndex;
 };
 
 struct Entity
@@ -49,7 +48,6 @@ struct Entity
 
 	uint32_t Index;
 	MTR::MutexVector<Drawable> Drawables;
-	BufferID EntityBuffer;
 };
 
 struct Camera
@@ -91,22 +89,74 @@ struct Light
 	float SpotPower = 0.0f;						// Spot
 };
 
+namespace ElementBufferHelp
+{
+	BufferID CreateBuffer(uint32_t numElements, uint32_t stride);
+	void DeleteBuffer(BufferID buffer);
+}
+
+template<typename T>
+class ElementBuffer
+{
+public:
+	ElementBuffer(uint32_t maxElements, uint32_t gpuBufferStride):
+		m_MaxElements(maxElements),
+		m_GpuStride(gpuBufferStride)
+	{ }
+
+	void Initialize()
+	{
+		m_Storage.resize(m_MaxElements);
+		if(m_GpuStride != 0) m_Buffer = ElementBufferHelp::CreateBuffer(m_MaxElements, m_GpuStride);
+	}
+
+	~ElementBuffer()
+	{
+		if (m_GpuStride != 0) ElementBufferHelp::DeleteBuffer(m_Buffer);
+	}
+
+	T& operator [] (uint32_t index) { return m_Storage[index]; }
+	size_t GetSize() const { return m_NextIndex; }
+	size_t Next() 
+	{ 
+		size_t index = m_NextIndex++;
+		ASSERT(index < m_MaxElements, "index < m_MaxElements");
+		return index; 
+	}
+	BufferID GetBuffer() const { ASSERT(m_GpuStride != 0, "m_GpuStride != 0");  return m_Buffer; }
+
+private:
+	uint32_t m_MaxElements;
+	uint32_t m_GpuStride;
+	std::atomic<uint32_t> m_NextIndex;
+
+	std::vector<T> m_Storage;
+	BufferID m_Buffer;
+};
+
 struct SceneGraph
 {
+	static constexpr uint32_t MAX_ENTITIES = 100;
+	static constexpr uint32_t MAX_DRAWABLES = 100000;
+
+	SceneGraph();
+
+	void UpdateDrawables(ID3D11DeviceContext* context);
 	void UpdateRenderData(ID3D11DeviceContext* context);
 	Entity& CreateEntity(ID3D11DeviceContext* context, Float3 position = { 0.0f, 0.0f, 0.0f }, Float3 scale = { 1.0f, 1.0f, 1.0f });
+	Drawable CreateDrawable(ID3D11DeviceContext* context, const Material material, const Mesh mesh);
 
 	Camera MainCamera{ {0.0f, 2.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, 75.0f };
-	std::vector<Entity> Entities;
+	ElementBuffer<Entity> Entities;
+	ElementBuffer<Material> Materials;
+	ElementBuffer<Mesh> Meshes;
 	std::vector<Light> Lights;
 
-	static constexpr uint32_t MAX_ENTITIES = 100;
-	uint32_t NextEntityID = 0;
-	BufferID EntityBuffer;
-	
 	BufferID LightsBuffer;
 	BufferID WorldToLightClip;
 	TextureID ShadowMapTexture;
+
+	MTR::MutexVector<Drawable> DrawablesToUpdate;
 };
 
 extern SceneGraph MainSceneGraph;

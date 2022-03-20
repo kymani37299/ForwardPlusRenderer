@@ -23,14 +23,10 @@ cbuffer CameraCB : register(b0)
 	CameraData CamData;
 }
 
-cbuffer EntityCB : register(b1)
+cbuffer DrawCB : register(b1)
 {
 	uint EntityIndex;
-}
-
-cbuffer MaterialCB : register(b2)
-{
-	MaterialParams MatParams;
+	uint MaterialIndex;
 }
 
 cbuffer LightSpaceCB : register(b3)
@@ -44,7 +40,7 @@ Texture2D NormalTexture : register(t2);
 StructuredBuffer<Light> Lights : register(t3);
 Texture2D Shadowmap : register(t4);
 StructuredBuffer<EntityData> Entities : register(t5);
-
+StructuredBuffer<MaterialParams> Materials : register(t6);
 
 VertexOut VS(VertexInput IN)
 {
@@ -89,11 +85,13 @@ float4 PS(VertexOut IN) : SV_Target
 	//	return float4(0.0f, 0.0f, 0.0f, 1.0f);
 	//}
 
+	MaterialParams matParams = Materials[MaterialIndex];
+
 	Material mat;
 	mat.Albedo = albedo;
-	mat.Albedo.rgb *= MatParams.AlbedoFactor;
-	mat.FresnelR0 = MatParams.FresnelR0;
-	mat.Roughness = MetallicRoughnessTexture.Sample(s_LinearWrap, IN.UV).g * MatParams.RoughnessFactor;
+	mat.Albedo.rgb *= matParams.AlbedoFactor;
+	mat.FresnelR0 = matParams.FresnelR0;
+	mat.Roughness = MetallicRoughnessTexture.Sample(s_LinearWrap, IN.UV).g * matParams.RoughnessFactor;
 	mat.Roughness = min(0.99f, mat.Roughness);
 
 	float3 normal = normalize(IN.Normal);

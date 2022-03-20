@@ -177,6 +177,12 @@ namespace ForwardPlusPrivate
 	}
 }
 
+struct DrawCB
+{
+	uint32_t EntityIndex;
+	uint32_t MaterialIndex;
+};
+
 void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 {
 	using namespace ForwardPlusPrivate;
@@ -277,7 +283,7 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 	m_FinalRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV);
 	m_FinalRT_Depth = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_DSV);
 
-	m_EntityBuffer = GFX::CreateConstantBuffer<uint32_t>();
+	m_DrawBuffer = GFX::CreateConstantBuffer<DrawCB>();
 }
 
 void ForwardPlus::OnDestroy(ID3D11DeviceContext* context)
@@ -295,6 +301,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 	// Prepare scene
 	{
 		MainSceneGraph.MainCamera.UpdateBuffer(context);
+		MainSceneGraph.UpdateDrawables(context);
 	}
 	
 	// Skybox
@@ -353,20 +360,23 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		GFX::Cmd::BindShader(context, m_DepthPrepassShader, true);
 		GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
-		GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.EntityBuffer, 0);
-		GFX::Cmd::BindCBV<VS>(context, m_EntityBuffer, 1);
+		GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Entities.GetBuffer(), 0);
+		GFX::Cmd::BindCBV<VS>(context, m_DrawBuffer, 1);
 
-		for (Entity& e : MainSceneGraph.Entities)
+		for(size_t i = 0; i < MainSceneGraph.Entities.GetSize(); i++)
 		{
-			GFX::Cmd::UploadToBuffer(context, m_EntityBuffer, 0, &e.Index, 0, sizeof(uint32_t));
-			
-			const auto func = [&context](const Drawable& d) {
-				if (!d.Material.UseAlphaDiscard && !d.Material.UseBlend)
+			Entity& e = MainSceneGraph.Entities[i];
+			const auto func = [this, &context, &e](const Drawable& d) {
+				const Material& m = MainSceneGraph.Materials[d.MaterialIndex];
+				if (!m.UseAlphaDiscard && !m.UseBlend)
 				{
-					const Mesh& m = d.Mesh;
-					GFX::Cmd::BindVertexBuffer(context, m.Position);
-					GFX::Cmd::BindIndexBuffer(context, m.Indices);
-					context->DrawIndexed(GFX::GetNumElements(m.Indices), 0, 0);
+					DrawCB drawCB{ e.Index, d.MaterialIndex };
+					GFX::Cmd::UploadToBuffer(context, m_DrawBuffer, 0, &drawCB, 0, sizeof(DrawCB));
+				
+					const Mesh& mesh = MainSceneGraph.Meshes[d.MeshIndex];
+					GFX::Cmd::BindVertexBuffer(context, mesh.Position);
+					GFX::Cmd::BindIndexBuffer(context, mesh.Indices);
+					context->DrawIndexed(GFX::GetNumElements(mesh.Indices), 0, 0);
 				}
 
 			};
@@ -374,7 +384,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		}
 		GFX::Cmd::MarkerEnd(context);
 	}
-
+	
 	// Geometry
 	{
 		GFX::Cmd::MarkerBegin(context, "Geometry");
@@ -393,28 +403,36 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.WorldToLightClip, 3);
 		GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.LightsBuffer, 3);
 		GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.ShadowMapTexture, 4);
-		GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.EntityBuffer, 5);
-		GFX::Cmd::BindCBV<VS>(context, m_EntityBuffer, 1);
+		GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Entities.GetBuffer(), 5);
+		GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Materials.GetBuffer(), 6);
+		GFX::Cmd::BindCBV<VS>(context, m_DrawBuffer, 1);
 
-		const auto drawFunc = [&context](const Drawable& d)
+		uint32_t entityIndex = 0;
+		const auto drawFunc = [this, &context, &entityIndex](const Drawable& d)
 		{
-			GFX::Cmd::BindCBV<PS>(context, d.Material.MaterialParams, 2);
-
-			const Mesh& m = d.Mesh;
+			DrawCB drawCB{ entityIndex, d.MaterialIndex };
+			GFX::Cmd::UploadToBuffer(context, m_DrawBuffer, 0, &drawCB, 0, sizeof(DrawCB));
+			
+			const Mesh& m = MainSceneGraph.Meshes[d.MeshIndex];
 			GFX::Cmd::BindVertexBuffers(context, { m.Position, m.UV, m.Normal, m.Tangent });
 			GFX::Cmd::BindIndexBuffer(context, m.Indices);
 			
-			ID3D11ShaderResourceView* srv[] = { GFX::DX_SRV(d.Material.Albedo), GFX::DX_SRV(d.Material.MetallicRoughness), GFX::DX_SRV(d.Material.Normal) };
+			const Material& mat = MainSceneGraph.Materials[d.MaterialIndex];
+			ID3D11ShaderResourceView* srv[] = { GFX::DX_SRV(mat.Albedo), GFX::DX_SRV(mat.MetallicRoughness), GFX::DX_SRV(mat.Normal) };
 			context->PSSetShaderResources(0, 3, srv);
-
+			
 			context->DrawIndexed(GFX::GetNumElements(m.Indices), 0, 0);
 		};
 
-		for (Entity& e : MainSceneGraph.Entities)
+		for (size_t i = 0; i < MainSceneGraph.Entities.GetSize(); i++)
 		{
-			GFX::Cmd::UploadToBuffer(context, m_EntityBuffer, 0, &e.Index, 0, sizeof(uint32_t));
-			
-			const auto draw = [&context, &drawFunc](const Drawable& d) { if (!d.Material.UseAlphaDiscard && !d.Material.UseBlend) drawFunc(d); };
+			Entity& e = MainSceneGraph.Entities[i];
+			entityIndex = e.Index;
+			const auto draw = [&context, &drawFunc](const Drawable& d) 
+			{ 
+				const Material& m = MainSceneGraph.Materials[d.MaterialIndex];
+				if (!m.UseAlphaDiscard && !m.UseBlend) drawFunc(d); 
+			};
 			e.Drawables.ForEach(draw);
 		}
 
@@ -425,11 +443,15 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		}
 		GFX::Cmd::BindShader(context, m_GeometryAlphaDiscardShader, true);
 
-		for (Entity& e : MainSceneGraph.Entities)
+		for (size_t i = 0; i < MainSceneGraph.Entities.GetSize(); i++)
 		{
-			GFX::Cmd::UploadToBuffer(context, m_EntityBuffer, 0, &e.Index, 0, sizeof(uint32_t));
-			
-			const auto draw = [&context, &drawFunc](const Drawable& d) { if (d.Material.UseAlphaDiscard) drawFunc(d); };
+			Entity& e = MainSceneGraph.Entities[i];
+			entityIndex = e.Index;
+			const auto draw = [&context, &drawFunc](const Drawable& d) 
+			{ 
+				const Material& m = MainSceneGraph.Materials[d.MaterialIndex];
+				if (m.UseAlphaDiscard) drawFunc(d); 
+			};
 			e.Drawables.ForEach(draw);
 		}
 		GFX::Cmd::MarkerEnd(context);

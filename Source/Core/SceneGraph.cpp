@@ -1,5 +1,6 @@
 #include "SceneGraph.h"
 
+#include "Render/Device.h"
 #include "Render/Commands.h"
 #include "Render/Buffer.h"
 #include "System/ApplicationConfiguration.h"
@@ -13,6 +14,14 @@ namespace
 		DirectX::XMFLOAT4X4 ModelToWorld;
 	};
 
+	struct MaterialSB
+	{
+		DirectX::XMFLOAT3 AlbedoFactor;
+		DirectX::XMFLOAT3 FresnelR0;
+		float MetallicFactor;
+		float RoughnessFactor;
+	};
+
 	float DegreesToRadians(float deg)
 	{
 		const float DEG_2_RAD = 3.1415f / 180.0f;
@@ -20,36 +29,28 @@ namespace
 	}
 }
 
-void Material::UpdateBuffer(ID3D11DeviceContext* context)
+void Drawable::UpdateBuffer(ID3D11DeviceContext* context)
 {
 	using namespace DirectX;
-	struct MaterialCB
-	{
-		XMFLOAT3A AlbedoFactor;
-		XMFLOAT3A FresnelR0;
-		float MetallicFactor;
-		float RoughnessFactor;
-	};
+	
+	Material& mat = MainSceneGraph.Materials[MaterialIndex];
 
-	MaterialCB matCB{};
-	matCB.AlbedoFactor = AlbedoFactor.ToXMFA();
-	matCB.FresnelR0 = FresnelR0.ToXMFA();
-	matCB.MetallicFactor = MetallicFactor;
-	matCB.RoughnessFactor = RoughnessFactor;
-	if (!MaterialParams.Valid()) MaterialParams = GFX::CreateConstantBuffer<MaterialCB>();
-	GFX::Cmd::UploadToBuffer(context, MaterialParams, 0, &matCB, 0, sizeof(MaterialCB));
+	MaterialSB matSB{};
+	matSB.AlbedoFactor = mat.AlbedoFactor.ToXMFA();
+	matSB.FresnelR0 = mat.FresnelR0.ToXMFA();
+	matSB.MetallicFactor = mat.MetallicFactor;
+	matSB.RoughnessFactor = mat.RoughnessFactor;
+	GFX::Cmd::UploadToBuffer(context, MainSceneGraph.Materials.GetBuffer(), MaterialIndex * sizeof(MaterialSB), &matSB, 0, sizeof(MaterialSB));
 }
 
 void Entity::UpdateBuffer(ID3D11DeviceContext* context)
 {
-	ASSERT(EntityBuffer.Valid(), "[Entity] EntityBuffer.Valid()");
-
 	using namespace DirectX;
 	
 	XMMATRIX modelToWorld = XMMatrixTranspose(XMMatrixAffineTransformation(Scale.ToXM(), Float3(0.0f, 0.0f, 0.0f).ToXM(), Float4(0.0f, 0.0f, 0.0f, 0.0f).ToXM(), Position.ToXM()));
 	EntitySB entitySB{};
 	entitySB.ModelToWorld = XMUtility::ToXMFloat4x4(modelToWorld);
-	GFX::Cmd::UploadToBuffer(context, EntityBuffer, sizeof(EntitySB) * Index, &entitySB, 0, sizeof(EntitySB));
+	GFX::Cmd::UploadToBuffer(context, MainSceneGraph.Entities.GetBuffer(), sizeof(EntitySB) * Index, &entitySB, 0, sizeof(EntitySB));
 }
 
 void Camera::RotToAxis(Float3 rot, Float3& forward, Float3& up, Float3& right)
@@ -128,18 +129,32 @@ Light Light::CreatePoint(Float3 position, Float3 color, Float2 falloff)
 	return l;
 }
 
+SceneGraph::SceneGraph():
+	Entities(MAX_ENTITIES, sizeof(EntitySB)),
+	Materials(MAX_DRAWABLES, sizeof(MaterialSB)),
+	Meshes(MAX_DRAWABLES, 0)
+{
+
+}
+
+void SceneGraph::UpdateDrawables(ID3D11DeviceContext* context)
+{
+	auto f = [&context](Drawable d)
+	{
+		d.UpdateBuffer(context);
+	};
+	DrawablesToUpdate.ForEachAndClear(f);
+}
+
 void SceneGraph::UpdateRenderData(ID3D11DeviceContext* context)
 {
 	MainCamera.UpdateBuffer(context);
 
-	if (!EntityBuffer.Valid())
-	{
-		constexpr uint32_t structStride = sizeof(EntitySB);
-		EntityBuffer = GFX::CreateBuffer(MAX_ENTITIES * structStride, structStride, RCF_Bind_SB | RCF_CPU_Write_Persistent);
-	}
+	Entities.Initialize();
+	Materials.Initialize();
+	Meshes.Initialize();
 
 	// Lights
-	
 	{
 		using namespace DirectX;
 		struct LightSB
@@ -177,18 +192,39 @@ void SceneGraph::UpdateRenderData(ID3D11DeviceContext* context)
 
 Entity& SceneGraph::CreateEntity(ID3D11DeviceContext* context, Float3 position, Float3 scale)
 {
-	const uint32_t eIndex = NextEntityID++;
-	if (eIndex == 0)
-	{
-		Entities.resize(MAX_ENTITIES);
-	}
-	
+	const uint32_t eIndex = Entities.Next();
+
 	Entity& e = Entities[eIndex];
-	e.EntityBuffer = EntityBuffer;
 	e.Index = eIndex;
 	e.Position = position;
 	e.Scale = scale;
 	e.UpdateBuffer(context);
 
 	return Entities[eIndex];
+}
+
+Drawable SceneGraph::CreateDrawable(ID3D11DeviceContext* context, const Material material, const Mesh mesh)
+{
+	const uint32_t matIndex = Materials.Next();
+	const uint32_t mIndex = Meshes.Next();
+
+	Drawable drawable;
+	drawable.MaterialIndex = matIndex;
+	drawable.MeshIndex = mIndex;
+
+	Materials[matIndex] = material;
+	Meshes[mIndex] = mesh;
+
+	if (Device::Get()->IsMainContext(context))
+		drawable.UpdateBuffer(context);
+	else
+		MainSceneGraph.DrawablesToUpdate.Add(drawable);
+
+	return drawable;
+}
+
+namespace ElementBufferHelp
+{
+	BufferID CreateBuffer(uint32_t numElements, uint32_t stride) { return GFX::CreateBuffer(numElements * stride, stride, RCF_Bind_SB | RCF_CPU_Write_Persistent); }
+	void DeleteBuffer(BufferID buffer) { GFX::Storage::Free(buffer); }
 }
