@@ -9,6 +9,7 @@
 #include "Render/Buffer.h"
 #include "Render/Texture.h"
 #include "Utility/PathUtility.h"
+#include "System/ApplicationConfiguration.h"
 
 #define CGTF_CALL(X) { cgltf_result result = X; ASSERT(result == cgltf_result_success, "CGTF_CALL_FAIL") }
 
@@ -97,46 +98,41 @@ namespace SceneLoading
 
 		uint32_t AddTexture(const LoadingContext& context, TextureID texture)
 		{
-			const Texture& tex = GFX::Storage::GetTexture(MainSceneGraph.Textures);
-			const uint32_t textureIndex = MainSceneGraph.NextTextureIndex++;
-			ASSERT(textureIndex < MainSceneGraph.MAX_TEXTURES, "textureIndex < MainSceneGraph.MAX_TEXTURES");
+			static TextureID stagingTexture;
+			if (!stagingTexture.Valid()) stagingTexture = GFX::CreateTexture(MainSceneGraph.TEXTURE_SIZE, MainSceneGraph.TEXTURE_SIZE, RCF_Bind_RTV | RCF_GenerateMips | RCF_Bind_SRV, MainSceneGraph.TEXTURE_MIPS);
 
-			D3D11_RENDER_TARGET_VIEW_DESC rtvDesc{};
-			rtvDesc.Format = tex.Format;
-			rtvDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2DARRAY;
-			rtvDesc.Texture2DArray.MipSlice = 0;
-			rtvDesc.Texture2DArray.FirstArraySlice = textureIndex;
-			rtvDesc.Texture2DArray.ArraySize = 1;
-
-			ComPtr<ID3D11RenderTargetView> rtv;
-			API_CALL(Device::Get()->GetHandle()->CreateRenderTargetView(tex.Handle.Get(), &rtvDesc, rtv.GetAddressOf()));
-
+			const Texture& stagingTex = GFX::Storage::GetTexture(stagingTexture);
+			
+			// Resize texture and generate mips
 			ID3D11DeviceContext* c = context.GfxContext;
 
 			GFX::Cmd::MarkerBegin(c, "CopyTexture");
 			GFX::Cmd::SetupStaticSamplers<PS>(c);
 			GFX::Cmd::BindShader(c, Device::Get()->GetCopyShader());
-			ID3D11RenderTargetView* _rtv = rtv.Get();
-			c->OMSetRenderTargets(1, &_rtv, nullptr);
-			GFX::Cmd::SetViewport(c, { (float) tex.Width, (float) tex.Height });
+			c->OMSetRenderTargets(1, stagingTex.RTV.GetAddressOf(), nullptr);
+			GFX::Cmd::SetViewport(c, { (float) MainSceneGraph.TEXTURE_SIZE, (float) MainSceneGraph.TEXTURE_SIZE });
 			GFX::Cmd::BindVertexBuffer(c, Device::Get()->GetQuadBuffer());
 			GFX::Cmd::BindSRV<PS>(c, texture, 0);
 			c->Draw(6, 0);
 			GFX::Cmd::MarkerEnd(c);
-
-			D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc{};
-			srvDesc.Format = tex.Format;
-			srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-			srvDesc.Texture2DArray.MipLevels = tex.NumMips;
-			srvDesc.Texture2DArray.MostDetailedMip = 0;
-			srvDesc.Texture2DArray.ArraySize = 1;
-			srvDesc.Texture2DArray.FirstArraySlice = textureIndex;
-			ComPtr<ID3D11ShaderResourceView> srv;
-
-			API_CALL(Device::Get()->GetHandle()->CreateShaderResourceView(tex.Handle.Get(), &srvDesc, srv.GetAddressOf()));
-			c->GenerateMips(srv.Get());
+			
+			c->GenerateMips(stagingTex.SRV.Get());
 
 			GFX::Storage::Free(texture);
+
+			// Copy to the array
+			const Texture& textureArray = GFX::Storage::GetTexture(MainSceneGraph.Textures);
+			const uint32_t textureIndex = MainSceneGraph.NextTextureIndex++;
+			ASSERT(textureIndex < MainSceneGraph.MAX_TEXTURES, "textureIndex < MainSceneGraph.MAX_TEXTURES");
+			ASSERT(stagingTex.Format == textureArray.Format, "stagingTex.Format == tex.Format");
+
+			for (uint32_t mip = 0; mip < textureArray.NumMips; mip++)
+			{
+				uint32_t srcSubresource = D3D11CalcSubresource(mip, 0, stagingTex.NumMips);
+				uint32_t dstSubresource = D3D11CalcSubresource(mip, textureIndex, textureArray.NumMips);
+				c->CopySubresourceRegion(textureArray.Handle.Get(), dstSubresource, 0, 0, 0, stagingTex.Handle.Get(), srcSubresource, nullptr);
+			}
+
 			return textureIndex;
 		}
 
@@ -276,6 +272,14 @@ namespace SceneLoading
 
 	void LoadEntityInBackground(const std::string& path, Entity& entityOut)
 	{
-		LoadingThread::Get()->Submit(new EntityLoadingTask(path, entityOut));
+		if (AppConfig.Settings.contains("NO_BG_LOADING"))
+		{
+			LoadEntity(path, entityOut);
+		}
+		else
+		{
+			LoadingThread::Get()->Submit(new EntityLoadingTask(path, entityOut));
+		}
+		
 	}
 }

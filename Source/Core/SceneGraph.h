@@ -157,6 +157,7 @@ struct SceneGraph
 	TextureID ShadowMapTexture;
 
 	static constexpr uint32_t MAX_TEXTURES = 500;
+	static constexpr uint32_t TEXTURE_MIPS = 8;
 	static constexpr uint32_t TEXTURE_SIZE = 1024;
 	std::atomic<uint32_t> NextTextureIndex = 0;
 	TextureID Textures;

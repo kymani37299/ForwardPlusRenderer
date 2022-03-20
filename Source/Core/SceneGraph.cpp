@@ -160,7 +160,7 @@ void SceneGraph::UpdateRenderData(ID3D11DeviceContext* context)
 	Materials.Initialize();
 	Meshes.Initialize();
 
-	Textures = GFX::CreateTextureArray(TEXTURE_SIZE, TEXTURE_SIZE, MAX_TEXTURES, RCF_Bind_SRV | RCF_Bind_RTV | RCF_GenerateMips, 8);
+	Textures = GFX::CreateTextureArray(TEXTURE_SIZE, TEXTURE_SIZE, MAX_TEXTURES, RCF_Bind_SRV | RCF_CopyDest, TEXTURE_MIPS);
 
 	// Lights
 	{
