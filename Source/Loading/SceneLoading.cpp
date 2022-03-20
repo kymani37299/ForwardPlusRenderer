@@ -143,8 +143,6 @@ namespace SceneLoading
 	
 	void LoadEntity(const std::string& path, Entity& entityOut)
 	{
-		entityOut.UpdateBuffer(Device::Get()->GetContext());
-
 		const std::string& ext = PathUtility::GetFileExtension(path);
 		if (ext != "gltf")
 		{
@@ -184,7 +182,6 @@ namespace SceneLoading
 
 		void Run(ID3D11DeviceContext* context) override
 		{
-			m_Entity.UpdateBuffer(context);
 			GFX::Cmd::SubmitDeferredContext(context);
 
 			const std::string& ext = PathUtility::GetFileExtension(m_Path);

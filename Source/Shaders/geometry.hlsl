@@ -25,7 +25,7 @@ cbuffer CameraCB : register(b0)
 
 cbuffer EntityCB : register(b1)
 {
-	EntityData EntData;
+	uint EntityIndex;
 }
 
 cbuffer MaterialCB : register(b2)
@@ -41,22 +41,22 @@ cbuffer LightSpaceCB : register(b3)
 Texture2D AlbedoTexture : register(t0);
 Texture2D MetallicRoughnessTexture : register(t1);
 Texture2D NormalTexture : register(t2);
-
-Texture2D Shadowmap : register(t4);
-
 StructuredBuffer<Light> Lights : register(t3);
+Texture2D Shadowmap : register(t4);
+StructuredBuffer<EntityData> Entities : register(t5);
+
 
 VertexOut VS(VertexInput IN)
 {
 	const float4 modelPos = float4(IN.Position, 1.0f);
-	const float4 worldPos = mul(modelPos, EntData.ModelToWorld);
+	const float4 worldPos = mul(modelPos, Entities[EntityIndex].ModelToWorld);
 	const float4 viewPos = mul(worldPos, CamData.WorldToView);
 	const float4 clipPos = mul(viewPos, CamData.ViewToClip);
 
 	VertexOut OUT;
 	OUT.Position = clipPos;
 	OUT.WorldPosition = worldPos.xyz;
-	OUT.Normal = mul(IN.Normal, (float3x3) EntData.ModelToWorld); // Assumes nonuniform scaling; otherwise, need to use inverse-transpose of world matrix.
+	OUT.Normal = mul(IN.Normal, (float3x3) Entities[EntityIndex].ModelToWorld); // Assumes nonuniform scaling; otherwise, need to use inverse-transpose of world matrix.
 	OUT.UV = IN.UV;
 	return OUT;
 }

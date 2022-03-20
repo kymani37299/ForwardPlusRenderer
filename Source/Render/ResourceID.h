@@ -40,9 +40,10 @@ enum ResourceCreationFlags : uint64_t
 	// Access
 	RCF_CPU_Write = RCF_Bind_DSV << 1,
 	RCF_CPU_Read = RCF_CPU_Write << 1,
+	RCF_CPU_Write_Persistent = RCF_CPU_Read << 1,
 
 	// Misc
-	RCF_Staging = RCF_CPU_Read << 1,
+	RCF_Staging = RCF_CPU_Write_Persistent << 1,
 	RCF_GenerateMips = RCF_Staging << 1,
 	RCF_CopyDest = RCF_GenerateMips << 1,
 	RCF_Cubemap = RCF_CopyDest << 1

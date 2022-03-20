@@ -47,6 +47,7 @@ struct Entity
 	Float3 Position = Float3(0.0f, 0.0f, 0.0f);
 	Float3 Scale = Float3(1.0f, 1.0f, 1.0f);
 
+	uint32_t Index;
 	MTR::MutexVector<Drawable> Drawables;
 	BufferID EntityBuffer;
 };
@@ -93,11 +94,16 @@ struct Light
 struct SceneGraph
 {
 	void UpdateRenderData(ID3D11DeviceContext* context);
+	Entity& CreateEntity(ID3D11DeviceContext* context, Float3 position = { 0.0f, 0.0f, 0.0f }, Float3 scale = { 1.0f, 1.0f, 1.0f });
 
 	Camera MainCamera{ {0.0f, 2.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, 75.0f };
 	std::vector<Entity> Entities;
 	std::vector<Light> Lights;
 
+	static constexpr uint32_t MAX_ENTITIES = 100;
+	uint32_t NextEntityID = 0;
+	BufferID EntityBuffer;
+	
 	BufferID LightsBuffer;
 	BufferID WorldToLightClip;
 	TextureID ShadowMapTexture;

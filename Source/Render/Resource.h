@@ -9,6 +9,7 @@ inline D3D11_USAGE GetUsageFlags(uint64_t creationFlags)
 {
 	if (creationFlags & RCF_CPU_Write) return D3D11_USAGE_DYNAMIC;
 	if (creationFlags & RCF_CPU_Read) return D3D11_USAGE_DEFAULT;
+	if (creationFlags & RCF_CPU_Write_Persistent) return D3D11_USAGE_DEFAULT;
 	if (creationFlags & RCF_Bind_UAV) return D3D11_USAGE_DEFAULT;
 	if (creationFlags & RCF_Bind_RTV) return D3D11_USAGE_DEFAULT;
 	if (creationFlags & RCF_Bind_DSV) return D3D11_USAGE_DEFAULT;
@@ -34,7 +35,7 @@ inline uint32_t GetBindFlags(uint64_t creationFlags)
 inline uint32_t GetCPUAccessFlags(uint64_t creationFlags)
 {
 	uint32_t flags = 0;
-	if (creationFlags & RCF_CPU_Write) flags |= D3D11_CPU_ACCESS_WRITE;
+	if ((creationFlags & RCF_CPU_Write) || (creationFlags & RCF_CPU_Write_Persistent)) flags |= D3D11_CPU_ACCESS_WRITE;
 	if (creationFlags & RCF_CPU_Read) flags |= D3D11_CPU_ACCESS_READ;
 	return flags;
 }

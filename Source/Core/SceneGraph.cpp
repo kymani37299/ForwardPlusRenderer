@@ -8,6 +8,11 @@ SceneGraph MainSceneGraph;
 
 namespace
 {
+	struct EntitySB
+	{
+		DirectX::XMFLOAT4X4 ModelToWorld;
+	};
+
 	float DegreesToRadians(float deg)
 	{
 		const float DEG_2_RAD = 3.1415f / 180.0f;
@@ -37,20 +42,14 @@ void Material::UpdateBuffer(ID3D11DeviceContext* context)
 
 void Entity::UpdateBuffer(ID3D11DeviceContext* context)
 {
+	ASSERT(EntityBuffer.Valid(), "[Entity] EntityBuffer.Valid()");
+
 	using namespace DirectX;
-	struct EntityCB
-	{
-		XMFLOAT4X4 ModelToWorld;
-	};
-
+	
 	XMMATRIX modelToWorld = XMMatrixTranspose(XMMatrixAffineTransformation(Scale.ToXM(), Float3(0.0f, 0.0f, 0.0f).ToXM(), Float4(0.0f, 0.0f, 0.0f, 0.0f).ToXM(), Position.ToXM()));
-	EntityCB entityCB{};
-	entityCB.ModelToWorld = XMUtility::ToXMFloat4x4(modelToWorld);
-	if(!EntityBuffer.Valid()) EntityBuffer = GFX::CreateConstantBuffer<EntityCB>();
-	GFX::Cmd::UploadToBuffer(context, EntityBuffer, 0, &entityCB, 0, sizeof(EntityCB));
-
-	const auto func = [&context](Drawable& d) { d.Material.UpdateBuffer(context); };
-	Drawables.ForEach(func);
+	EntitySB entitySB{};
+	entitySB.ModelToWorld = XMUtility::ToXMFloat4x4(modelToWorld);
+	GFX::Cmd::UploadToBuffer(context, EntityBuffer, sizeof(EntitySB) * Index, &entitySB, 0, sizeof(EntitySB));
 }
 
 void Camera::RotToAxis(Float3 rot, Float3& forward, Float3& up, Float3& right)
@@ -133,6 +132,12 @@ void SceneGraph::UpdateRenderData(ID3D11DeviceContext* context)
 {
 	MainCamera.UpdateBuffer(context);
 
+	if (!EntityBuffer.Valid())
+	{
+		constexpr uint32_t structStride = sizeof(EntitySB);
+		EntityBuffer = GFX::CreateBuffer(MAX_ENTITIES * structStride, structStride, RCF_Bind_SB | RCF_CPU_Write_Persistent);
+	}
+
 	// Lights
 	
 	{
@@ -168,4 +173,22 @@ void SceneGraph::UpdateRenderData(ID3D11DeviceContext* context)
 
 		GFX::Cmd::UploadToBuffer(context, LightsBuffer, 0, sbLights.data(), 0, sbLights.size() * sizeof(LightSB));
 	}
+}
+
+Entity& SceneGraph::CreateEntity(ID3D11DeviceContext* context, Float3 position, Float3 scale)
+{
+	const uint32_t eIndex = NextEntityID++;
+	if (eIndex == 0)
+	{
+		Entities.resize(MAX_ENTITIES);
+	}
+	
+	Entity& e = Entities[eIndex];
+	e.EntityBuffer = EntityBuffer;
+	e.Index = eIndex;
+	e.Position = position;
+	e.Scale = scale;
+	e.UpdateBuffer(context);
+
+	return Entities[eIndex];
 }

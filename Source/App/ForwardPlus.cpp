@@ -201,27 +201,23 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 			MainSceneGraph.Lights.push_back(Light::CreatePoint(position, color, falloff));
 		}
 
+		MainSceneGraph.UpdateRenderData(context);
+
 		if (AppConfig.Settings.contains("SIMPLE_SCENE"))
 		{
-			MainSceneGraph.Entities.resize(2);
-			MainSceneGraph.Entities[0].Scale.x *= 10000.0f;
-			MainSceneGraph.Entities[0].Scale.z *= 10000.0f;
-			MainSceneGraph.Entities[0].Position.y = -10.0f;
-			MainSceneGraph.Entities[1].Position.x = 10.0f;
-			MainSceneGraph.Entities[1].Position.z = 10.0f;
-			SceneLoading::LoadEntity("Resources/cube/cube.gltf", MainSceneGraph.Entities[0]);
-			SceneLoading::LoadEntity("Resources/cube/cube.gltf", MainSceneGraph.Entities[1]);
+			Entity& e1 = MainSceneGraph.CreateEntity(context, { 0.0f, -10.0f, 0.0f }, { 10000.0f, 1.0f, 10000.0f });
+			Entity& e2 = MainSceneGraph.CreateEntity(context, { 10.0f, 0.0f, 10.0f });
+			SceneLoading::LoadEntity("Resources/cube/cube.gltf", e1);
+			SceneLoading::LoadEntity("Resources/cube/cube.gltf", e2);
 		}
 		else
 		{
-			MainSceneGraph.Entities.resize(2);
-			MainSceneGraph.Entities[0].Scale *= 0.1f;
-
-			SceneLoading::LoadEntityInBackground("Resources/sponza/sponza.gltf", MainSceneGraph.Entities[0]);
-			SceneLoading::LoadEntity("Resources/cube/cube.gltf", MainSceneGraph.Entities[1]);
+			Entity& e1 = MainSceneGraph.CreateEntity(context, { 0.0f, 0.0f, 0.0f }, { 0.1f, 0.1f, 0.1f } );
+			Entity& e2 = MainSceneGraph.CreateEntity(context);
+			
+			SceneLoading::LoadEntityInBackground("Resources/sponza/sponza.gltf", e1);
+			SceneLoading::LoadEntity("Resources/cube/cube.gltf", e2);
 		}
-
-		MainSceneGraph.UpdateRenderData(context);
 
 		// Shadows
 		MainSceneGraph.WorldToLightClip = GFX::CreateConstantBuffer<DirectX::XMFLOAT4X4>();
@@ -280,6 +276,8 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 	GenerateSkybox(context, m_SkyboxCubemap);
 	m_FinalRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV);
 	m_FinalRT_Depth = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_DSV);
+
+	m_EntityBuffer = GFX::CreateConstantBuffer<uint32_t>();
 }
 
 void ForwardPlus::OnDestroy(ID3D11DeviceContext* context)
@@ -312,37 +310,37 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 	}
 
 	// Shadowmap
-	{
-		GFX::Cmd::MarkerBegin(context, "Shadowmap");
-		SetupShadowmapData(context);
-
-		PipelineState pso = GFX::DefaultPipelineState();
-		pso.DS.DepthEnable = true;
-
-		GFX::Cmd::SetPipelineState(context, pso);
-		GFX::Cmd::BindShader(context, m_ShadowmapShader, true);
-		GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.WorldToLightClip, 0);
-		GFX::Cmd::ClearRenderTarget(context, TextureID{}, MainSceneGraph.ShadowMapTexture);
-		GFX::Cmd::BindRenderTarget(context, TextureID{}, MainSceneGraph.ShadowMapTexture);
-
-		for (Entity& e : MainSceneGraph.Entities)
-		{
-			GFX::Cmd::BindCBV<VS>(context, e.EntityBuffer, 1);
-
-			const auto func = [&context](const Drawable& d) {
-				if (!d.Material.UseAlphaDiscard && !d.Material.UseBlend)
-				{
-					const Mesh& m = d.Mesh;
-					GFX::Cmd::BindVertexBuffer(context, m.Position);
-					GFX::Cmd::BindIndexBuffer(context, m.Indices);
-					context->DrawIndexed(GFX::GetNumElements(m.Indices), 0, 0);
-				}
-
-			};
-			e.Drawables.ForEach(func);
-		}
-		GFX::Cmd::MarkerEnd(context);
-	}
+	//{
+	//	GFX::Cmd::MarkerBegin(context, "Shadowmap");
+	//	SetupShadowmapData(context);
+	//
+	//	PipelineState pso = GFX::DefaultPipelineState();
+	//	pso.DS.DepthEnable = true;
+	//
+	//	GFX::Cmd::SetPipelineState(context, pso);
+	//	GFX::Cmd::BindShader(context, m_ShadowmapShader, true);
+	//	GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.WorldToLightClip, 0);
+	//	GFX::Cmd::ClearRenderTarget(context, TextureID{}, MainSceneGraph.ShadowMapTexture);
+	//	GFX::Cmd::BindRenderTarget(context, TextureID{}, MainSceneGraph.ShadowMapTexture);
+	//
+	//	for (Entity& e : MainSceneGraph.Entities)
+	//	{
+	//		GFX::Cmd::BindCBV<VS>(context, e.EntityBuffer, 1);
+	//
+	//		const auto func = [&context](const Drawable& d) {
+	//			if (!d.Material.UseAlphaDiscard && !d.Material.UseBlend)
+	//			{
+	//				const Mesh& m = d.Mesh;
+	//				GFX::Cmd::BindVertexBuffer(context, m.Position);
+	//				GFX::Cmd::BindIndexBuffer(context, m.Indices);
+	//				context->DrawIndexed(GFX::GetNumElements(m.Indices), 0, 0);
+	//			}
+	//
+	//		};
+	//		e.Drawables.ForEach(func);
+	//	}
+	//	GFX::Cmd::MarkerEnd(context);
+	//}
 
 	// Depth prepass
 	{
@@ -355,11 +353,13 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		GFX::Cmd::BindShader(context, m_DepthPrepassShader, true);
 		GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
+		GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.EntityBuffer, 0);
+		GFX::Cmd::BindCBV<VS>(context, m_EntityBuffer, 1);
 
 		for (Entity& e : MainSceneGraph.Entities)
 		{
-			GFX::Cmd::BindCBV<VS>(context, e.EntityBuffer, 1);
-
+			GFX::Cmd::UploadToBuffer(context, m_EntityBuffer, 0, &e.Index, 0, sizeof(uint32_t));
+			
 			const auto func = [&context](const Drawable& d) {
 				if (!d.Material.UseAlphaDiscard && !d.Material.UseBlend)
 				{
@@ -393,6 +393,8 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.WorldToLightClip, 3);
 		GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.LightsBuffer, 3);
 		GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.ShadowMapTexture, 4);
+		GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.EntityBuffer, 5);
+		GFX::Cmd::BindCBV<VS>(context, m_EntityBuffer, 1);
 
 		const auto drawFunc = [&context](const Drawable& d)
 		{
@@ -401,7 +403,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			const Mesh& m = d.Mesh;
 			GFX::Cmd::BindVertexBuffers(context, { m.Position, m.UV, m.Normal, m.Tangent });
 			GFX::Cmd::BindIndexBuffer(context, m.Indices);
-
+			
 			ID3D11ShaderResourceView* srv[] = { GFX::DX_SRV(d.Material.Albedo), GFX::DX_SRV(d.Material.MetallicRoughness), GFX::DX_SRV(d.Material.Normal) };
 			context->PSSetShaderResources(0, 3, srv);
 
@@ -410,7 +412,8 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 
 		for (Entity& e : MainSceneGraph.Entities)
 		{
-			GFX::Cmd::BindCBV<VS>(context, e.EntityBuffer, 1);
+			GFX::Cmd::UploadToBuffer(context, m_EntityBuffer, 0, &e.Index, 0, sizeof(uint32_t));
+			
 			const auto draw = [&context, &drawFunc](const Drawable& d) { if (!d.Material.UseAlphaDiscard && !d.Material.UseBlend) drawFunc(d); };
 			e.Drawables.ForEach(draw);
 		}
@@ -424,7 +427,8 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 
 		for (Entity& e : MainSceneGraph.Entities)
 		{
-			GFX::Cmd::BindCBV<VS>(context, e.EntityBuffer, 1);
+			GFX::Cmd::UploadToBuffer(context, m_EntityBuffer, 0, &e.Index, 0, sizeof(uint32_t));
+			
 			const auto draw = [&context, &drawFunc](const Drawable& d) { if (d.Material.UseAlphaDiscard) drawFunc(d); };
 			e.Drawables.ForEach(draw);
 		}
