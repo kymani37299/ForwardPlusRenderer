@@ -25,6 +25,4 @@ private:
 	TextureID m_SkyboxCubemap;
 	TextureID m_FinalRT;
 	TextureID m_FinalRT_Depth;
-
-	BufferID m_DrawBuffer;
 };

@@ -23,7 +23,7 @@ namespace GFX
 
 	inline BufferID CreateIndexBuffer(uint32_t byteSize, uint32_t elementStride, const void* initData)
 	{
-		const uint64_t creationFlags = RCF_Bind_IB | (initData != nullptr ? 0 : RCF_CPU_Write);
+		const uint64_t creationFlags = RCF_Bind_IB | (initData != nullptr ? 0 : RCF_CopyDest);
 		return CreateBuffer(byteSize, elementStride, creationFlags, initData);
 	}
 
@@ -31,7 +31,7 @@ namespace GFX
 	BufferID CreateVertexBuffer(uint32_t numElements, const VertexType* initData)
 	{
 		constexpr uint32_t vertStride = sizeof(VertexType);
-		const uint64_t creationFlags = RCF_Bind_VB | (initData != nullptr ? 0 : RCF_CPU_Write);
+		const uint64_t creationFlags = RCF_Bind_VB | (initData != nullptr ? 0 : RCF_CopyDest);
 		return CreateBuffer(vertStride * numElements, vertStride, creationFlags, initData);
 	}
 

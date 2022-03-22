@@ -178,16 +178,35 @@ namespace GFX
 		void UploadToBuffer(ID3D11DeviceContext* context, BufferID bufferID, uint32_t dstOffset, const void* data, uint32_t srcOffset, size_t dataSize)
 		{
 			const Buffer& buffer = GFX::Storage::GetBuffer(bufferID);
-			const D3D11_MAP mapMode = buffer.CreationFlags & RCF_CPU_Write_Persistent ? D3D11_MAP_WRITE : D3D11_MAP_WRITE_DISCARD;
+			if ((buffer.CreationFlags & RCF_CPU_Write) || (buffer.CreationFlags & RCF_CPU_Write_Persistent))
+			{
+				const D3D11_MAP mapMode = buffer.CreationFlags & RCF_CPU_Write_Persistent ? D3D11_MAP_WRITE : D3D11_MAP_WRITE_DISCARD;
 
-			D3D11_MAPPED_SUBRESOURCE mapResult;
-			API_CALL(context->Map(buffer.Handle.Get(), 0, mapMode, 0, &mapResult));
-			
-			const uint8_t* srcPtr = reinterpret_cast<const uint8_t*>(data);
-			const uint8_t* dstPtr = reinterpret_cast<const uint8_t*>(mapResult.pData);
+				D3D11_MAPPED_SUBRESOURCE mapResult;
+				API_CALL(context->Map(buffer.Handle.Get(), 0, mapMode, 0, &mapResult));
 
-			memcpy((void*)(dstPtr + dstOffset), srcPtr + srcOffset, dataSize);
-			context->Unmap(buffer.Handle.Get(), 0);
+				const uint8_t* srcPtr = reinterpret_cast<const uint8_t*>(data);
+				const uint8_t* dstPtr = reinterpret_cast<const uint8_t*>(mapResult.pData);
+
+				memcpy((void*)(dstPtr + dstOffset), srcPtr + srcOffset, dataSize);
+				context->Unmap(buffer.Handle.Get(), 0);
+			}
+			else if(buffer.CreationFlags & RCF_CopyDest)
+			{
+				const Buffer& buffer = GFX::Storage::GetBuffer(bufferID);
+				D3D11_BOX bufferRegion;
+				bufferRegion.left = dstOffset;
+				bufferRegion.right = dstOffset + dataSize;
+				bufferRegion.top = 0;
+				bufferRegion.bottom = 1;
+				bufferRegion.front = 0;
+				bufferRegion.back = 1;
+				context->UpdateSubresource(buffer.Handle.Get(), 0, &bufferRegion, data, 0, 0);
+			}
+			else
+			{
+				ASSERT(0, "[UploadToBuffer, please set RCF_CopyDest or RCF_CPU_Write(_Persistent) for the resource you want to upload to!");
+			}
 		}
 
 		void UploadToTexture(ID3D11DeviceContext* context, void* data, TextureID textureID, uint32_t mipIndex)

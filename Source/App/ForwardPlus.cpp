@@ -177,12 +177,6 @@ namespace ForwardPlusPrivate
 	}
 }
 
-struct DrawCB
-{
-	uint32_t EntityIndex;
-	uint32_t MaterialIndex;
-};
-
 void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 {
 	using namespace ForwardPlusPrivate;
@@ -282,8 +276,6 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 	GenerateSkybox(context, m_SkyboxCubemap);
 	m_FinalRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV);
 	m_FinalRT_Depth = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_DSV);
-
-	m_DrawBuffer = GFX::CreateConstantBuffer<DrawCB>();
 }
 
 void ForwardPlus::OnDestroy(ID3D11DeviceContext* context)
@@ -361,28 +353,10 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 		GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Entities.GetBuffer(), 0);
-		GFX::Cmd::BindCBV<VS>(context, m_DrawBuffer, 1);
-
-		for(size_t i = 0; i < MainSceneGraph.Entities.GetSize(); i++)
-		{
-			Entity& e = MainSceneGraph.Entities[i];
-			const auto func = [this, &context, &e](const Drawable& d) {
-				const Material& m = MainSceneGraph.Materials[d.MaterialIndex];
-				if (!m.UseAlphaDiscard && !m.UseBlend)
-				{
-					DrawCB drawCB{ e.Index, d.MaterialIndex };
-					GFX::Cmd::UploadToBuffer(context, m_DrawBuffer, 0, &drawCB, 0, sizeof(DrawCB));
-				
-					const Mesh& mesh = MainSceneGraph.Meshes[d.MeshIndex];
-					GFX::Cmd::BindVertexBuffer(context, mesh.Position);
-					GFX::Cmd::BindIndexBuffer(context, mesh.Indices);
-					context->DrawIndexed(GFX::GetNumElements(mesh.Indices), 0, 0);
-				}
-
-			};
-			e.Drawables.ForEach(func);
-		}
-		GFX::Cmd::MarkerEnd(context);
+		GFX::Cmd::BindVertexBuffers(context, { MainSceneGraph.PositionVB, MainSceneGraph.DrawIndexVB });
+		GFX::Cmd::BindIndexBuffer(context, MainSceneGraph.IndexBuffer);
+		context->DrawIndexed(MainSceneGraph.IndexNumber, 0, 0);
+		GFX::Cmd::MarkerEnd(context); // TODO: Do not draw blend and alpha discard
 	}
 	
 	// Geometry
@@ -406,54 +380,29 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.ShadowMapTexture, 4);
 		GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Entities.GetBuffer(), 5);
 		GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Materials.GetBuffer(), 6);
-		GFX::Cmd::BindCBV<VS>(context, m_DrawBuffer, 1);
-		GFX::Cmd::BindCBV<PS>(context, m_DrawBuffer, 1);
+		GFX::Cmd::BindVertexBuffers(context, { MainSceneGraph.PositionVB, MainSceneGraph.TexcoordVB, MainSceneGraph.NormalVB, MainSceneGraph.TangentVB, MainSceneGraph.DrawIndexVB });
+		GFX::Cmd::BindIndexBuffer(context, MainSceneGraph.IndexBuffer);
+		context->DrawIndexed(MainSceneGraph.IndexNumber, 0, 0);
 
-		uint32_t entityIndex = 0;
-		const auto drawFunc = [this, &context, &entityIndex](const Drawable& d)
-		{
-			DrawCB drawCB{ entityIndex, d.MaterialIndex };
-			GFX::Cmd::UploadToBuffer(context, m_DrawBuffer, 0, &drawCB, 0, sizeof(DrawCB));
-			
-			const Mesh& m = MainSceneGraph.Meshes[d.MeshIndex];
-			GFX::Cmd::BindVertexBuffers(context, { m.Position, m.UV, m.Normal, m.Tangent });
-			GFX::Cmd::BindIndexBuffer(context, m.Indices);
-			
-			const Material& mat = MainSceneGraph.Materials[d.MaterialIndex];
-			
-			context->DrawIndexed(GFX::GetNumElements(m.Indices), 0, 0);
-		};
-
-		for (size_t i = 0; i < MainSceneGraph.Entities.GetSize(); i++)
-		{
-			Entity& e = MainSceneGraph.Entities[i];
-			entityIndex = e.Index;
-			const auto draw = [&context, &drawFunc](const Drawable& d) 
-			{ 
-				const Material& m = MainSceneGraph.Materials[d.MaterialIndex];
-				if (!m.UseAlphaDiscard && !m.UseBlend) drawFunc(d); 
-			};
-			e.Drawables.ForEach(draw);
-		}
-
-		{
-			PipelineState pso = GFX::DefaultPipelineState();
-			pso.DS.DepthEnable = true;
-			GFX::Cmd::SetPipelineState(context, pso);
-		}
-		GFX::Cmd::BindShader(context, m_GeometryAlphaDiscardShader, true);
-
-		for (size_t i = 0; i < MainSceneGraph.Entities.GetSize(); i++)
-		{
-			Entity& e = MainSceneGraph.Entities[i];
-			entityIndex = e.Index;
-			const auto draw = [&context, &drawFunc](const Drawable& d) 
-			{ 
-				const Material& m = MainSceneGraph.Materials[d.MaterialIndex];
-				if (m.UseAlphaDiscard) drawFunc(d); 
-			};
-			e.Drawables.ForEach(draw);
-		}
+		// TODO: Draw alpha discard with seperate shader
+		//{
+		//	PipelineState pso = GFX::DefaultPipelineState();
+		//	pso.DS.DepthEnable = true;
+		//	GFX::Cmd::SetPipelineState(context, pso);
+		//}
+		//GFX::Cmd::BindShader(context, m_GeometryAlphaDiscardShader, true);
+		//
+		//for (size_t i = 0; i < MainSceneGraph.Entities.GetSize(); i++)
+		//{
+		//	Entity& e = MainSceneGraph.Entities[i];
+		//	entityIndex = e.Index;
+		//	const auto draw = [&context, &drawFunc](const Drawable& d) 
+		//	{ 
+		//		const Material& m = MainSceneGraph.Materials[d.MaterialIndex];
+		//		if (m.UseAlphaDiscard) drawFunc(d); 
+		//	};
+		//	e.Drawables.ForEach(draw);
+		//}
 		GFX::Cmd::MarkerEnd(context);
 	}
 

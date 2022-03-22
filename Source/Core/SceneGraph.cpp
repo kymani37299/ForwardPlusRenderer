@@ -196,6 +196,13 @@ void SceneGraph::UpdateRenderData(ID3D11DeviceContext* context)
 
 		GFX::Cmd::UploadToBuffer(context, LightsBuffer, 0, sbLights.data(), 0, sbLights.size() * sizeof(LightSB));
 	}
+
+	PositionVB = GFX::CreateVertexBuffer<Float3>(1, nullptr);
+	TexcoordVB = GFX::CreateVertexBuffer<Float2>(1, nullptr);
+	NormalVB = GFX::CreateVertexBuffer<Float3>(1, nullptr);
+	TangentVB = GFX::CreateVertexBuffer<Float4>(1, nullptr);
+	DrawIndexVB = GFX::CreateVertexBuffer<DirectX::XMUINT2>(1, nullptr);
+	IndexBuffer = GFX::CreateIndexBuffer(sizeof(uint32_t), sizeof(uint32_t), nullptr);
 }
 
 Entity& SceneGraph::CreateEntity(ID3D11DeviceContext* context, Float3 position, Float3 scale)

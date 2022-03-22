@@ -24,11 +24,11 @@ struct Material
 
 struct Mesh
 {
-	BufferID Position; // Float3
-	BufferID UV; // Float2
-	BufferID Normal; // Float3
-	BufferID Tangent; // Float4
-	BufferID Indices; // uint16_t
+	uint32_t VertCount;
+	uint32_t IndexCount;
+
+	uint32_t VertOffset;
+	uint32_t IndexOffset;
 };
 
 struct Drawable
@@ -161,6 +161,16 @@ struct SceneGraph
 	static constexpr uint32_t TEXTURE_SIZE = 1024;
 	std::atomic<uint32_t> NextTextureIndex = 0;
 	TextureID Textures;
+
+	// TODO: Separate alpha discard, blend andl opaque into 3 different buffers
+	std::atomic<uint32_t> VertNumber = 0;
+	std::atomic<uint32_t> IndexNumber = 0;
+	BufferID PositionVB; // Float3
+	BufferID TexcoordVB; // Float2
+	BufferID NormalVB; // Float3
+	BufferID TangentVB; // Float4
+	BufferID DrawIndexVB; // uint2 (EntityID, MaterialID)
+	BufferID IndexBuffer; // uint32_t
 
 	MTR::MutexVector<Drawable> DrawablesToUpdate;
 };

@@ -21,6 +21,7 @@ namespace SceneLoading
 		{
 			std::string RelativePath;
 			ID3D11DeviceContext* GfxContext;
+			Entity* LoadingEntity;
 		};
 
 		void* GetBufferData(cgltf_accessor* accessor)
@@ -30,33 +31,34 @@ namespace SceneLoading
 			return data;
 		}
 
-		BufferID GetIndices(cgltf_accessor* indexAccessor)
+		void UpdateIB(const LoadingContext& context, cgltf_accessor* indexAccessor, BufferID buffer, const Mesh& mesh)
 		{
 			ASSERT(indexAccessor, "[SceneLoading] Trying to read indices from empty accessor");
 			ASSERT(indexAccessor->type == cgltf_type_scalar, "[SceneLoading] Indices of a mesh arent scalar.");
+			ASSERT(indexAccessor->component_type == cgltf_component_type_r_16u, "[SceneLoading] Indices must be uint16.");
 			
-			void* indexData = GetBufferData(indexAccessor);
-			uint32_t stride = cgltf_component_size(indexAccessor->component_type);
-			return GFX::CreateIndexBuffer(indexAccessor->count * stride, stride, indexData);
+			uint16_t* indexData = (uint16_t*) GetBufferData(indexAccessor);
+			std::vector<uint32_t> indices;
+			indices.resize(indexAccessor->count);
+
+			// TODO: Leave index buffer uint16_t and do adding when culling
+			for (size_t i = 0; i < indexAccessor->count; i++)
+			{
+				indices[i] = indexData[i] + mesh.VertOffset;
+			}
+
+			GFX::Cmd::UploadToBuffer(context.GfxContext, buffer, mesh.IndexOffset * sizeof(uint32_t), indices.data(), 0, sizeof(uint32_t) * indices.size());
 		}
-		
-		template<typename T>
-		BufferID GetEmptyVB(unsigned int numVertices)
-		{
-			void* vbData = calloc(numVertices, sizeof(T));
-			BufferID vb = GFX::CreateVertexBuffer<T>(numVertices, (T*) vbData);
-			free(vbData);
-			return vb;
-		}
-		
+
 		template<typename T, cgltf_type TYPE, cgltf_component_type COMPONENT_TYPE>
-		BufferID GetVB(cgltf_attribute* vertexAttribute)
+		void UpdateVB(const LoadingContext& context, cgltf_attribute* vertexAttribute, BufferID buffer, uint32_t offset)
 		{
 			ASSERT(vertexAttribute->data->type == TYPE, "[SceneLoading] ASSERT FAILED: attributeAccessor->type == TYPE");
 			ASSERT(vertexAttribute->data->component_type == COMPONENT_TYPE, "[SceneLoading] ASSERT FAILED: attributeAccessor->component_type == COMPONENT_TYPE");
-		
+
 			T* attributeData = (T*)GetBufferData(vertexAttribute->data);
-			return GFX::CreateVertexBuffer<T>(vertexAttribute->data->count, attributeData);
+
+			GFX::Cmd::UploadToBuffer(context.GfxContext, buffer, offset * sizeof(T), attributeData, 0, vertexAttribute->data->count * sizeof(T));
 		}
 
 		Mesh LoadMesh(const LoadingContext& context, cgltf_primitive* meshData)
@@ -64,6 +66,19 @@ namespace SceneLoading
 			ASSERT(meshData->type == cgltf_primitive_type_triangles, "[SceneLoading] Scene contains quad meshes. We are supporting just triangle meshes.");
 
 			Mesh mesh;
+			mesh.VertCount = meshData->attributes[0].data->count;
+			mesh.IndexCount = meshData->indices->count;
+			mesh.VertOffset = MainSceneGraph.VertNumber.fetch_add(mesh.VertCount);
+			mesh.IndexOffset = MainSceneGraph.IndexNumber.fetch_add(mesh.IndexCount);
+
+			const uint32_t wantedVBSize = mesh.VertCount + mesh.VertOffset;
+			const uint32_t wantedIBSize = mesh.IndexCount + mesh.IndexOffset;
+			GFX::ExpandBuffer(context.GfxContext, MainSceneGraph.PositionVB,	wantedVBSize * sizeof(Float3));
+			GFX::ExpandBuffer(context.GfxContext, MainSceneGraph.TexcoordVB,	wantedVBSize * sizeof(Float2));
+			GFX::ExpandBuffer(context.GfxContext, MainSceneGraph.NormalVB,		wantedVBSize * sizeof(Float3));
+			GFX::ExpandBuffer(context.GfxContext, MainSceneGraph.TangentVB,		wantedVBSize * sizeof(Float4));
+			GFX::ExpandBuffer(context.GfxContext, MainSceneGraph.DrawIndexVB,	wantedVBSize * sizeof(DirectX::XMUINT2));
+			GFX::ExpandBuffer(context.GfxContext, MainSceneGraph.IndexBuffer,	wantedIBSize * sizeof(uint32_t));
 
 			for (size_t i = 0; i < meshData->attributes_count; i++)
 			{
@@ -71,27 +86,23 @@ namespace SceneLoading
 				switch (vertexAttribute->type)
 				{
 				case cgltf_attribute_type_position:
-					mesh.Position = GetVB<Float3, cgltf_type_vec3, cgltf_component_type_r_32f>(vertexAttribute);
+					UpdateVB<Float3, cgltf_type_vec3, cgltf_component_type_r_32f>(context, vertexAttribute, MainSceneGraph.PositionVB, mesh.VertOffset);
 					break;
 				case cgltf_attribute_type_texcoord:
-					mesh.UV = GetVB<Float2, cgltf_type_vec2, cgltf_component_type_r_32f>(vertexAttribute);
+					UpdateVB<Float2, cgltf_type_vec2, cgltf_component_type_r_32f>(context, vertexAttribute, MainSceneGraph.TexcoordVB, mesh.VertOffset);
 					break;
 				case cgltf_attribute_type_normal:
-					mesh.Normal = GetVB<Float3, cgltf_type_vec3, cgltf_component_type_r_32f>(vertexAttribute);
+					UpdateVB<Float3, cgltf_type_vec3, cgltf_component_type_r_32f>(context, vertexAttribute, MainSceneGraph.NormalVB, mesh.VertOffset);
 					break;
 				case cgltf_attribute_type_tangent:
-					mesh.Tangent = GetVB<Float4, cgltf_type_vec4, cgltf_component_type_r_32f>(vertexAttribute);
+					UpdateVB<Float4, cgltf_type_vec4, cgltf_component_type_r_32f>(context, vertexAttribute, MainSceneGraph.TangentVB, mesh.VertOffset);
 					break;
 				}
 			}
 
-			unsigned int vertCount = meshData->attributes->data->count;
-			if (!mesh.Position.Valid()) mesh.Position = GetEmptyVB<Float3>(vertCount);
-			if (!mesh.UV.Valid()) mesh.UV = GetEmptyVB<Float2>(vertCount);
-			if (!mesh.Normal.Valid()) mesh.Normal = GetEmptyVB<Float3>(vertCount);
-			if (!mesh.Tangent.Valid()) mesh.Tangent = GetEmptyVB<Float4>(vertCount);
+			// TODO: memset 0 to missing attributes
 
-			mesh.Indices = GetIndices(meshData->indices);
+			UpdateIB(context, meshData->indices, MainSceneGraph.IndexBuffer, mesh);
 
 			return mesh;
 		}
@@ -178,7 +189,19 @@ namespace SceneLoading
 
 		Drawable LoadDrawable(const LoadingContext& context, cgltf_primitive* meshData)
 		{
-			return MainSceneGraph.CreateDrawable(context.GfxContext, LoadMaterial(context, meshData->material), LoadMesh(context, meshData));
+			Mesh mesh = LoadMesh(context, meshData);
+			Material material = LoadMaterial(context, meshData->material);
+			Drawable drawable = MainSceneGraph.CreateDrawable(context.GfxContext, material, mesh);
+
+			std::vector<DirectX::XMUINT2> drawIndexData;
+			DirectX::XMUINT2 drawIndex = DirectX::XMUINT2{ context.LoadingEntity->Index,  drawable.MaterialIndex };
+			drawIndexData.resize(mesh.VertCount);
+			for (uint32_t i = 0; i < mesh.VertCount; i++)
+			{
+				drawIndexData[i] = drawIndex;
+			}
+			GFX::Cmd::UploadToBuffer(context.GfxContext, MainSceneGraph.DrawIndexVB, mesh.VertOffset * sizeof(DirectX::XMUINT2), drawIndexData.data(), 0, drawIndexData.size() * sizeof(DirectX::XMUINT2));
+			return drawable;
 		}
 	}
 	
@@ -194,6 +217,7 @@ namespace SceneLoading
 		LoadingContext context{};
 		context.RelativePath = PathUtility::GetPathWitoutFile(path);
 		context.GfxContext = Device::Get()->GetContext();
+		context.LoadingEntity = &entityOut;
 
 		cgltf_options options = {};
 		cgltf_data* data = NULL;
@@ -237,6 +261,7 @@ namespace SceneLoading
 			LoadingContext loadingContext{};
 			loadingContext.RelativePath = PathUtility::GetPathWitoutFile(m_Path);
 			loadingContext.GfxContext = context;
+			loadingContext.LoadingEntity = &m_Entity;
 
 			std::vector<Drawable> drawables;
 			for (size_t i = 0; i < data->meshes_count; i++)
