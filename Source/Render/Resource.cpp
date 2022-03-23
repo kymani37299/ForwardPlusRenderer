@@ -84,9 +84,23 @@ namespace GFX
 
 	namespace Storage
 	{
-		const Buffer& GetBuffer(BufferID id) { return BufferStorage[id.ID]; }
-		const Texture& GetTexture(TextureID id) { return TextureStorage[id.ID]; }
-		const Shader& GetShader(ShaderID id) { return ShaderStorage[id.ID]; }
+		const Buffer& GetBuffer(BufferID id) 
+		{
+			ASSERT(id.Valid(), "[Storage::GetBuffer] Trying to get invalid resource");
+			return BufferStorage[id.ID]; 
+		}
+
+		const Texture& GetTexture(TextureID id) 
+		{ 
+			ASSERT(id.Valid(), "[Storage::GetTexture] Trying to get invalid resource");
+			return TextureStorage[id.ID]; 
+		}
+
+		const Shader& GetShader(ShaderID id) 
+		{
+			ASSERT(id.Valid(), "[Storage::GetShader] Trying to get invalid resource");
+			return ShaderStorage[id.ID]; 
+		}
 
 		Buffer& CreateBuffer(BufferID& id) { return BufferStorage.Allocate(id.ID); }
 		Texture& CreateTexture(TextureID& id) { return TextureStorage.Allocate(id.ID); }

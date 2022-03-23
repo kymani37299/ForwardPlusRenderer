@@ -198,6 +198,8 @@ struct SceneGraph
 	TextureID Textures;
 
 	MeshStorage OpaqueGeometries;
+	MeshStorage AlphaDiscardGeometries;
+	MeshStorage TransparentGeometries;
 
 	MTR::MutexVector<Drawable> DrawablesToUpdate;
 };

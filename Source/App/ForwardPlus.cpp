@@ -370,23 +370,31 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			GFX::Cmd::SetPipelineState(context, pso);
 		}
 
-		const MeshStorage& meshStorage = MainSceneGraph.OpaqueGeometries;
-		GFX::Cmd::BindRenderTarget(context, m_FinalRT, m_FinalRT_Depth);
-		GFX::Cmd::BindShader(context, m_GeometryShader, true);
-		GFX::Cmd::SetupStaticSamplers<PS>(context);
-		GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Textures, 0);
-		GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
-		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
-		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.WorldToLightClip, 3);
-		GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.LightsBuffer, 3);
-		GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.ShadowMapTexture, 4);
-		GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Entities.GetBuffer(), 5);
-		GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Materials.GetBuffer(), 6);
-		GFX::Cmd::BindVertexBuffers(context, { meshStorage.GetPositions(), meshStorage.GetTexcoords(), meshStorage.GetNormals(), meshStorage.GetTangents(), meshStorage.GetDrawableIndexes() });
-		GFX::Cmd::BindIndexBuffer(context, meshStorage.GetIndexBuffer());
-		context->DrawIndexed(meshStorage.GetIndexCount(), 0, 0);
-
-		// TODO: Draw alpha discard with seperate shader
+		{
+			const MeshStorage& meshStorage = MainSceneGraph.OpaqueGeometries;
+			GFX::Cmd::BindRenderTarget(context, m_FinalRT, m_FinalRT_Depth);
+			GFX::Cmd::BindShader(context, m_GeometryShader, true);
+			GFX::Cmd::SetupStaticSamplers<PS>(context);
+			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Textures, 0);
+			GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
+			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
+			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.WorldToLightClip, 3);
+			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.LightsBuffer, 3);
+			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.ShadowMapTexture, 4);
+			GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Entities.GetBuffer(), 5);
+			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Materials.GetBuffer(), 6);
+			GFX::Cmd::BindVertexBuffers(context, { meshStorage.GetPositions(), meshStorage.GetTexcoords(), meshStorage.GetNormals(), meshStorage.GetTangents(), meshStorage.GetDrawableIndexes() });
+			GFX::Cmd::BindIndexBuffer(context, meshStorage.GetIndexBuffer());
+			context->DrawIndexed(meshStorage.GetIndexCount(), 0, 0);
+		}
+		
+		{
+			const MeshStorage& meshStorage = MainSceneGraph.AlphaDiscardGeometries;
+			GFX::Cmd::BindShader(context, m_GeometryAlphaDiscardShader, true);
+			GFX::Cmd::BindVertexBuffers(context, { meshStorage.GetPositions(), meshStorage.GetTexcoords(), meshStorage.GetNormals(), meshStorage.GetTangents(), meshStorage.GetDrawableIndexes() });
+			GFX::Cmd::BindIndexBuffer(context, meshStorage.GetIndexBuffer());
+			context->DrawIndexed(meshStorage.GetIndexCount(), 0, 0);
+		}
 
 		GFX::Cmd::MarkerEnd(context);
 	}
