@@ -160,6 +160,8 @@ void SceneGraph::UpdateRenderData(ID3D11DeviceContext* context)
 	Materials.Initialize();
 	Meshes.Initialize();
 
+	OpaqueGeometries.Initialize();
+
 	Textures = GFX::CreateTextureArray(TEXTURE_SIZE, TEXTURE_SIZE, MAX_TEXTURES, RCF_Bind_SRV | RCF_CopyDest, TEXTURE_MIPS);
 
 	// Lights
@@ -196,13 +198,6 @@ void SceneGraph::UpdateRenderData(ID3D11DeviceContext* context)
 
 		GFX::Cmd::UploadToBuffer(context, LightsBuffer, 0, sbLights.data(), 0, sbLights.size() * sizeof(LightSB));
 	}
-
-	PositionVB = GFX::CreateVertexBuffer<Float3>(1, nullptr);
-	TexcoordVB = GFX::CreateVertexBuffer<Float2>(1, nullptr);
-	NormalVB = GFX::CreateVertexBuffer<Float3>(1, nullptr);
-	TangentVB = GFX::CreateVertexBuffer<Float4>(1, nullptr);
-	DrawIndexVB = GFX::CreateVertexBuffer<DirectX::XMUINT2>(1, nullptr);
-	IndexBuffer = GFX::CreateIndexBuffer(sizeof(uint32_t), sizeof(uint32_t), nullptr);
 }
 
 Entity& SceneGraph::CreateEntity(ID3D11DeviceContext* context, Float3 position, Float3 scale)
@@ -242,4 +237,32 @@ namespace ElementBufferHelp
 {
 	BufferID CreateBuffer(uint32_t numElements, uint32_t stride) { return GFX::CreateBuffer(numElements * stride, stride, RCF_Bind_SB | RCF_CPU_Write_Persistent); }
 	void DeleteBuffer(BufferID buffer) { GFX::Storage::Free(buffer); }
+}
+
+void MeshStorage::Initialize()
+{
+	m_PositionBuffer = GFX::CreateVertexBuffer<Float3>(1, nullptr);
+	m_TexcoordBuffer = GFX::CreateVertexBuffer<Float2>(1, nullptr);
+	m_NormalBuffer = GFX::CreateVertexBuffer<Float3>(1, nullptr);
+	m_TangentBuffer = GFX::CreateVertexBuffer<Float4>(1, nullptr);
+	m_DrawableIndexBuffer = GFX::CreateVertexBuffer<DirectX::XMUINT2>(1, nullptr);
+	m_IndexBuffer = GFX::CreateIndexBuffer(sizeof(uint32_t), sizeof(uint32_t), nullptr);
+}
+
+MeshStorage::Allocation MeshStorage::Allocate(ID3D11DeviceContext* context, uint32_t vertexCount, uint32_t indexCount)
+{
+	MeshStorage::Allocation alloc{};
+	alloc.VertexOffset = m_VertexCount.fetch_add(vertexCount);
+	alloc.IndexOffset = m_IndexCount.fetch_add(indexCount);
+
+	const uint32_t wantedVBSize = vertexCount + alloc.VertexOffset;
+	const uint32_t wantedIBSize = indexCount + alloc.IndexOffset;
+	GFX::ExpandBuffer(context, m_PositionBuffer, wantedVBSize * sizeof(Float3));
+	GFX::ExpandBuffer(context, m_TexcoordBuffer, wantedVBSize * sizeof(Float2));
+	GFX::ExpandBuffer(context, m_NormalBuffer, wantedVBSize * sizeof(Float3));
+	GFX::ExpandBuffer(context, m_TangentBuffer, wantedVBSize * sizeof(Float4));
+	GFX::ExpandBuffer(context, m_DrawableIndexBuffer, wantedVBSize * sizeof(DirectX::XMUINT2));
+	GFX::ExpandBuffer(context, m_IndexBuffer, wantedIBSize * sizeof(uint32_t));
+
+	return alloc;
 }

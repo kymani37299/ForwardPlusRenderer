@@ -61,24 +61,18 @@ namespace SceneLoading
 			GFX::Cmd::UploadToBuffer(context.GfxContext, buffer, offset * sizeof(T), attributeData, 0, vertexAttribute->data->count * sizeof(T));
 		}
 
-		Mesh LoadMesh(const LoadingContext& context, cgltf_primitive* meshData)
+		Mesh LoadMesh(const LoadingContext& context, MeshStorage& meshStorage, cgltf_primitive* meshData)
 		{
 			ASSERT(meshData->type == cgltf_primitive_type_triangles, "[SceneLoading] Scene contains quad meshes. We are supporting just triangle meshes.");
 
 			Mesh mesh;
 			mesh.VertCount = meshData->attributes[0].data->count;
 			mesh.IndexCount = meshData->indices->count;
-			mesh.VertOffset = MainSceneGraph.VertNumber.fetch_add(mesh.VertCount);
-			mesh.IndexOffset = MainSceneGraph.IndexNumber.fetch_add(mesh.IndexCount);
 
-			const uint32_t wantedVBSize = mesh.VertCount + mesh.VertOffset;
-			const uint32_t wantedIBSize = mesh.IndexCount + mesh.IndexOffset;
-			GFX::ExpandBuffer(context.GfxContext, MainSceneGraph.PositionVB,	wantedVBSize * sizeof(Float3));
-			GFX::ExpandBuffer(context.GfxContext, MainSceneGraph.TexcoordVB,	wantedVBSize * sizeof(Float2));
-			GFX::ExpandBuffer(context.GfxContext, MainSceneGraph.NormalVB,		wantedVBSize * sizeof(Float3));
-			GFX::ExpandBuffer(context.GfxContext, MainSceneGraph.TangentVB,		wantedVBSize * sizeof(Float4));
-			GFX::ExpandBuffer(context.GfxContext, MainSceneGraph.DrawIndexVB,	wantedVBSize * sizeof(DirectX::XMUINT2));
-			GFX::ExpandBuffer(context.GfxContext, MainSceneGraph.IndexBuffer,	wantedIBSize * sizeof(uint32_t));
+			MeshStorage::Allocation alloc = meshStorage.Allocate(context.GfxContext, mesh.VertCount, mesh.IndexCount);
+
+			mesh.VertOffset = alloc.VertexOffset;
+			mesh.IndexOffset = alloc.IndexOffset;
 
 			for (size_t i = 0; i < meshData->attributes_count; i++)
 			{
@@ -86,23 +80,23 @@ namespace SceneLoading
 				switch (vertexAttribute->type)
 				{
 				case cgltf_attribute_type_position:
-					UpdateVB<Float3, cgltf_type_vec3, cgltf_component_type_r_32f>(context, vertexAttribute, MainSceneGraph.PositionVB, mesh.VertOffset);
+					UpdateVB<Float3, cgltf_type_vec3, cgltf_component_type_r_32f>(context, vertexAttribute, meshStorage.GetPositions(), mesh.VertOffset);
 					break;
 				case cgltf_attribute_type_texcoord:
-					UpdateVB<Float2, cgltf_type_vec2, cgltf_component_type_r_32f>(context, vertexAttribute, MainSceneGraph.TexcoordVB, mesh.VertOffset);
+					UpdateVB<Float2, cgltf_type_vec2, cgltf_component_type_r_32f>(context, vertexAttribute, meshStorage.GetTexcoords(), mesh.VertOffset);
 					break;
 				case cgltf_attribute_type_normal:
-					UpdateVB<Float3, cgltf_type_vec3, cgltf_component_type_r_32f>(context, vertexAttribute, MainSceneGraph.NormalVB, mesh.VertOffset);
+					UpdateVB<Float3, cgltf_type_vec3, cgltf_component_type_r_32f>(context, vertexAttribute, meshStorage.GetNormals(), mesh.VertOffset);
 					break;
 				case cgltf_attribute_type_tangent:
-					UpdateVB<Float4, cgltf_type_vec4, cgltf_component_type_r_32f>(context, vertexAttribute, MainSceneGraph.TangentVB, mesh.VertOffset);
+					UpdateVB<Float4, cgltf_type_vec4, cgltf_component_type_r_32f>(context, vertexAttribute, meshStorage.GetTangents(), mesh.VertOffset);
 					break;
 				}
 			}
 
 			// TODO: memset 0 to missing attributes
 
-			UpdateIB(context, meshData->indices, MainSceneGraph.IndexBuffer, mesh);
+			UpdateIB(context, meshData->indices, meshStorage.GetIndexBuffer(), mesh);
 
 			return mesh;
 		}
@@ -189,7 +183,8 @@ namespace SceneLoading
 
 		Drawable LoadDrawable(const LoadingContext& context, cgltf_primitive* meshData)
 		{
-			Mesh mesh = LoadMesh(context, meshData);
+			MeshStorage& meshStorage = MainSceneGraph.OpaqueGeometries;
+			Mesh mesh = LoadMesh(context, meshStorage, meshData);
 			Material material = LoadMaterial(context, meshData->material);
 			Drawable drawable = MainSceneGraph.CreateDrawable(context.GfxContext, material, mesh);
 
@@ -200,7 +195,7 @@ namespace SceneLoading
 			{
 				drawIndexData[i] = drawIndex;
 			}
-			GFX::Cmd::UploadToBuffer(context.GfxContext, MainSceneGraph.DrawIndexVB, mesh.VertOffset * sizeof(DirectX::XMUINT2), drawIndexData.data(), 0, drawIndexData.size() * sizeof(DirectX::XMUINT2));
+			GFX::Cmd::UploadToBuffer(context.GfxContext, meshStorage.GetDrawableIndexes(), mesh.VertOffset * sizeof(DirectX::XMUINT2), drawIndexData.data(), 0, drawIndexData.size() * sizeof(DirectX::XMUINT2));
 			return drawable;
 		}
 	}

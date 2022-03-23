@@ -134,6 +134,41 @@ private:
 	BufferID m_Buffer;
 };
 
+class MeshStorage
+{
+public:
+	struct Allocation
+	{
+		uint32_t VertexOffset;
+		uint32_t IndexOffset;
+	};
+
+	void Initialize();
+
+	MeshStorage::Allocation Allocate(ID3D11DeviceContext* context, uint32_t vertexCount, uint32_t indexCount);
+
+	BufferID GetPositions() const { return m_PositionBuffer; }
+	BufferID GetTexcoords() const { return m_TexcoordBuffer; }
+	BufferID GetNormals() const { return m_NormalBuffer; }
+	BufferID GetTangents() const { return m_TangentBuffer; }
+	BufferID GetDrawableIndexes() const { return m_DrawableIndexBuffer; }
+	BufferID GetIndexBuffer() const { return m_IndexBuffer; }
+
+	uint32_t GetVertexCount() const { return m_VertexCount; }
+	uint32_t GetIndexCount() const { return m_IndexCount; }
+
+private:
+	std::atomic<uint32_t> m_VertexCount = 0;
+	std::atomic<uint32_t> m_IndexCount = 0;
+
+	BufferID m_PositionBuffer;		// Float3
+	BufferID m_TexcoordBuffer;		// Float2
+	BufferID m_NormalBuffer;		// Float3
+	BufferID m_TangentBuffer;		// Float4
+	BufferID m_DrawableIndexBuffer;	// uint2 (EntityID, MaterialID)
+	BufferID m_IndexBuffer;			// uint32_t
+};
+
 struct SceneGraph
 {
 	static constexpr uint32_t MAX_ENTITIES = 100;
@@ -162,15 +197,7 @@ struct SceneGraph
 	std::atomic<uint32_t> NextTextureIndex = 0;
 	TextureID Textures;
 
-	// TODO: Separate alpha discard, blend andl opaque into 3 different buffers
-	std::atomic<uint32_t> VertNumber = 0;
-	std::atomic<uint32_t> IndexNumber = 0;
-	BufferID PositionVB; // Float3
-	BufferID TexcoordVB; // Float2
-	BufferID NormalVB; // Float3
-	BufferID TangentVB; // Float4
-	BufferID DrawIndexVB; // uint2 (EntityID, MaterialID)
-	BufferID IndexBuffer; // uint32_t
+	MeshStorage OpaqueGeometries;
 
 	MTR::MutexVector<Drawable> DrawablesToUpdate;
 };

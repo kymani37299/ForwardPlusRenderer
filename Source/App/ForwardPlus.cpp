@@ -347,16 +347,17 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		PipelineState pso = GFX::DefaultPipelineState();
 		pso.DS.DepthEnable = true;
 
+		const MeshStorage& meshStorage = MainSceneGraph.OpaqueGeometries;
 		GFX::Cmd::BindRenderTarget(context, TextureID{}, m_FinalRT_Depth);
 		GFX::Cmd::SetPipelineState(context, pso);
 		GFX::Cmd::BindShader(context, m_DepthPrepassShader, true);
 		GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 		GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Entities.GetBuffer(), 0);
-		GFX::Cmd::BindVertexBuffers(context, { MainSceneGraph.PositionVB, MainSceneGraph.DrawIndexVB });
-		GFX::Cmd::BindIndexBuffer(context, MainSceneGraph.IndexBuffer);
-		context->DrawIndexed(MainSceneGraph.IndexNumber, 0, 0);
-		GFX::Cmd::MarkerEnd(context); // TODO: Do not draw blend and alpha discard
+		GFX::Cmd::BindVertexBuffers(context, { meshStorage.GetPositions(), meshStorage.GetDrawableIndexes() });
+		GFX::Cmd::BindIndexBuffer(context, meshStorage.GetIndexBuffer());
+		context->DrawIndexed(meshStorage.GetIndexCount(), 0, 0);
+		GFX::Cmd::MarkerEnd(context);
 	}
 	
 	// Geometry
@@ -369,6 +370,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			GFX::Cmd::SetPipelineState(context, pso);
 		}
 
+		const MeshStorage& meshStorage = MainSceneGraph.OpaqueGeometries;
 		GFX::Cmd::BindRenderTarget(context, m_FinalRT, m_FinalRT_Depth);
 		GFX::Cmd::BindShader(context, m_GeometryShader, true);
 		GFX::Cmd::SetupStaticSamplers<PS>(context);
@@ -380,29 +382,12 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.ShadowMapTexture, 4);
 		GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Entities.GetBuffer(), 5);
 		GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Materials.GetBuffer(), 6);
-		GFX::Cmd::BindVertexBuffers(context, { MainSceneGraph.PositionVB, MainSceneGraph.TexcoordVB, MainSceneGraph.NormalVB, MainSceneGraph.TangentVB, MainSceneGraph.DrawIndexVB });
-		GFX::Cmd::BindIndexBuffer(context, MainSceneGraph.IndexBuffer);
-		context->DrawIndexed(MainSceneGraph.IndexNumber, 0, 0);
+		GFX::Cmd::BindVertexBuffers(context, { meshStorage.GetPositions(), meshStorage.GetTexcoords(), meshStorage.GetNormals(), meshStorage.GetTangents(), meshStorage.GetDrawableIndexes() });
+		GFX::Cmd::BindIndexBuffer(context, meshStorage.GetIndexBuffer());
+		context->DrawIndexed(meshStorage.GetIndexCount(), 0, 0);
 
 		// TODO: Draw alpha discard with seperate shader
-		//{
-		//	PipelineState pso = GFX::DefaultPipelineState();
-		//	pso.DS.DepthEnable = true;
-		//	GFX::Cmd::SetPipelineState(context, pso);
-		//}
-		//GFX::Cmd::BindShader(context, m_GeometryAlphaDiscardShader, true);
-		//
-		//for (size_t i = 0; i < MainSceneGraph.Entities.GetSize(); i++)
-		//{
-		//	Entity& e = MainSceneGraph.Entities[i];
-		//	entityIndex = e.Index;
-		//	const auto draw = [&context, &drawFunc](const Drawable& d) 
-		//	{ 
-		//		const Material& m = MainSceneGraph.Materials[d.MaterialIndex];
-		//		if (m.UseAlphaDiscard) drawFunc(d); 
-		//	};
-		//	e.Drawables.ForEach(draw);
-		//}
+
 		GFX::Cmd::MarkerEnd(context);
 	}
 
