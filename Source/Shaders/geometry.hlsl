@@ -8,7 +8,7 @@ struct VertexInput
 	float2 UV : TEXCOORD;
 	float3 Normal : NORMAL;
 	float4 Tangent : TANGENT;
-	uint2 DrawableIndex : DRAWABLE_INDEX;
+	uint DrawableIndex : DRAWABLE_INDEX;
 };
 
 struct VertexOut
@@ -17,7 +17,7 @@ struct VertexOut
 	float3 WorldPosition : WORLD_POS;
 	float3 Normal : NORMAL;
 	float2 UV : TEXCOORD;
-	nointerpolation uint2 DrawableIndex : DRAWABLE_INDEX;
+	nointerpolation uint MaterialIndex : MAT_INDEX;
 };
 
 cbuffer CameraCB : register(b0)
@@ -35,10 +35,12 @@ StructuredBuffer<Light> Lights : register(t3);
 Texture2D Shadowmap : register(t4);
 StructuredBuffer<EntityData> Entities : register(t5);
 StructuredBuffer<MaterialParams> Materials : register(t6);
+StructuredBuffer<Drawable> Drawables : register(t7);
 
 VertexOut VS(VertexInput IN)
 {
-	uint entityIndex = IN.DrawableIndex.x;
+	Drawable d = Drawables[IN.DrawableIndex];
+	uint entityIndex = d.EntityIndex;
 	const float4 modelPos = float4(IN.Position, 1.0f);
 	const float4 worldPos = mul(modelPos, Entities[entityIndex].ModelToWorld);
 	const float4 viewPos = mul(worldPos, CamData.WorldToView);
@@ -49,7 +51,7 @@ VertexOut VS(VertexInput IN)
 	OUT.WorldPosition = worldPos.xyz;
 	OUT.Normal = mul(IN.Normal, (float3x3) Entities[entityIndex].ModelToWorld); // Assumes nonuniform scaling; otherwise, need to use inverse-transpose of world matrix.
 	OUT.UV = IN.UV;
-	OUT.DrawableIndex = IN.DrawableIndex;
+	OUT.MaterialIndex = d.MaterialIndex;
 	return OUT;
 }
 
@@ -69,7 +71,7 @@ bool IsInShadow(float3 worldPos)
 
 float4 PS(VertexOut IN) : SV_Target
 {
-	MaterialParams matParams = Materials[IN.DrawableIndex.y];
+	MaterialParams matParams = Materials[IN.MaterialIndex];
 	float4 albedo = Textures.Sample(s_AnisoWrap, float3(IN.UV, matParams.Albedo) );
 
 #ifdef ALPHA_DISCARD

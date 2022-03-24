@@ -189,16 +189,16 @@ namespace SceneLoading
 			if (material.UseBlend) meshStorage = &MainSceneGraph.TransparentGeometries;
 
 			Mesh mesh = LoadMesh(context, *meshStorage, meshData);
-			Drawable drawable = MainSceneGraph.CreateDrawable(context.GfxContext, material, mesh);
+			Drawable drawable = MainSceneGraph.CreateDrawable(context.GfxContext, material, mesh, *context.LoadingEntity);
 
-			std::vector<DirectX::XMUINT2> drawIndexData;
-			DirectX::XMUINT2 drawIndex = DirectX::XMUINT2{ context.LoadingEntity->Index,  drawable.MaterialIndex };
+			std::vector<uint32_t> drawIndexData;
+			uint32_t drawIndex = drawable.DrawableIndex;
 			drawIndexData.resize(mesh.VertCount);
 			for (uint32_t i = 0; i < mesh.VertCount; i++)
 			{
 				drawIndexData[i] = drawIndex;
 			}
-			GFX::Cmd::UploadToBuffer(context.GfxContext, meshStorage->GetDrawableIndexes(), mesh.VertOffset * sizeof(DirectX::XMUINT2), drawIndexData.data(), 0, drawIndexData.size() * sizeof(DirectX::XMUINT2));
+			GFX::Cmd::UploadToBuffer(context.GfxContext, meshStorage->GetDrawableIndexes(), mesh.VertOffset * MeshStorage::GetDrawableIndexStride(), drawIndexData.data(), 0, drawIndexData.size() * MeshStorage::GetDrawableIndexStride());
 			return drawable;
 		}
 	}

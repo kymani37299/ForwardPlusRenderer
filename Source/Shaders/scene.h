@@ -5,6 +5,12 @@ struct CameraData
 	float3 Position;
 };
 
+struct Drawable
+{
+	uint EntityIndex;
+	uint MaterialIndex;
+};
+
 struct EntityData
 {
 	float4x4 ModelToWorld;

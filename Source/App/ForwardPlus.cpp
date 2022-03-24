@@ -354,6 +354,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 		GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Entities.GetBuffer(), 0);
+		GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Drawables.GetBuffer(), 1);
 		GFX::Cmd::BindVertexBuffers(context, { meshStorage.GetPositions(), meshStorage.GetDrawableIndexes() });
 		GFX::Cmd::BindIndexBuffer(context, meshStorage.GetIndexBuffer());
 		context->DrawIndexed(meshStorage.GetIndexCount(), 0, 0);
@@ -383,6 +384,8 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.ShadowMapTexture, 4);
 			GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Entities.GetBuffer(), 5);
 			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Materials.GetBuffer(), 6);
+			GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Drawables.GetBuffer(), 7);
+			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Drawables.GetBuffer(), 7);
 			GFX::Cmd::BindVertexBuffers(context, { meshStorage.GetPositions(), meshStorage.GetTexcoords(), meshStorage.GetNormals(), meshStorage.GetTangents(), meshStorage.GetDrawableIndexes() });
 			GFX::Cmd::BindIndexBuffer(context, meshStorage.GetIndexBuffer());
 			context->DrawIndexed(meshStorage.GetIndexCount(), 0, 0);

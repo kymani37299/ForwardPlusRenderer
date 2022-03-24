@@ -10,6 +10,8 @@ struct ID3D11DeviceContext;
 
 struct Material
 {
+	uint32_t MaterialIndex = 0;
+
 	bool UseBlend = false;
 	bool UseAlphaDiscard = false;
 	Float3 AlbedoFactor = { 1.0f, 1.0f, 1.0f };
@@ -20,10 +22,14 @@ struct Material
 	uint32_t Albedo;
 	uint32_t MetallicRoughness;
 	uint32_t Normal;
+
+	void UpdateBuffer(ID3D11DeviceContext* context);
 };
 
 struct Mesh
 {
+	uint32_t MeshIndex = 0;
+
 	uint32_t VertCount;
 	uint32_t IndexCount;
 
@@ -33,10 +39,13 @@ struct Mesh
 
 struct Drawable
 {
-	void UpdateBuffer(ID3D11DeviceContext* context);
+	uint32_t DrawableIndex;
 
+	uint32_t EntityIndex;
 	uint32_t MaterialIndex;
 	uint32_t MeshIndex;
+
+	void UpdateBuffer(ID3D11DeviceContext* context);
 };
 
 struct Entity
@@ -157,6 +166,13 @@ public:
 	uint32_t GetVertexCount() const { return m_VertexCount; }
 	uint32_t GetIndexCount() const { return m_IndexCount; }
 
+	static constexpr uint32_t GetPositionStride()		{ return sizeof(Float3); }
+	static constexpr uint32_t GetTexroordStride()		{ return sizeof(Float2); }
+	static constexpr uint32_t GetNormalStride()			{ return sizeof(Float3); }
+	static constexpr uint32_t GetTangentStride()		{ return sizeof(Float4); }
+	static constexpr uint32_t GetDrawableIndexStride()	{ return sizeof(uint32_t); }
+	static constexpr uint32_t GetIndexBufferStride()	{ return sizeof(uint32_t); }
+
 private:
 	std::atomic<uint32_t> m_VertexCount = 0;
 	std::atomic<uint32_t> m_IndexCount = 0;
@@ -165,7 +181,7 @@ private:
 	BufferID m_TexcoordBuffer;		// Float2
 	BufferID m_NormalBuffer;		// Float3
 	BufferID m_TangentBuffer;		// Float4
-	BufferID m_DrawableIndexBuffer;	// uint2 (EntityID, MaterialID)
+	BufferID m_DrawableIndexBuffer;	// uint32_t
 	BufferID m_IndexBuffer;			// uint32_t
 };
 
@@ -179,12 +195,13 @@ struct SceneGraph
 	void UpdateDrawables(ID3D11DeviceContext* context);
 	void UpdateRenderData(ID3D11DeviceContext* context);
 	Entity& CreateEntity(ID3D11DeviceContext* context, Float3 position = { 0.0f, 0.0f, 0.0f }, Float3 scale = { 1.0f, 1.0f, 1.0f });
-	Drawable CreateDrawable(ID3D11DeviceContext* context, const Material material, const Mesh mesh);
+	Drawable CreateDrawable(ID3D11DeviceContext* context, Material& material, Mesh& mesh, const Entity& entity);
 
 	Camera MainCamera{ {0.0f, 2.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, 75.0f };
 	ElementBuffer<Entity> Entities;
 	ElementBuffer<Material> Materials;
 	ElementBuffer<Mesh> Meshes;
+	ElementBuffer<Drawable> Drawables;
 	std::vector<Light> Lights;
 
 	BufferID LightsBuffer;

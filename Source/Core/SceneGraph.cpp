@@ -25,6 +25,12 @@ namespace
 		uint32_t Normal;
 	};
 
+	struct DrawableSB
+	{
+		uint32_t EntityIndex;
+		uint32_t MaterialIndex;
+	};
+
 	float DegreesToRadians(float deg)
 	{
 		const float DEG_2_RAD = 3.1415f / 180.0f;
@@ -32,7 +38,7 @@ namespace
 	}
 }
 
-void Drawable::UpdateBuffer(ID3D11DeviceContext* context)
+void Material::UpdateBuffer(ID3D11DeviceContext* context)
 {
 	using namespace DirectX;
 	
@@ -57,6 +63,16 @@ void Entity::UpdateBuffer(ID3D11DeviceContext* context)
 	EntitySB entitySB{};
 	entitySB.ModelToWorld = XMUtility::ToXMFloat4x4(modelToWorld);
 	GFX::Cmd::UploadToBuffer(context, MainSceneGraph.Entities.GetBuffer(), sizeof(EntitySB) * Index, &entitySB, 0, sizeof(EntitySB));
+}
+
+void Drawable::UpdateBuffer(ID3D11DeviceContext* context)
+{
+	using namespace DirectX;
+
+	DrawableSB drawableSB{};
+	drawableSB.EntityIndex = EntityIndex;
+	drawableSB.MaterialIndex = MaterialIndex;
+	GFX::Cmd::UploadToBuffer(context, MainSceneGraph.Drawables.GetBuffer(), sizeof(DrawableSB) * DrawableIndex, &drawableSB, 0, sizeof(DrawableSB));
 }
 
 void Camera::RotToAxis(Float3 rot, Float3& forward, Float3& up, Float3& right)
@@ -135,18 +151,20 @@ Light Light::CreatePoint(Float3 position, Float3 color, Float2 falloff)
 	return l;
 }
 
-SceneGraph::SceneGraph():
+SceneGraph::SceneGraph() :
 	Entities(MAX_ENTITIES, sizeof(EntitySB)),
 	Materials(MAX_DRAWABLES, sizeof(MaterialSB)),
-	Meshes(MAX_DRAWABLES, 0)
+	Meshes(MAX_DRAWABLES, 0),
+	Drawables(MAX_DRAWABLES, sizeof(DrawableSB))
 {
 
 }
 
 void SceneGraph::UpdateDrawables(ID3D11DeviceContext* context)
 {
-	auto f = [&context](Drawable d)
+	auto f = [&context, this](Drawable d)
 	{
+		Materials[d.MaterialIndex].UpdateBuffer(context);
 		d.UpdateBuffer(context);
 	};
 	DrawablesToUpdate.ForEachAndClear(f);
@@ -159,6 +177,7 @@ void SceneGraph::UpdateRenderData(ID3D11DeviceContext* context)
 	Entities.Initialize();
 	Materials.Initialize();
 	Meshes.Initialize();
+	Drawables.Initialize();
 
 	OpaqueGeometries.Initialize();
 	AlphaDiscardGeometries.Initialize();
@@ -215,23 +234,34 @@ Entity& SceneGraph::CreateEntity(ID3D11DeviceContext* context, Float3 position, 
 	return Entities[eIndex];
 }
 
-Drawable SceneGraph::CreateDrawable(ID3D11DeviceContext* context, const Material material, const Mesh mesh)
+Drawable SceneGraph::CreateDrawable(ID3D11DeviceContext* context, Material& material, Mesh& mesh, const Entity& entity)
 {
+	const uint32_t dIndex = Drawables.Next();
 	const uint32_t matIndex = Materials.Next();
 	const uint32_t mIndex = Meshes.Next();
 
 	Drawable drawable;
+	drawable.DrawableIndex = dIndex;
 	drawable.MaterialIndex = matIndex;
 	drawable.MeshIndex = mIndex;
+	drawable.EntityIndex = entity.Index;
+
+	material.MaterialIndex = matIndex;
+	mesh.MeshIndex = mIndex;
 
 	Materials[matIndex] = material;
 	Meshes[mIndex] = mesh;
 
 	if (Device::Get()->IsMainContext(context))
+	{
+		material.UpdateBuffer(context);
 		drawable.UpdateBuffer(context);
+	}
 	else
+	{
 		MainSceneGraph.DrawablesToUpdate.Add(drawable);
-
+	}
+	
 	return drawable;
 }
 
@@ -243,12 +273,12 @@ namespace ElementBufferHelp
 
 void MeshStorage::Initialize()
 {
-	m_PositionBuffer = GFX::CreateVertexBuffer<Float3>(1, nullptr);
-	m_TexcoordBuffer = GFX::CreateVertexBuffer<Float2>(1, nullptr);
-	m_NormalBuffer = GFX::CreateVertexBuffer<Float3>(1, nullptr);
-	m_TangentBuffer = GFX::CreateVertexBuffer<Float4>(1, nullptr);
-	m_DrawableIndexBuffer = GFX::CreateVertexBuffer<DirectX::XMUINT2>(1, nullptr);
-	m_IndexBuffer = GFX::CreateIndexBuffer(sizeof(uint32_t), sizeof(uint32_t), nullptr);
+	m_PositionBuffer = GFX::CreateBuffer(GetPositionStride(), GetPositionStride(), RCF_Bind_VB | RCF_CopyDest);
+	m_TexcoordBuffer = GFX::CreateBuffer(GetTexroordStride(), GetTexroordStride(), RCF_Bind_VB | RCF_CopyDest);
+	m_NormalBuffer = GFX::CreateBuffer(GetNormalStride(), GetNormalStride(), RCF_Bind_VB | RCF_CopyDest);
+	m_TangentBuffer = GFX::CreateBuffer(GetTangentStride(), GetTangentStride(), RCF_Bind_VB | RCF_CopyDest);
+	m_DrawableIndexBuffer = GFX::CreateBuffer(GetDrawableIndexStride(), GetDrawableIndexStride(), RCF_Bind_VB | RCF_CopyDest);
+	m_IndexBuffer = GFX::CreateBuffer(GetIndexBufferStride(), GetIndexBufferStride(), RCF_Bind_IB | RCF_CopyDest);
 }
 
 MeshStorage::Allocation MeshStorage::Allocate(ID3D11DeviceContext* context, uint32_t vertexCount, uint32_t indexCount)
@@ -259,12 +289,12 @@ MeshStorage::Allocation MeshStorage::Allocate(ID3D11DeviceContext* context, uint
 
 	const uint32_t wantedVBSize = vertexCount + alloc.VertexOffset;
 	const uint32_t wantedIBSize = indexCount + alloc.IndexOffset;
-	GFX::ExpandBuffer(context, m_PositionBuffer, wantedVBSize * sizeof(Float3));
-	GFX::ExpandBuffer(context, m_TexcoordBuffer, wantedVBSize * sizeof(Float2));
-	GFX::ExpandBuffer(context, m_NormalBuffer, wantedVBSize * sizeof(Float3));
-	GFX::ExpandBuffer(context, m_TangentBuffer, wantedVBSize * sizeof(Float4));
-	GFX::ExpandBuffer(context, m_DrawableIndexBuffer, wantedVBSize * sizeof(DirectX::XMUINT2));
-	GFX::ExpandBuffer(context, m_IndexBuffer, wantedIBSize * sizeof(uint32_t));
+	GFX::ExpandBuffer(context, m_PositionBuffer, wantedVBSize * GetPositionStride());
+	GFX::ExpandBuffer(context, m_TexcoordBuffer, wantedVBSize * GetTexroordStride());
+	GFX::ExpandBuffer(context, m_NormalBuffer, wantedVBSize * GetNormalStride());
+	GFX::ExpandBuffer(context, m_TangentBuffer, wantedVBSize * GetTangentStride());
+	GFX::ExpandBuffer(context, m_DrawableIndexBuffer, wantedVBSize * GetDrawableIndexStride());
+	GFX::ExpandBuffer(context, m_IndexBuffer, wantedIBSize * GetIndexBufferStride());
 
 	return alloc;
 }
