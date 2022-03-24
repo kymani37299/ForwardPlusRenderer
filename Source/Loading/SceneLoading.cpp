@@ -184,11 +184,9 @@ namespace SceneLoading
 		Drawable LoadDrawable(const LoadingContext& context, cgltf_primitive* meshData)
 		{
 			Material material = LoadMaterial(context, meshData->material);
-			MeshStorage* meshStorage = &MainSceneGraph.OpaqueGeometries;
-			if (material.UseAlphaDiscard) meshStorage = &MainSceneGraph.AlphaDiscardGeometries;
-			if (material.UseBlend) meshStorage = &MainSceneGraph.TransparentGeometries;
+			MeshStorage& meshStorage = MainSceneGraph.Geometries;
 
-			Mesh mesh = LoadMesh(context, *meshStorage, meshData);
+			Mesh mesh = LoadMesh(context, meshStorage, meshData);
 			Drawable drawable = MainSceneGraph.CreateDrawable(context.GfxContext, material, mesh, *context.LoadingEntity);
 
 			std::vector<uint32_t> drawIndexData;
@@ -198,7 +196,7 @@ namespace SceneLoading
 			{
 				drawIndexData[i] = drawIndex;
 			}
-			GFX::Cmd::UploadToBuffer(context.GfxContext, meshStorage->GetDrawableIndexes(), mesh.VertOffset * MeshStorage::GetDrawableIndexStride(), drawIndexData.data(), 0, drawIndexData.size() * MeshStorage::GetDrawableIndexStride());
+			GFX::Cmd::UploadToBuffer(context.GfxContext, meshStorage.GetDrawableIndexes(), mesh.VertOffset * MeshStorage::GetDrawableIndexStride(), drawIndexData.data(), 0, drawIndexData.size() * MeshStorage::GetDrawableIndexStride());
 			return drawable;
 		}
 	}

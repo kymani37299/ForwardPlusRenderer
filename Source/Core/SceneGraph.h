@@ -39,7 +39,9 @@ struct Mesh
 
 struct Drawable
 {
-	uint32_t DrawableIndex;
+	static constexpr uint32_t InvalidIndex = static_cast<uint32_t>(-1);
+
+	uint32_t DrawableIndex = InvalidIndex;
 
 	uint32_t EntityIndex;
 	uint32_t MaterialIndex;
@@ -192,7 +194,7 @@ struct SceneGraph
 
 	SceneGraph();
 
-	void UpdateDrawables(ID3D11DeviceContext* context);
+	void FrameUpdate(ID3D11DeviceContext* context);
 	void UpdateRenderData(ID3D11DeviceContext* context);
 	Entity& CreateEntity(ID3D11DeviceContext* context, Float3 position = { 0.0f, 0.0f, 0.0f }, Float3 scale = { 1.0f, 1.0f, 1.0f });
 	Drawable CreateDrawable(ID3D11DeviceContext* context, Material& material, Mesh& mesh, const Entity& entity);
@@ -202,7 +204,7 @@ struct SceneGraph
 	ElementBuffer<Material> Materials;
 	ElementBuffer<Mesh> Meshes;
 	ElementBuffer<Drawable> Drawables;
-	std::vector<Light> Lights;
+	std::vector<Light> Lights; // TODO: ElementBuffer<Light>
 
 	BufferID LightsBuffer;
 	BufferID WorldToLightClip;
@@ -214,9 +216,7 @@ struct SceneGraph
 	std::atomic<uint32_t> NextTextureIndex = 0;
 	TextureID Textures;
 
-	MeshStorage OpaqueGeometries;
-	MeshStorage AlphaDiscardGeometries;
-	MeshStorage TransparentGeometries;
+	MeshStorage Geometries;
 
 	MTR::MutexVector<Drawable> DrawablesToUpdate;
 };

@@ -160,8 +160,10 @@ SceneGraph::SceneGraph() :
 
 }
 
-void SceneGraph::UpdateDrawables(ID3D11DeviceContext* context)
+void SceneGraph::FrameUpdate(ID3D11DeviceContext* context)
 {
+	MainCamera.UpdateBuffer(context);
+
 	auto f = [&context, this](Drawable d)
 	{
 		Materials[d.MaterialIndex].UpdateBuffer(context);
@@ -179,9 +181,7 @@ void SceneGraph::UpdateRenderData(ID3D11DeviceContext* context)
 	Meshes.Initialize();
 	Drawables.Initialize();
 
-	OpaqueGeometries.Initialize();
-	AlphaDiscardGeometries.Initialize();
-	TransparentGeometries.Initialize();
+	Geometries.Initialize();
 
 	Textures = GFX::CreateTextureArray(TEXTURE_SIZE, TEXTURE_SIZE, MAX_TEXTURES, RCF_Bind_SRV | RCF_CopyDest, TEXTURE_MIPS);
 
@@ -249,6 +249,7 @@ Drawable SceneGraph::CreateDrawable(ID3D11DeviceContext* context, Material& mate
 	material.MaterialIndex = matIndex;
 	mesh.MeshIndex = mIndex;
 
+	Drawables[dIndex] = drawable;
 	Materials[matIndex] = material;
 	Meshes[mIndex] = mesh;
 

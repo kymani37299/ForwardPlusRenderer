@@ -276,6 +276,8 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 	GenerateSkybox(context, m_SkyboxCubemap);
 	m_FinalRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV);
 	m_FinalRT_Depth = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_DSV);
+
+	m_IndexBuffer = GFX::CreateBuffer(sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_IB | RCF_CopyDest);
 }
 
 void ForwardPlus::OnDestroy(ID3D11DeviceContext* context)
@@ -283,19 +285,43 @@ void ForwardPlus::OnDestroy(ID3D11DeviceContext* context)
 
 }
 
+bool IsVisible(const Drawable& d)
+{
+	return true;
+}
+
+template<typename FilterFunc>
+uint32_t CullDrawables(ID3D11DeviceContext* context, BufferID indexBuffer, FilterFunc filterFunc)
+{
+	uint32_t indexCount = 0;
+	GFX::ExpandBuffer(context, indexBuffer, MainSceneGraph.Geometries.GetIndexCount() * sizeof(uint32_t));
+
+	for (uint32_t i = 0; i < MainSceneGraph.Drawables.GetSize(); i++)
+	{
+		Drawable& d = MainSceneGraph.Drawables[i];
+
+		if (d.DrawableIndex == Drawable::InvalidIndex) break;
+
+		if (filterFunc(d) && IsVisible(d))
+		{
+			const Mesh& mesh = MainSceneGraph.Meshes[d.MeshIndex];
+			GFX::Cmd::CopyToBuffer(context, MainSceneGraph.Geometries.GetIndexBuffer(), mesh.IndexOffset * MeshStorage::GetIndexBufferStride(), indexBuffer, indexCount * sizeof(uint32_t), mesh.IndexCount * sizeof(uint32_t));
+			indexCount += mesh.IndexCount;
+		}
+	}
+
+	return indexCount;
+}
+
 TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 {
 	using namespace ForwardPlusPrivate;
 
+	MainSceneGraph.FrameUpdate(context);
+
 	GFX::Cmd::ClearRenderTarget(context, m_FinalRT, m_FinalRT_Depth);
 	GFX::Cmd::BindRenderTarget(context, m_FinalRT, m_FinalRT_Depth);
 
-	// Prepare scene
-	{
-		MainSceneGraph.MainCamera.UpdateBuffer(context);
-		MainSceneGraph.UpdateDrawables(context);
-	}
-	
 	// Skybox
 	{
 		GFX::Cmd::MarkerBegin(context, "Skybox");
@@ -347,7 +373,14 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		PipelineState pso = GFX::DefaultPipelineState();
 		pso.DS.DepthEnable = true;
 
-		const MeshStorage& meshStorage = MainSceneGraph.OpaqueGeometries;
+		const MeshStorage& meshStorage = MainSceneGraph.Geometries;
+		const auto drawableFilter = [](const Drawable& d)
+		{
+			Material& mat = MainSceneGraph.Materials[d.MaterialIndex];
+			return !mat.UseAlphaDiscard && !mat.UseBlend;
+		};
+		const uint32_t indexCount = CullDrawables(context, m_IndexBuffer, drawableFilter);
+
 		GFX::Cmd::BindRenderTarget(context, TextureID{}, m_FinalRT_Depth);
 		GFX::Cmd::SetPipelineState(context, pso);
 		GFX::Cmd::BindShader(context, m_DepthPrepassShader, true);
@@ -356,8 +389,8 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Entities.GetBuffer(), 0);
 		GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Drawables.GetBuffer(), 1);
 		GFX::Cmd::BindVertexBuffers(context, { meshStorage.GetPositions(), meshStorage.GetDrawableIndexes() });
-		GFX::Cmd::BindIndexBuffer(context, meshStorage.GetIndexBuffer());
-		context->DrawIndexed(meshStorage.GetIndexCount(), 0, 0);
+		GFX::Cmd::BindIndexBuffer(context, m_IndexBuffer);
+		context->DrawIndexed(indexCount, 0, 0);
 		GFX::Cmd::MarkerEnd(context);
 	}
 	
@@ -372,7 +405,14 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		}
 
 		{
-			const MeshStorage& meshStorage = MainSceneGraph.OpaqueGeometries;
+			const MeshStorage& meshStorage = MainSceneGraph.Geometries;
+			const auto drawableFilter = [](const Drawable& d)
+			{
+				Material& mat = MainSceneGraph.Materials[d.MaterialIndex];
+				return !mat.UseAlphaDiscard && !mat.UseBlend;
+			};
+			const uint32_t indexCount = CullDrawables(context, m_IndexBuffer, drawableFilter);
+
 			GFX::Cmd::BindRenderTarget(context, m_FinalRT, m_FinalRT_Depth);
 			GFX::Cmd::BindShader(context, m_GeometryShader, true);
 			GFX::Cmd::SetupStaticSamplers<PS>(context);
@@ -387,16 +427,22 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Drawables.GetBuffer(), 7);
 			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Drawables.GetBuffer(), 7);
 			GFX::Cmd::BindVertexBuffers(context, { meshStorage.GetPositions(), meshStorage.GetTexcoords(), meshStorage.GetNormals(), meshStorage.GetTangents(), meshStorage.GetDrawableIndexes() });
-			GFX::Cmd::BindIndexBuffer(context, meshStorage.GetIndexBuffer());
-			context->DrawIndexed(meshStorage.GetIndexCount(), 0, 0);
+			GFX::Cmd::BindIndexBuffer(context, m_IndexBuffer);
+			context->DrawIndexed(indexCount, 0, 0);
 		}
 		
 		{
-			const MeshStorage& meshStorage = MainSceneGraph.AlphaDiscardGeometries;
+			const MeshStorage& meshStorage = MainSceneGraph.Geometries;
+			const auto drawableFilter = [](const Drawable& d)
+			{
+				Material& mat = MainSceneGraph.Materials[d.MaterialIndex];
+				return mat.UseAlphaDiscard && !mat.UseBlend;
+			};
+			const uint32_t indexCount = CullDrawables(context, m_IndexBuffer, drawableFilter);
+
 			GFX::Cmd::BindShader(context, m_GeometryAlphaDiscardShader, true);
-			GFX::Cmd::BindVertexBuffers(context, { meshStorage.GetPositions(), meshStorage.GetTexcoords(), meshStorage.GetNormals(), meshStorage.GetTangents(), meshStorage.GetDrawableIndexes() });
-			GFX::Cmd::BindIndexBuffer(context, meshStorage.GetIndexBuffer());
-			context->DrawIndexed(meshStorage.GetIndexCount(), 0, 0);
+			GFX::Cmd::BindIndexBuffer(context, m_IndexBuffer);
+			context->DrawIndexed(indexCount, 0, 0);
 		}
 
 		GFX::Cmd::MarkerEnd(context);
