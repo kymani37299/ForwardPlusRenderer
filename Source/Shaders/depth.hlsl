@@ -2,10 +2,10 @@
 
 cbuffer CameraCB : register(b0)
 {
-	CameraData CamData;
+	Camera CamData;
 }
 
-StructuredBuffer<EntityData> Entities : register(t0);
+StructuredBuffer<Entity> Entities : register(t0);
 StructuredBuffer<Drawable> Drawables : register(t1);
 
 float4 VS(float3 Position : SV_POSITION, uint DrawableIndex : DRAWABLE_INDEX) : SV_POSITION

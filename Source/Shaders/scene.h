@@ -1,4 +1,4 @@
-struct CameraData
+struct Camera
 {
 	float4x4 WorldToView;
 	float4x4 ViewToClip;
@@ -11,12 +11,12 @@ struct Drawable
 	uint MaterialIndex;
 };
 
-struct EntityData
+struct Entity
 {
 	float4x4 ModelToWorld;
 };
 
-struct MaterialParams
+struct Material
 {
 	float3 AlbedoFactor;
 	float3 FresnelR0;

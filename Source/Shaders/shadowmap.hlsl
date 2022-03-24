@@ -7,7 +7,7 @@ cbuffer ShadowCameraCB : register(b0)
 
 cbuffer EntityCB : register(b1)
 {
-	EntityData EntData;
+	Entity EntData;
 }
 
 float4 VS(float3 Position : SV_POSITION) : SV_POSITION

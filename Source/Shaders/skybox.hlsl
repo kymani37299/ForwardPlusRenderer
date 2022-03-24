@@ -14,7 +14,7 @@ struct VertexOut
 
 cbuffer CameraCB : register(b0)
 {
-	CameraData CamData;
+	Camera CamData;
 }
 
 TextureCube SkyboxTexture : register(t0);

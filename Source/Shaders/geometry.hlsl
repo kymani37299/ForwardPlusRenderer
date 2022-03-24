@@ -22,7 +22,7 @@ struct VertexOut
 
 cbuffer CameraCB : register(b0)
 {
-	CameraData CamData;
+	Camera CamData;
 }
 
 cbuffer LightSpaceCB : register(b3)
@@ -33,8 +33,8 @@ cbuffer LightSpaceCB : register(b3)
 Texture2DArray Textures : register(t0);
 StructuredBuffer<Light> Lights : register(t3);
 Texture2D Shadowmap : register(t4);
-StructuredBuffer<EntityData> Entities : register(t5);
-StructuredBuffer<MaterialParams> Materials : register(t6);
+StructuredBuffer<Entity> Entities : register(t5);
+StructuredBuffer<Material> Materials : register(t6);
 StructuredBuffer<Drawable> Drawables : register(t7);
 
 VertexOut VS(VertexInput IN)
@@ -71,7 +71,7 @@ bool IsInShadow(float3 worldPos)
 
 float4 PS(VertexOut IN) : SV_Target
 {
-	MaterialParams matParams = Materials[IN.MaterialIndex];
+	Material matParams = Materials[IN.MaterialIndex];
 	float4 albedo = Textures.Sample(s_AnisoWrap, float3(IN.UV, matParams.Albedo) );
 
 #ifdef ALPHA_DISCARD
@@ -84,7 +84,7 @@ float4 PS(VertexOut IN) : SV_Target
 	//	return float4(0.0f, 0.0f, 0.0f, 1.0f);
 	//}
 
-	Material mat;
+	MaterialInput mat;
 	mat.Albedo = albedo;
 	mat.Albedo.rgb *= matParams.AlbedoFactor;
 	mat.FresnelR0 = matParams.FresnelR0;

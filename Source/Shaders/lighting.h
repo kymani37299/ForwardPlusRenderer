@@ -1,6 +1,6 @@
 #include "scene.h"
 
-struct Material
+struct MaterialInput
 {
 	float4 Albedo;
 	float3 FresnelR0;
@@ -24,7 +24,7 @@ float3 SchlickFresnel(float3 R0, float3 normal, float3 lightVec)
 	return reflectPercent;
 }
 
-float3 BlinnPhong(float3 lightStrength, float3 lightVec, float3 normal, float3 toEye, Material mat)
+float3 BlinnPhong(float3 lightStrength, float3 lightVec, float3 normal, float3 toEye, MaterialInput mat)
 {
 	const float m = (1.0f - mat.Roughness) * 256.0f;
 	float3 halfVec = normalize(toEye + lightVec);
@@ -41,7 +41,7 @@ float3 BlinnPhong(float3 lightStrength, float3 lightVec, float3 normal, float3 t
 	return (mat.Albedo.rgb + specAlbedo) * lightStrength;
 }
 
-float3 ComputeDirectionalLight(Light light, Material mat, float3 normal, float3 toEye)
+float3 ComputeDirectionalLight(Light light, MaterialInput mat, float3 normal, float3 toEye)
 {
 	// The light vector aims opposite the direction the light rays travel.
 	float3 lightVec = -light.Direction;
@@ -53,7 +53,7 @@ float3 ComputeDirectionalLight(Light light, Material mat, float3 normal, float3 
 	return BlinnPhong(lightStrength, lightVec, normal, toEye, mat);
 }
 
-float3 ComputePointLight(Light light, Material mat, float3 pos, float3 normal, float3 toEye)
+float3 ComputePointLight(Light light, MaterialInput mat, float3 pos, float3 normal, float3 toEye)
 {
     // The vector from the surface to the light.
     float3 lightVec = light.Position - pos;
@@ -79,13 +79,13 @@ float3 ComputePointLight(Light light, Material mat, float3 pos, float3 normal, f
     return BlinnPhong(lightStrength, lightVec, normal, toEye, mat);
 }
 
-float3 ComputeSpotLight(Light light, Material mat, float3 pos, float3 normal, float3 toEye)
+float3 ComputeSpotLight(Light light, MaterialInput mat, float3 pos, float3 normal, float3 toEye)
 {
 	// TODO
 	return float3(0.0f, 0.0f, 0.0f);
 }
 
-float3 ComputeAmbientLight(Light light, Material mat)
+float3 ComputeAmbientLight(Light light, MaterialInput mat)
 {
 	return light.Strength * mat.Albedo;
 }
