@@ -297,14 +297,21 @@ namespace SceneLoading
 
 	void LoadEntityInBackground(const std::string& path, Entity& entityOut)
 	{
-		if (AppConfig.Settings.contains("NO_BG_LOADING"))
+		static constexpr bool ENABLE_BG_LOADING = false;
+		if constexpr (ENABLE_BG_LOADING)
 		{
-			LoadEntity(path, entityOut);
+			if (AppConfig.Settings.contains("NO_BG_LOADING"))
+			{
+				LoadEntity(path, entityOut);
+			}
+			else
+			{
+				LoadingThread::Get()->Submit(new EntityLoadingTask(path, entityOut));
+			}
 		}
 		else
 		{
-			LoadingThread::Get()->Submit(new EntityLoadingTask(path, entityOut));
+			LoadEntity(path, entityOut);
 		}
-		
 	}
 }
