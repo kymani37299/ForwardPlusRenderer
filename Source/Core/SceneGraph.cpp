@@ -62,7 +62,7 @@ void Entity::UpdateBuffer(ID3D11DeviceContext* context)
 	XMMATRIX modelToWorld = XMMatrixTranspose(XMMatrixAffineTransformation(Scale.ToXM(), Float3(0.0f, 0.0f, 0.0f).ToXM(), Float4(0.0f, 0.0f, 0.0f, 0.0f).ToXM(), Position.ToXM()));
 	EntitySB entitySB{};
 	entitySB.ModelToWorld = XMUtility::ToXMFloat4x4(modelToWorld);
-	GFX::Cmd::UploadToBuffer(context, MainSceneGraph.Entities.GetBuffer(), sizeof(EntitySB) * Index, &entitySB, 0, sizeof(EntitySB));
+	GFX::Cmd::UploadToBuffer(context, MainSceneGraph.Entities.GetBuffer(), sizeof(EntitySB) * EntityIndex, &entitySB, 0, sizeof(EntitySB));
 }
 
 void Drawable::UpdateBuffer(ID3D11DeviceContext* context)
@@ -226,7 +226,7 @@ Entity& SceneGraph::CreateEntity(ID3D11DeviceContext* context, Float3 position, 
 	const uint32_t eIndex = Entities.Next();
 
 	Entity& e = Entities[eIndex];
-	e.Index = eIndex;
+	e.EntityIndex = eIndex;
 	e.Position = position;
 	e.Scale = scale;
 	e.UpdateBuffer(context);
@@ -244,7 +244,7 @@ Drawable SceneGraph::CreateDrawable(ID3D11DeviceContext* context, Material& mate
 	drawable.DrawableIndex = dIndex;
 	drawable.MaterialIndex = matIndex;
 	drawable.MeshIndex = mIndex;
-	drawable.EntityIndex = entity.Index;
+	drawable.EntityIndex = entity.EntityIndex;
 
 	material.MaterialIndex = matIndex;
 	mesh.MeshIndex = mIndex;

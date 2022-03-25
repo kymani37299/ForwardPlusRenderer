@@ -22,6 +22,7 @@ namespace SceneLoading
 			std::string RelativePath;
 			ID3D11DeviceContext* GfxContext;
 			Entity* LoadingEntity;
+			SceneGraph* LoadingScene;
 		};
 
 		void* GetBufferData(cgltf_accessor* accessor)
@@ -104,7 +105,7 @@ namespace SceneLoading
 		uint32_t AddTexture(const LoadingContext& context, TextureID texture)
 		{
 			static TextureID stagingTexture;
-			if (!stagingTexture.Valid()) stagingTexture = GFX::CreateTexture(MainSceneGraph.TEXTURE_SIZE, MainSceneGraph.TEXTURE_SIZE, RCF_Bind_RTV | RCF_GenerateMips | RCF_Bind_SRV, MainSceneGraph.TEXTURE_MIPS);
+			if (!stagingTexture.Valid()) stagingTexture = GFX::CreateTexture(SceneGraph::TEXTURE_SIZE, SceneGraph::TEXTURE_SIZE, RCF_Bind_RTV | RCF_GenerateMips | RCF_Bind_SRV, SceneGraph::TEXTURE_MIPS);
 
 			const Texture& stagingTex = GFX::Storage::GetTexture(stagingTexture);
 			
@@ -115,7 +116,7 @@ namespace SceneLoading
 			GFX::Cmd::SetupStaticSamplers<PS>(c);
 			GFX::Cmd::BindShader(c, Device::Get()->GetCopyShader());
 			c->OMSetRenderTargets(1, stagingTex.RTV.GetAddressOf(), nullptr);
-			GFX::Cmd::SetViewport(c, { (float) MainSceneGraph.TEXTURE_SIZE, (float) MainSceneGraph.TEXTURE_SIZE });
+			GFX::Cmd::SetViewport(c, { (float) SceneGraph::TEXTURE_SIZE, (float) SceneGraph::TEXTURE_SIZE });
 			GFX::Cmd::BindVertexBuffer(c, Device::Get()->GetQuadBuffer());
 			GFX::Cmd::BindSRV<PS>(c, texture, 0);
 			c->Draw(6, 0);
@@ -126,9 +127,9 @@ namespace SceneLoading
 			GFX::Storage::Free(texture);
 
 			// Copy to the array
-			const Texture& textureArray = GFX::Storage::GetTexture(MainSceneGraph.Textures);
-			const uint32_t textureIndex = MainSceneGraph.NextTextureIndex++;
-			ASSERT(textureIndex < MainSceneGraph.MAX_TEXTURES, "textureIndex < MainSceneGraph.MAX_TEXTURES");
+			const Texture& textureArray = GFX::Storage::GetTexture(context.LoadingScene->Textures);
+			const uint32_t textureIndex = context.LoadingScene->NextTextureIndex++;
+			ASSERT(textureIndex < SceneGraph::MAX_TEXTURES, "textureIndex < SceneGraph::MAX_TEXTURES");
 			ASSERT(stagingTex.Format == textureArray.Format, "stagingTex.Format == tex.Format");
 
 			for (uint32_t mip = 0; mip < textureArray.NumMips; mip++)
@@ -184,10 +185,10 @@ namespace SceneLoading
 		Drawable LoadDrawable(const LoadingContext& context, cgltf_primitive* meshData)
 		{
 			Material material = LoadMaterial(context, meshData->material);
-			MeshStorage& meshStorage = MainSceneGraph.Geometries;
+			MeshStorage& meshStorage = context.LoadingScene->Geometries;
 
 			Mesh mesh = LoadMesh(context, meshStorage, meshData);
-			Drawable drawable = MainSceneGraph.CreateDrawable(context.GfxContext, material, mesh, *context.LoadingEntity);
+			Drawable drawable = context.LoadingScene->CreateDrawable(context.GfxContext, material, mesh, *context.LoadingEntity);
 
 			std::vector<uint32_t> drawIndexData;
 			uint32_t drawIndex = drawable.DrawableIndex;
@@ -214,6 +215,7 @@ namespace SceneLoading
 		context.RelativePath = PathUtility::GetPathWitoutFile(path);
 		context.GfxContext = Device::Get()->GetContext();
 		context.LoadingEntity = &entityOut;
+		context.LoadingScene = &MainSceneGraph;
 
 		cgltf_options options = {};
 		cgltf_data* data = NULL;
@@ -225,8 +227,7 @@ namespace SceneLoading
 			cgltf_mesh* meshData = (data->meshes + i);
 			for (size_t j = 0; j < meshData->primitives_count; j++)
 			{
-				Drawable d = LoadDrawable(context, meshData->primitives + j);
-				entityOut.Drawables.Add(d);
+				LoadDrawable(context, meshData->primitives + j);
 			}
 		}
 		cgltf_free(data);
@@ -258,8 +259,9 @@ namespace SceneLoading
 			loadingContext.RelativePath = PathUtility::GetPathWitoutFile(m_Path);
 			loadingContext.GfxContext = context;
 			loadingContext.LoadingEntity = &m_Entity;
+			loadingContext.LoadingScene = &MainSceneGraph;
 
-			std::vector<Drawable> drawables;
+			uint32_t pendingDrawables = 0;
 			for (size_t i = 0; i < data->meshes_count; i++)
 			{
 				cgltf_mesh* meshData = (data->meshes + i);
@@ -267,20 +269,22 @@ namespace SceneLoading
 				{
 					if (ShouldStop()) break; // Something requested stop
 
-					Drawable d = LoadDrawable(loadingContext, meshData->primitives + j);
-					drawables.push_back(d);
+					LoadDrawable(loadingContext, meshData->primitives + j);
+					pendingDrawables++;
 
-					if (drawables.size() >= BATCH_SIZE)
+					if (pendingDrawables >= BATCH_SIZE)
 					{
 						GFX::Cmd::SubmitDeferredContext(context);
 						GFX::Cmd::ResetContext(context);
-						m_Entity.Drawables.AddAll(drawables);
-						drawables.clear();
+						pendingDrawables = 0;
 					}
 					
 				}
 			}
-			m_Entity.Drawables.AddAll(drawables);
+
+			GFX::Cmd::SubmitDeferredContext(context);
+			GFX::Cmd::ResetContext(context);
+
 			cgltf_free(data);
 		}
 

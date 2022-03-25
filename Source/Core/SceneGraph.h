@@ -52,13 +52,12 @@ struct Drawable
 
 struct Entity
 {
-	void UpdateBuffer(ID3D11DeviceContext* context);
+	uint32_t EntityIndex;
 
 	Float3 Position = Float3(0.0f, 0.0f, 0.0f);
 	Float3 Scale = Float3(1.0f, 1.0f, 1.0f);
 
-	uint32_t Index;
-	MTR::MutexVector<Drawable> Drawables;
+	void UpdateBuffer(ID3D11DeviceContext* context);
 };
 
 struct Camera
