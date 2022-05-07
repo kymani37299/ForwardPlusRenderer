@@ -308,25 +308,34 @@ bool IsVisible(const Drawable& d)
 }
 
 template<typename FilterFunc>
-uint32_t CullDrawables(ID3D11DeviceContext* context, BufferID indexBuffer, FilterFunc filterFunc)
+BitField CullDrawables(FilterFunc filterFunc)
+{
+	const uint32_t numDrawables = MainSceneGraph.Drawables.GetSize();
+	BitField visibilityMask{ numDrawables };
+	for (uint32_t i = 0; i < numDrawables; i++)
+	{
+		Drawable& d = MainSceneGraph.Drawables[i];
+		if (d.DrawableIndex != Drawable::InvalidIndex && filterFunc(d) && IsVisible(d))
+		{
+			visibilityMask.Set(i, true);
+		}
+	}
+	return visibilityMask;
+}
+
+uint32_t PrepareIndexBuffer(ID3D11DeviceContext* context, BufferID indexBuffer, const BitField& visibilityMask)
 {
 	uint32_t indexCount = 0;
 	GFX::ExpandBuffer(context, indexBuffer, MainSceneGraph.Geometries.GetIndexCount() * sizeof(uint32_t));
-
 	for (uint32_t i = 0; i < MainSceneGraph.Drawables.GetSize(); i++)
 	{
-		Drawable& d = MainSceneGraph.Drawables[i];
-
-		if (d.DrawableIndex == Drawable::InvalidIndex) break;
-
-		if (filterFunc(d) && IsVisible(d))
+		if (visibilityMask.Get(i))
 		{
-			const Mesh& mesh = MainSceneGraph.Meshes[d.MeshIndex];
+			const Mesh& mesh = MainSceneGraph.Meshes[MainSceneGraph.Drawables[i].MeshIndex];
 			GFX::Cmd::CopyToBuffer(context, MainSceneGraph.Geometries.GetIndexBuffer(), mesh.IndexOffset * MeshStorage::GetIndexBufferStride(), indexBuffer, indexCount * sizeof(uint32_t), mesh.IndexCount * sizeof(uint32_t));
 			indexCount += mesh.IndexCount;
 		}
 	}
-
 	return indexCount;
 }
 
@@ -396,7 +405,9 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			Material& mat = MainSceneGraph.Materials[d.MaterialIndex];
 			return !mat.UseAlphaDiscard && !mat.UseBlend;
 		};
-		const uint32_t indexCount = CullDrawables(context, m_IndexBuffer, drawableFilter);
+
+		const BitField visibilityMask = CullDrawables(drawableFilter);
+		const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, visibilityMask);
 
 		GFX::Cmd::BindRenderTarget(context, TextureID{}, m_FinalRT_Depth);
 		GFX::Cmd::SetPipelineState(context, pso);
@@ -428,7 +439,8 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 				Material& mat = MainSceneGraph.Materials[d.MaterialIndex];
 				return !mat.UseAlphaDiscard && !mat.UseBlend;
 			};
-			const uint32_t indexCount = CullDrawables(context, m_IndexBuffer, drawableFilter);
+			const BitField visibilityMask = CullDrawables(drawableFilter);
+			const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, visibilityMask);
 
 			GFX::Cmd::BindRenderTarget(context, m_FinalRT, m_FinalRT_Depth);
 			GFX::Cmd::BindShader(context, m_GeometryShader, true);
@@ -455,7 +467,8 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 				Material& mat = MainSceneGraph.Materials[d.MaterialIndex];
 				return mat.UseAlphaDiscard && !mat.UseBlend;
 			};
-			const uint32_t indexCount = CullDrawables(context, m_IndexBuffer, drawableFilter);
+			const BitField visibilityMask = CullDrawables(drawableFilter);
+			const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, visibilityMask);
 
 			GFX::Cmd::BindShader(context, m_GeometryAlphaDiscardShader, true);
 			GFX::Cmd::BindIndexBuffer(context, m_IndexBuffer);

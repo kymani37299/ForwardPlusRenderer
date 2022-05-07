@@ -191,6 +191,12 @@ public:
 		m_Data.resize(m_NumElements);
 	}
 
+	void Reset()
+	{
+		m_Data.clear();
+		m_Data.resize(m_NumElements);
+	}
+
 	void Set(uint32_t index, bool value)
 	{
 		const uint32_t elementIndex = index / NumBitsPerElement;
