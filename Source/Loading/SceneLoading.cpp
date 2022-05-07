@@ -13,6 +13,10 @@
 
 #define CGTF_CALL(X) { cgltf_result result = X; ASSERT(result == cgltf_result_success, "CGTF_CALL_FAIL") }
 
+// TMP_HACK
+#undef min
+#undef max
+
 namespace SceneLoading
 {
 	namespace
@@ -102,6 +106,51 @@ namespace SceneLoading
 			return mesh;
 		}
 
+		BoundingSphere CalculateBoundingSphere(cgltf_primitive* meshData)
+		{
+			Float3* vertexData = nullptr;
+			uint32_t vertexCount = meshData->attributes[0].data->count;
+
+			for (size_t i = 0; i < meshData->attributes_count; i++)
+			{
+				cgltf_attribute* vertexAttribute = (meshData->attributes + i);
+				switch (vertexAttribute->type)
+				{
+				case cgltf_attribute_type_position:
+					ASSERT(vertexAttribute->data->type == cgltf_type_vec3, "[SceneLoading] ASSERT FAILED: attributeAccessor->type == TYPE");
+					ASSERT(vertexAttribute->data->component_type == cgltf_component_type_r_32f, "[SceneLoading] ASSERT FAILED: attributeAccessor->component_type == COMPONENT_TYPE");
+					vertexData = (Float3*) GetBufferData(vertexAttribute->data);
+					break;
+				}
+			}
+
+			ASSERT(vertexData, "[SceneLoading] ASSERT FAILED: vertexData");
+
+			static constexpr float MAX_FLOAT = std::numeric_limits<float>::max();
+			static constexpr float MIN_FLOAT = std::numeric_limits<float>::min();
+
+			Float3 minAABB{ MIN_FLOAT , MIN_FLOAT , MIN_FLOAT };
+			Float3 maxAABB{ MAX_FLOAT, MAX_FLOAT, MAX_FLOAT };
+			for (uint32_t i = 0; i < vertexCount; i++)
+			{
+				const Float3 pos = vertexData[i];
+
+				minAABB.x = MIN(minAABB.x, pos.x);
+				minAABB.y = MIN(minAABB.y, pos.y);
+				minAABB.z = MIN(minAABB.z, pos.z);
+
+				maxAABB.x = MAX(maxAABB.x, pos.x);
+				maxAABB.y = MAX(maxAABB.y, pos.y);
+				maxAABB.z = MAX(maxAABB.z, pos.z);
+			}
+
+			BoundingSphere bs;
+			bs.Center = 0.5f * (maxAABB + minAABB);
+			bs.Radius = Float3(DirectX::XMVector3LengthEst(minAABB - maxAABB)).x;
+
+			return bs;
+		}
+
 		uint32_t AddTexture(const LoadingContext& context, TextureID texture)
 		{
 			static TextureID stagingTexture;
@@ -188,7 +237,8 @@ namespace SceneLoading
 			MeshStorage& meshStorage = context.LoadingScene->Geometries;
 
 			Mesh mesh = LoadMesh(context, meshStorage, meshData);
-			Drawable drawable = context.LoadingScene->CreateDrawable(context.GfxContext, material, mesh, *context.LoadingEntity);
+			BoundingSphere boundingSphere = CalculateBoundingSphere(meshData);
+			Drawable drawable = context.LoadingScene->CreateDrawable(context.GfxContext, material, mesh, boundingSphere, *context.LoadingEntity);
 
 			std::vector<uint32_t> drawIndexData;
 			uint32_t drawIndex = drawable.DrawableIndex;
@@ -199,28 +249,6 @@ namespace SceneLoading
 			}
 			GFX::Cmd::UploadToBuffer(context.GfxContext, meshStorage.GetDrawableIndexes(), mesh.VertOffset * MeshStorage::GetDrawableIndexStride(), drawIndexData.data(), 0, drawIndexData.size() * MeshStorage::GetDrawableIndexStride());
 			
-			// TODO: Calculate bounding sphere
-			//Sphere generateSphereBV(const Model & model)
-			//{
-			//	glm::vec3 minAABB = glm::vec3(std::numeric_limits<float>::max());
-			//	glm::vec3 maxAABB = glm::vec3(std::numeric_limits<float>::min());
-			//	for (auto&& mesh : model.meshes)
-			//	{
-			//		for (auto&& vertex : mesh.vertices)
-			//		{
-			//			minAABB.x = std::min(minAABB.x, vertex.Position.x);
-			//			minAABB.y = std::min(minAABB.y, vertex.Position.y);
-			//			minAABB.z = std::min(minAABB.z, vertex.Position.z);
-
-			//			maxAABB.x = std::max(maxAABB.x, vertex.Position.x);
-			//			maxAABB.y = std::max(maxAABB.y, vertex.Position.y);
-			//			maxAABB.z = std::max(maxAABB.z, vertex.Position.z);
-			//		}
-			//	}
-
-			//	return Sphere((maxAABB + minAABB) * 0.5f, glm::length(minAABB - maxAABB));
-			//}
-
 			return drawable;
 		}
 	}

@@ -149,7 +149,7 @@ namespace GFX
 		texture.Width = width;
 		texture.Height = height;
 		texture.ArraySize = 1;
-		texture.NumMips = numMips == MAX_MIPS ? (uint32_t) std::log2(max(width, height)) + 1 : numMips;
+		texture.NumMips = numMips == MAX_MIPS ? (uint32_t) std::log2(MAX(width, height)) + 1 : numMips;
 		texture.Format = format;
 		texture.RowPitch = texture.Width * ToBPP(texture.Format);
 		texture.SlicePitch = texture.RowPitch * texture.Height;
@@ -222,7 +222,7 @@ namespace GFX
 		texture.Width = width;
 		texture.Height = height;
 		texture.ArraySize = arraySize;
-		texture.NumMips = numMips == MAX_MIPS ? (uint32_t)std::log2(max(width, height)) + 1 : numMips;
+		texture.NumMips = numMips == MAX_MIPS ? (uint32_t)std::log2(MAX(width, height)) + 1 : numMips;
 		texture.Format = format;
 		texture.RowPitch = texture.Width * ToBPP(texture.Format);
 		texture.SlicePitch = texture.RowPitch * texture.Height;

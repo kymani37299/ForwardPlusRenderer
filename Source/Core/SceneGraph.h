@@ -250,7 +250,7 @@ struct SceneGraph
 	void FrameUpdate(ID3D11DeviceContext* context);
 	void UpdateRenderData(ID3D11DeviceContext* context);
 	Entity& CreateEntity(ID3D11DeviceContext* context, Float3 position = { 0.0f, 0.0f, 0.0f }, Float3 scale = { 1.0f, 1.0f, 1.0f });
-	Drawable CreateDrawable(ID3D11DeviceContext* context, Material& material, Mesh& mesh, const Entity& entity);
+	Drawable CreateDrawable(ID3D11DeviceContext* context, Material& material, Mesh& mesh, BoundingSphere& boundingSphere, const Entity& entity);
 
 	Camera MainCamera{ {0.0f, 2.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, 75.0f };
 	ElementBuffer<Entity> Entities;

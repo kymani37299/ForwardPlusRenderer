@@ -287,8 +287,6 @@ void ForwardPlus::OnDestroy(ID3D11DeviceContext* context)
 
 bool IsVisible(const Drawable& d)
 {
-	return true;
-
 	const Entity& e = MainSceneGraph.Entities[d.EntityIndex];
 	const ViewFrustum& vf = MainSceneGraph.MainCamera.CameraFrustum;
 

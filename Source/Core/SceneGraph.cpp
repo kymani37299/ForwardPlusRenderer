@@ -254,7 +254,7 @@ Entity& SceneGraph::CreateEntity(ID3D11DeviceContext* context, Float3 position, 
 	return Entities[eIndex];
 }
 
-Drawable SceneGraph::CreateDrawable(ID3D11DeviceContext* context, Material& material, Mesh& mesh, const Entity& entity)
+Drawable SceneGraph::CreateDrawable(ID3D11DeviceContext* context, Material& material, Mesh& mesh, BoundingSphere& boundingSphere, const Entity& entity)
 {
 	const uint32_t dIndex = Drawables.Next();
 	const uint32_t matIndex = Materials.Next();
@@ -265,6 +265,7 @@ Drawable SceneGraph::CreateDrawable(ID3D11DeviceContext* context, Material& mate
 	drawable.MaterialIndex = matIndex;
 	drawable.MeshIndex = mIndex;
 	drawable.EntityIndex = entity.EntityIndex;
+	drawable.BoundingVolume = boundingSphere;
 
 	material.MaterialIndex = matIndex;
 	mesh.MeshIndex = mIndex;
