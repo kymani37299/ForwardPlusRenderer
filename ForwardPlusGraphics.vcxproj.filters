@@ -84,6 +84,9 @@
     <ClCompile Include="Source\Gui\FPSCounterGUI.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Gui\DebugToolsGUI.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\Common.h">
@@ -189,6 +192,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Source\Gui\FPSCounterGUI.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Gui\DebugToolsGUI.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

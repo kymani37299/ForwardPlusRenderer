@@ -166,6 +166,7 @@
     <ClCompile Include="Source\App\ForwardPlus.cpp" />
     <ClCompile Include="Source\Core\Engine.cpp" />
     <ClCompile Include="Source\Core\SceneGraph.cpp" />
+    <ClCompile Include="Source\Gui\DebugToolsGUI.cpp" />
     <ClCompile Include="Source\Gui\FPSCounterGUI.cpp" />
     <ClCompile Include="Source\Gui\GUI.cpp" />
     <ClCompile Include="Source\Gui\Imgui\imgui.cpp" />
@@ -193,6 +194,7 @@
     <ClInclude Include="Source\Common.h" />
     <ClInclude Include="Source\Core\Engine.h" />
     <ClInclude Include="Source\Core\SceneGraph.h" />
+    <ClInclude Include="Source\Gui\DebugToolsGUI.h" />
     <ClInclude Include="Source\Gui\FPSCounterGUI.h" />
     <ClInclude Include="Source\Gui\GUI.h" />
     <ClInclude Include="Source\Gui\Imgui\imconfig.h" />

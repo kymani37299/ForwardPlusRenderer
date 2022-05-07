@@ -10,6 +10,7 @@
 #include "Render/Resource.h"
 #include "Gui/GUI.h"
 #include "Gui/FPSCounterGUI.h"
+#include "Gui/DebugToolsGUI.h"
 #include "System/Input.h"
 #include "System/Window.h"
 #include "System/ApplicationConfiguration.h"
@@ -184,6 +185,7 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 	// Setup gui
 	{
 		GUI::Get()->AddElement(new FPSCounterGUI());
+		GUI::Get()->AddElement(new DebugToolsGUI());
 	}
 
 	
@@ -404,7 +406,9 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			return !mat.UseAlphaDiscard && !mat.UseBlend;
 		};
 
-		const BitField visibilityMask = CullDrawables(drawableFilter);
+		static BitField lastVisibilityMask{ 0 };
+		const BitField visibilityMask = DebugToolsConfig.FreezeCulling ? lastVisibilityMask : CullDrawables(drawableFilter);
+		lastVisibilityMask = visibilityMask;
 		const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, visibilityMask);
 
 		GFX::Cmd::BindRenderTarget(context, TextureID{}, m_FinalRT_Depth);
@@ -437,7 +441,10 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 				Material& mat = MainSceneGraph.Materials[d.MaterialIndex];
 				return !mat.UseAlphaDiscard && !mat.UseBlend;
 			};
-			const BitField visibilityMask = CullDrawables(drawableFilter);
+
+			static BitField lastVisibilityMask{ 0 };
+			const BitField visibilityMask = DebugToolsConfig.FreezeCulling ? lastVisibilityMask : CullDrawables(drawableFilter);
+			lastVisibilityMask = visibilityMask;
 			const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, visibilityMask);
 
 			GFX::Cmd::BindRenderTarget(context, m_FinalRT, m_FinalRT_Depth);
@@ -465,7 +472,10 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 				Material& mat = MainSceneGraph.Materials[d.MaterialIndex];
 				return mat.UseAlphaDiscard && !mat.UseBlend;
 			};
-			const BitField visibilityMask = CullDrawables(drawableFilter);
+
+			static BitField lastVisibilityMask{ 0 };
+			const BitField visibilityMask = DebugToolsConfig.FreezeCulling ? lastVisibilityMask : CullDrawables(drawableFilter);
+			lastVisibilityMask = visibilityMask;
 			const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, visibilityMask);
 
 			GFX::Cmd::BindShader(context, m_GeometryAlphaDiscardShader, true);

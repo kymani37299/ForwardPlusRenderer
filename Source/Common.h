@@ -28,4 +28,3 @@ X& operator=(X const&) = delete;
 
 template<typename T> T MAX(const T & a, const T & b) { return a > b ? a : b; }
 template<typename T> T MIN(const T & a, const T & b) { return a < b ? a : b; }
-
