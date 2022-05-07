@@ -91,7 +91,9 @@ void Camera::RotToAxis(Float3 rot, Float3& forward, Float3& up, Float3& right)
 Camera::Camera(Float3 position, Float3 rotation, float fov):
 	Position(position),
 	Rotation(rotation),
-	FOV(fov)
+	FOV(fov),
+	ZFar(1000.0f),
+	ZNear(0.1f)
 { }
 
 void Camera::UpdateBuffer(ID3D11DeviceContext* context)
@@ -104,14 +106,11 @@ void Camera::UpdateBuffer(ID3D11DeviceContext* context)
 		XMFLOAT3 Position;
 	};
 
-	float aspectRatio = (float) AppConfig.WindowWidth / AppConfig.WindowHeight;
-	Float3 Up;
-	Float3 Forward;
-	Float3 Right;
+	AspectRatio = (float) AppConfig.WindowWidth / AppConfig.WindowHeight;
 	RotToAxis(Rotation, Forward, Up, Right);
 
 	XMMATRIX matView = XMMatrixTranspose(XMMatrixLookAtLH(Position.ToXM(), (Position + Forward).ToXM(), Up.ToXM()));
-	XMMATRIX matProj = XMMatrixTranspose(XMMatrixPerspectiveFovLH(DegreesToRadians(FOV), aspectRatio, 0.1f, 1000.0f));
+	XMMATRIX matProj = XMMatrixTranspose(XMMatrixPerspectiveFovLH(DegreesToRadians(FOV), AspectRatio, ZNear, ZFar));
 	
 	WorldToView = matView;
 
@@ -162,14 +161,35 @@ SceneGraph::SceneGraph() :
 
 void SceneGraph::FrameUpdate(ID3D11DeviceContext* context)
 {
-	MainCamera.UpdateBuffer(context);
-
-	auto f = [&context, this](Drawable d)
+	// Camera
 	{
-		Materials[d.MaterialIndex].UpdateBuffer(context);
-		d.UpdateBuffer(context);
-	};
-	DrawablesToUpdate.ForEachAndClear(f);
+		MainCamera.UpdateBuffer(context);
+
+		ViewFrustum& vf = MainCamera.CameraFrustum;
+		const Camera& c = MainCamera;
+
+		const float halfVSide = c.ZFar * tanf(c.FOV * .5f);
+		const float halfHSide = halfVSide * c.AspectRatio;
+		const Float3 frontMultFar = c.ZFar * c.Forward;
+
+		vf.Near = { c.Position + c.ZNear * c.Forward, c.Forward };
+		vf.Far = { c.Position + frontMultFar, -1.0f * c.Forward };
+		vf.Right = { c.Position, DirectX::XMVector3Cross(c.Up, frontMultFar + halfHSide * c.Right) };
+		vf.Left = { c.Position, DirectX::XMVector3Cross(frontMultFar - halfHSide * c.Right, c.Up) };
+		vf.Top = { c.Position, DirectX::XMVector3Cross(c.Right, frontMultFar - halfVSide * c.Up) };
+		vf.Bottom = { c.Position, DirectX::XMVector3Cross(frontMultFar + halfVSide * c.Up, c.Right) };
+	}
+
+	// Peding actions
+	{
+		auto f = [&context, this](Drawable d)
+		{
+			Materials[d.MaterialIndex].UpdateBuffer(context);
+			d.UpdateBuffer(context);
+		};
+		DrawablesToUpdate.ForEachAndClear(f);
+	}
+
 }
 
 void SceneGraph::UpdateRenderData(ID3D11DeviceContext* context)

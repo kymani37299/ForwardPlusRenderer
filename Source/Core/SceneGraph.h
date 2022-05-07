@@ -8,6 +8,48 @@
 
 struct ID3D11DeviceContext;
 
+struct FrustumPlane
+{
+	Float3 Normal{ 0.f, 1.f, 0.f };;
+	float Distance = 0.0f;
+
+	FrustumPlane() = default;
+
+	FrustumPlane(const Float3& p1, const Float3& norm):
+		Normal(DirectX::XMVector3Normalize(norm.ToXM()))
+	{
+		Float2 f2 = DirectX::XMVector3Dot(norm.ToXM(), p1.ToXM());
+		Distance = f2.x;
+	}
+
+	float GetSignedDistnace(const Float3& point) const
+	{
+		Float2 dotResult = DirectX::XMVector3Dot(point.ToXM(), Normal.ToXM());
+		return dotResult.x - Distance;
+	}
+};
+
+struct ViewFrustum
+{
+	FrustumPlane Top;
+	FrustumPlane Bottom;
+	FrustumPlane Right;
+	FrustumPlane Left;
+	FrustumPlane Far;
+	FrustumPlane Near;
+};
+
+struct BoundingSphere
+{
+	Float3 Center{ 0.0f, 0.0f, 0.0f };
+	float Radius{ 1.0f };
+
+	bool ForwardToPlane(const FrustumPlane& plane) const
+	{
+		return plane.GetSignedDistnace(Center) > -Radius;
+	}
+};
+
 struct Material
 {
 	uint32_t MaterialIndex = 0;
@@ -47,6 +89,8 @@ struct Drawable
 	uint32_t MaterialIndex;
 	uint32_t MeshIndex;
 
+	BoundingSphere BoundingVolume;
+
 	void UpdateBuffer(ID3D11DeviceContext* context);
 };
 
@@ -67,13 +111,23 @@ struct Camera
 	Camera(Float3 position, Float3 rotation, float fov);
 	void UpdateBuffer(ID3D11DeviceContext* context);
 
+	float AspectRatio;
 	float FOV;
+	float ZFar;
+	float ZNear;
+
 	Float3 Position;
 	Float3 Rotation; // (Pitch, Yaw, Roll)
+
+	Float3 Forward;
+	Float3 Right;
+	Float3 Up;
 
 	DirectX::XMMATRIX WorldToView;
 
 	BufferID CameraBuffer;
+
+	ViewFrustum CameraFrustum;
 };
 
 enum LightType : uint32_t

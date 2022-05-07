@@ -45,6 +45,8 @@ struct Float2
 	DirectX::XMVECTOR ToXM() const { return DirectX::XMVectorSet(x, y, 0.0f, 0.0f); }
 	DirectX::XMFLOAT2 ToXMF() const { return DirectX::XMFLOAT2{ x,y }; }
 	DirectX::XMFLOAT2A ToXMFA() const { return DirectX::XMFLOAT2A{ x,y }; }
+
+	operator DirectX::XMVECTOR() const { return ToXM(); }
 };
 
 struct Float3
@@ -90,6 +92,8 @@ struct Float3
 	DirectX::XMVECTOR ToXM() const { return DirectX::XMVectorSet(x, y, z, 0.0f); }
 	DirectX::XMFLOAT3 ToXMF() const { return DirectX::XMFLOAT3{ x,y,z }; }
 	DirectX::XMFLOAT3A ToXMFA() const { return DirectX::XMFLOAT3A{ x,y,z }; }
+
+	operator DirectX::XMVECTOR() const { return ToXM(); }
 };
 
 struct Float4
@@ -137,6 +141,8 @@ struct Float4
 	DirectX::XMVECTOR ToXM() const { return DirectX::XMVectorSet(x, y, z, w); }
 	DirectX::XMFLOAT4 ToXMF() const { return DirectX::XMFLOAT4{ x,y,z,w }; }
 	DirectX::XMFLOAT4A ToXMFA() const { return DirectX::XMFLOAT4A{ x,y,z,w }; }
+
+	operator DirectX::XMVECTOR() const { return ToXM(); }
 };
 
 struct ColorUNORM

@@ -288,6 +288,23 @@ void ForwardPlus::OnDestroy(ID3D11DeviceContext* context)
 bool IsVisible(const Drawable& d)
 {
 	return true;
+
+	const Entity& e = MainSceneGraph.Entities[d.EntityIndex];
+	const ViewFrustum& vf = MainSceneGraph.MainCamera.CameraFrustum;
+
+	const float maxScale = MAX(MAX(e.Scale.x, e.Scale.y), e.Scale.z);
+
+	BoundingSphere bv;
+	bv.Center = e.Position + d.BoundingVolume.Center;
+	bv.Radius = d.BoundingVolume.Radius * 0.5f * maxScale;
+
+	return 
+		bv.ForwardToPlane(vf.Left) && 
+		bv.ForwardToPlane(vf.Right) &&
+		bv.ForwardToPlane(vf.Far) &&
+		bv.ForwardToPlane(vf.Near) &&
+		bv.ForwardToPlane(vf.Top) &&
+		bv.ForwardToPlane(vf.Bottom);
 }
 
 template<typename FilterFunc>
