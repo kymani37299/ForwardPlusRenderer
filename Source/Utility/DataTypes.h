@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 #include <stdint.h>
 #include <DirectXMath.h>
 
@@ -174,3 +175,47 @@ namespace XMUtility
 		return value;
 	}
 }
+
+class BitField
+{
+	constexpr uint32_t CeilDivide(uint32_t a, uint32_t b)
+	{
+		return (a + b - 1) / b;
+	}
+
+public:
+	BitField(uint32_t numBits):
+	m_NumBits(numBits)
+	{ 
+		m_NumElements = CeilDivide(numBits, NumBitsPerElement);
+		m_Data.resize(m_NumElements);
+	}
+
+	void Set(uint32_t index, bool value)
+	{
+		const uint32_t elementIndex = index / NumBitsPerElement;
+		const uint32_t bitIndex = index % NumBitsPerElement;
+		const uint32_t writeValue = value ? 1 : 0;
+		uint32_t& dataValue = m_Data[elementIndex];
+		dataValue &= ~(1 << bitIndex);
+		dataValue |= writeValue << bitIndex;
+	}
+
+	bool Get(uint32_t index) const
+	{
+		const uint32_t elementIndex = index / NumBitsPerElement;
+		const uint32_t bitIndex = index % NumBitsPerElement;
+		return m_Data[elementIndex] & (1 << bitIndex);
+	}
+
+	void* GetRaw() const
+	{
+		return (void*) m_Data.data();
+	}
+
+private:
+	static constexpr uint32_t NumBitsPerElement = sizeof(uint32_t) * 8;
+	uint32_t m_NumElements;
+	uint32_t m_NumBits;
+	std::vector<uint32_t> m_Data;
+};
