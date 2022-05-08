@@ -16,10 +16,10 @@ float CalcAttenuation(float d, float falloffStart, float falloffEnd)
 // Approx of fresnel reflectance
 float3 SchlickFresnel(float3 R0, float3 normal, float3 lightVec)
 {
-	float cosIncidentAngle = saturate(dot(normal, lightVec));
+	const float cosIncidentAngle = saturate(dot(normal, lightVec));
 
-	float f0 = 1.0f - cosIncidentAngle;
-	float3 reflectPercent = R0 + (1.0f - R0) * (f0 * f0 * f0 * f0 * f0);
+	const float f0 = 1.0f - cosIncidentAngle;
+	const float3 reflectPercent = R0 + (1.0f - R0) * (f0 * f0 * f0 * f0 * f0);
 
 	return reflectPercent;
 }
@@ -27,10 +27,10 @@ float3 SchlickFresnel(float3 R0, float3 normal, float3 lightVec)
 float3 BlinnPhong(float3 lightStrength, float3 lightVec, float3 normal, float3 toEye, MaterialInput mat)
 {
 	const float m = (1.0f - mat.Roughness) * 256.0f;
-	float3 halfVec = normalize(toEye + lightVec);
+	const float3 halfVec = normalize(toEye + lightVec);
 
-	float roughnessFactor = (m + 8.0f) * pow(max(dot(halfVec, normal), 0.0f), m) / 8.0f;
-	float3 fresnelFactor = SchlickFresnel(mat.FresnelR0, halfVec, lightVec);
+	const float roughnessFactor = (m + 8.0f) * pow(max(dot(halfVec, normal), 0.0f), m) / 8.0f;
+	const float3 fresnelFactor = SchlickFresnel(mat.FresnelR0, halfVec, lightVec);
 
 	float3 specAlbedo = fresnelFactor * roughnessFactor;
 
@@ -44,11 +44,11 @@ float3 BlinnPhong(float3 lightStrength, float3 lightVec, float3 normal, float3 t
 float3 ComputeDirectionalLight(Light light, MaterialInput mat, float3 normal, float3 toEye)
 {
 	// The light vector aims opposite the direction the light rays travel.
-	float3 lightVec = -light.Direction;
+	const float3 lightVec = -light.Direction;
 
 	// Scale light down by Lambert's cosine law.
-	float ndotl = max(dot(lightVec, normal), 0.0f);
-	float3 lightStrength = light.Strength * ndotl;
+	const float ndotl = max(dot(lightVec, normal), 0.0f);
+	const float3 lightStrength = light.Strength * ndotl;
 
 	return BlinnPhong(lightStrength, lightVec, normal, toEye, mat);
 }
@@ -59,7 +59,7 @@ float3 ComputePointLight(Light light, MaterialInput mat, float3 pos, float3 norm
     float3 lightVec = light.Position - pos;
 
     // The distance from surface to light.
-    float d = length(lightVec);
+   const  float d = length(lightVec);
 
     // Range test.
     if (d > light.Falloff.y)
@@ -69,11 +69,11 @@ float3 ComputePointLight(Light light, MaterialInput mat, float3 pos, float3 norm
     lightVec /= d;
 
     // Scale light down by Lambert's cosine law.
-    float ndotl = max(dot(lightVec, normal), 0.0f);
+    const float ndotl = max(dot(lightVec, normal), 0.0f);
     float3 lightStrength = light.Strength * ndotl;
 
     // Attenuate light by distance.
-    float att = CalcAttenuation(d, light.Falloff.x, light.Falloff.y);
+    const float att = CalcAttenuation(d, light.Falloff.x, light.Falloff.y);
     lightStrength *= att;
 
     return BlinnPhong(lightStrength, lightVec, normal, toEye, mat);

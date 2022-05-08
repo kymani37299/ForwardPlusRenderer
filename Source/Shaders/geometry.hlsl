@@ -78,8 +78,8 @@ bool IsInShadow(float3 worldPos)
 
 float4 PS(VertexOut IN) : SV_Target
 {
-	Material matParams = Materials[IN.MaterialIndex];
-	float4 albedo = Textures.Sample(s_AnisoWrap, float3(IN.UV, matParams.Albedo) );
+	const Material matParams = Materials[IN.MaterialIndex];
+	const float4 albedo = Textures.Sample(s_AnisoWrap, float3(IN.UV, matParams.Albedo) );
 
 #ifdef ALPHA_DISCARD
 	if (albedo.a < 0.05f)
@@ -98,18 +98,18 @@ float4 PS(VertexOut IN) : SV_Target
 	mat.Roughness = Textures.Sample(s_LinearWrap, float3(IN.UV, matParams.MetallicRoughness)).g * matParams.RoughnessFactor;
 	mat.Roughness = min(0.99f, mat.Roughness);
 
-	float3 normal = normalize(IN.Normal);
-	float3 view = normalize(CamData.Position - IN.WorldPosition);
+	const float3 normal = normalize(IN.Normal);
+	const float3 view = normalize(CamData.Position - IN.WorldPosition);
 
 	float4 litColor = float4(0.0f, 0.0f, 0.0f, 0.0f);
 
-	uint2 tileIndex = GetTileIndexFromPosition(IN.Position.xyz);
-	uint visibleLightOffset = GetOffsetFromTileIndex(TiledCullingInfoData, tileIndex);
+	const uint2 tileIndex = GetTileIndexFromPosition(IN.Position.xyz);
+	const uint visibleLightOffset = GetOffsetFromTileIndex(TiledCullingInfoData, tileIndex);
 
 	for (uint i = visibleLightOffset; VisibleLights[i] != VISIBLE_LIGHT_END; i++)
 	{
-		uint lightIndex = VisibleLights[i];
-		Light l = Lights[lightIndex];
+		const uint lightIndex = VisibleLights[i];
+		const Light l = Lights[lightIndex];
 		switch (l.Type)
 		{
 		case LIGHT_TYPE_DIRECTIONAL:

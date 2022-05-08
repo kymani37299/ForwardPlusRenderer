@@ -15,6 +15,6 @@ uint GetOffsetFromTileIndex(TiledCullingInfo tiledCullingInfo, uint2 tileIndex)
 
 uint2 GetTileIndexFromPosition(float3 position)
 {
-	float2 tileIndexF = position.xy / TILE_SIZE;
+	const float2 tileIndexF = position.xy / TILE_SIZE;
 	return uint2(tileIndexF.x, tileIndexF.y);
 }
