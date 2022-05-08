@@ -4,6 +4,7 @@
 
 struct TiledCullingInfo
 {
+	uint2 ScreenSize;
 	uint2 TileCount;
 };
 

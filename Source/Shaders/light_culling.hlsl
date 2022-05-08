@@ -48,12 +48,12 @@ void CS(uint3 threadID : SV_DispatchThreadID, uint3 groupID : SV_GroupID, uint3 
 
 	// Step 1: Initialization
 
-	uint threadCount = TILE_SIZE * TILE_SIZE;
-	uint2 pixelCoord = threadID.xy;
-	uint2 tileIndex = groupID.xy;
-	uint localIndex = localThreadID.y * TILE_SIZE + localThreadID.x;
-	bool isMainThread = localThreadID.x == 0 && localThreadID.y == 0;
-	float4x4 worldToClip = mul(CamData.WorldToView, CamData.ViewToClip);
+	const uint threadCount = TILE_SIZE * TILE_SIZE;
+	const uint2 pixelCoord = threadID.xy;
+	const uint2 tileIndex = groupID.xy;
+	const uint localIndex = localThreadID.y * TILE_SIZE + localThreadID.x;
+	const bool isMainThread = localThreadID.x == 0 && localThreadID.y == 0;
+	const float4x4 worldToClip = mul(CamData.WorldToView, CamData.ViewToClip);
 
 	if (isMainThread)
 	{
@@ -69,9 +69,10 @@ void CS(uint3 threadID : SV_DispatchThreadID, uint3 groupID : SV_GroupID, uint3 
 	// Step 2: Min and max depth
 
 	float maxDepth, minDepth;
-	float depth = DepthTexture.Load(uint3(pixelCoord,0)); // TODO: Maybe consider clamping pixelCoord to the screen size
-	float linearizedDepth = LinearizeDepth(CamData.ViewToClip, depth);
-	uint depthUint = asuint(linearizedDepth);
+	const uint3 readPixelCoord = uint3(min(pixelCoord.x, TiledCullingInfoData.ScreenSize.x - 1), min(pixelCoord.y, TiledCullingInfoData.ScreenSize.y - 1), 0);
+	const float depth = DepthTexture.Load(readPixelCoord);
+	const float linearizedDepth = LinearizeDepth(CamData.ViewToClip, depth);
+	const uint depthUint = asuint(linearizedDepth);
 
 	InterlockedMin(gsMinDepth, depthUint);
 	InterlockedMax(gsMaxDepth, depthUint);
@@ -86,20 +87,20 @@ void CS(uint3 threadID : SV_DispatchThreadID, uint3 groupID : SV_GroupID, uint3 
 	{
 		minDepth = asfloat(gsMinDepth);
 		maxDepth = asfloat(gsMaxDepth);
-
-		float2 negativeStep = (2.0f * float2(tileIndex)) / float2(TiledCullingInfoData.TileCount);
-		float2 positiveStep = (2.0f * float2(tileIndex + uint2(1, 1))) / float2(TiledCullingInfoData.TileCount);
-
+	
+		const float2 negativeStep = (2.0f * float2(tileIndex)) / float2(TiledCullingInfoData.TileCount);
+		const float2 positiveStep = (2.0f * float2(tileIndex + uint2(1, 1))) / float2(TiledCullingInfoData.TileCount);
+	
 		gsFrustumPlanes[0] = float4(1.0, 0.0, 0.0, 1.0 - negativeStep.x);		// Left
 		gsFrustumPlanes[1] = float4(-1.0, 0.0, 0.0, -1.0 + positiveStep.x);		// Right
 		gsFrustumPlanes[2] = float4(0.0, 1.0, 0.0, 1.0 - negativeStep.y);		// Bottom
 		gsFrustumPlanes[3] = float4(0.0, -1.0, 0.0, -1.0 + positiveStep.y);		// Top
 		gsFrustumPlanes[4] = float4(0.0, 0.0, -1.0, -minDepth);					// Near
 		gsFrustumPlanes[5] = float4(0.0, 0.0, 1.0, maxDepth);					// Far
-
+	
 		// Trasnform
 		for (uint i = 0; i < 6; i++) {
-			float4x4 transform = i < 4 ? worldToClip : CamData.WorldToView;
+			const float4x4 transform = i < 4 ? worldToClip : CamData.WorldToView;
 			gsFrustumPlanes[i] = mul(gsFrustumPlanes[i], transform);
 			gsFrustumPlanes[i] /= length(gsFrustumPlanes[i].xyz);
 		}
@@ -111,41 +112,41 @@ void CS(uint3 threadID : SV_DispatchThreadID, uint3 groupID : SV_GroupID, uint3 
 
 	// Step 4: Culling : Paralelizing against the lights
 
-	uint numPasses = (SceneInfoData.NumLights + threadCount - 1) / threadCount;
+	const uint numPasses = (SceneInfoData.NumLights + threadCount - 1) / threadCount;
 	for (uint i = 0; i < numPasses; i++)
 	{
-		uint lightIndex = i * threadCount + localIndex;
+		const uint lightIndex = i * threadCount + localIndex;
 		if (lightIndex >= SceneInfoData.NumLights)
 			break;
-
+	
 		bool isVisible = false;
-		Light l = Lights[lightIndex];
-
+		const Light l = Lights[lightIndex];
+	
 		if (l.Type == LIGHT_TYPE_POINT)
 		{
-			float4 position = float4(Lights[lightIndex].Position, 1.0f);
-			float radius = 1.0f; // TODO: Calculate radius
-
+			const float4 position = float4(Lights[lightIndex].Position, 1.0f);
+			const float radius = 1.0f; // TODO: Calculate radius
+		
 			float sd = 0.0; // Signed distance
 			for (uint j = 0; j < 6; j++)
 			{
 				sd = dot(position, gsFrustumPlanes[j]) + radius;
 				if (sd <= 0.0f) break;
 			}
-
+		
 			isVisible = sd > 0.0f;
 		}
 		// TODO: else if(l.Type == LIGHT_TYPE_SPOT)
-		else
+		//else
 		{
 			isVisible = true;
 		}
-
+	
 		if (isVisible)
 		{
 			uint writeOffset;
 			InterlockedAdd(gsVisibleLightCount, 1, writeOffset);
-
+	
 			if (writeOffset < MAX_LIGHTS_PER_TILE)
 				gsVisibleLightIndexes[writeOffset] = lightIndex;
 		}
@@ -159,13 +160,13 @@ void CS(uint3 threadID : SV_DispatchThreadID, uint3 groupID : SV_GroupID, uint3 
 
 	if (isMainThread)
 	{
-		uint writeOffset = GetOffsetFromTileIndex(TiledCullingInfoData, tileIndex);
-		uint visibleLightCount = min(gsVisibleLightCount, MAX_LIGHTS_PER_TILE);
+		const uint writeOffset = GetOffsetFromTileIndex(TiledCullingInfoData, tileIndex);
+		const uint visibleLightCount = min(gsVisibleLightCount, MAX_LIGHTS_PER_TILE);
 		for (uint i = 0; i < visibleLightCount; i++)
 		{
 			VisibleLights[writeOffset + i] = gsVisibleLightIndexes[i];
 		}
-		VisibleLights[visibleLightCount] = VISIBLE_LIGHT_END;
+		VisibleLights[writeOffset + visibleLightCount] = VISIBLE_LIGHT_END;
 	}
 #endif // FAKE_ALGO
 }

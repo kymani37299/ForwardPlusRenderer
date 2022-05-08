@@ -275,7 +275,7 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 	m_DepthPrepassShader = GFX::CreateShader("Source/Shaders/depth.hlsl", {}, SCF_VS);
 	m_GeometryShader = GFX::CreateShader("Source/Shaders/geometry.hlsl");
 	m_GeometryAlphaDiscardShader = GFX::CreateShader("Source/Shaders/geometry.hlsl", { "ALPHA_DISCARD" });
-	m_LightCullingShader = GFX::CreateShader("Source/Shaders/light_culling.hlsl", { "FAKE_ALGO" }, SCF_CS);
+	m_LightCullingShader = GFX::CreateShader("Source/Shaders/light_culling.hlsl", { "USE_BARRIERS"}, SCF_CS);
 
 	GenerateSkybox(context, m_SkyboxCubemap);
 	m_FinalRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV);
@@ -529,6 +529,8 @@ void ForwardPlus::UpdateCullingResources(ID3D11DeviceContext* context)
 {
 	struct TileCullingInfoCB
 	{
+		uint32_t ScreenSizeX;
+		uint32_t ScreenSizeY;
 		uint32_t NumTilesX;
 		uint32_t NumTilesY;
 	};
@@ -544,6 +546,8 @@ void ForwardPlus::UpdateCullingResources(ID3D11DeviceContext* context)
 	m_VisibleLightsBuffer = GFX::CreateBuffer(m_NumTilesX * m_NumTilesY * (MAX_LIGHTS_PER_TILE + 1) * sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_SB | RCF_Bind_UAV);
 
 	TileCullingInfoCB tileCullingInfoCB{};
+	tileCullingInfoCB.ScreenSizeX = AppConfig.WindowWidth;
+	tileCullingInfoCB.ScreenSizeY = AppConfig.WindowHeight;
 	tileCullingInfoCB.NumTilesX = m_NumTilesX;
 	tileCullingInfoCB.NumTilesY = m_NumTilesY;
 
