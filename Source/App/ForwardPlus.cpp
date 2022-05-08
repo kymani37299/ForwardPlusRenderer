@@ -11,6 +11,7 @@
 #include "Gui/GUI.h"
 #include "Gui/FPSCounterGUI.h"
 #include "Gui/DebugToolsGUI.h"
+#include "Gui/PositionInfoGUI.h"
 #include "System/Input.h"
 #include "System/Window.h"
 #include "System/ApplicationConfiguration.h"
@@ -204,6 +205,7 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 
 		GUI::Get()->AddElement(new FPSCounterGUI());
 		GUI::Get()->AddElement(new DebugToolsGUI());
+		GUI::Get()->AddElement(new PositionInfoGUI());
 	}
 
 	MainSceneGraph.InitRenderData(context);
