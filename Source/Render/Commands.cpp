@@ -180,6 +180,8 @@ namespace GFX
 
 		void UploadToBuffer(ID3D11DeviceContext* context, BufferID bufferID, uint32_t dstOffset, const void* data, uint32_t srcOffset, size_t dataSize)
 		{
+			if (dataSize == 0) return;
+
 			const Buffer& buffer = GFX::Storage::GetBuffer(bufferID);
 			if ((buffer.CreationFlags & RCF_CPU_Write) || (buffer.CreationFlags & RCF_CPU_Write_Persistent))
 			{
@@ -232,6 +234,8 @@ namespace GFX
 
 		void CopyToBuffer(ID3D11DeviceContext* context, BufferID srcBuffer, uint32_t srcOffset, BufferID dstBuffer, uint32_t dstOffset, uint32_t size)
 		{
+			if (size == 0) return;
+
 			const Buffer& srcBuf = GFX::Storage::GetBuffer(srcBuffer);
 			const Buffer& dstBuf = GFX::Storage::GetBuffer(dstBuffer);
 			D3D11_BOX sourceRegion;

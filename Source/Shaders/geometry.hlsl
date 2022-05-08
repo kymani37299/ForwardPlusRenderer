@@ -1,6 +1,7 @@
 #include "samplers.h"
 #include "scene.h"
 #include "lighting.h"
+#include "light_culling.h"
 
 struct VertexInput
 {
@@ -25,9 +26,9 @@ cbuffer CameraCB : register(b0)
 	Camera CamData;
 }
 
-cbuffer SceneInfoCB : register(b1)
+cbuffer TiledCullingInfoCB : register(b1)
 {
-	SceneInfo SceneInfoData;
+	TiledCullingInfo TiledCullingInfoData;
 }
 
 cbuffer LightSpaceCB : register(b3)
@@ -41,6 +42,7 @@ Texture2D Shadowmap : register(t4);
 StructuredBuffer<Entity> Entities : register(t5);
 StructuredBuffer<Material> Materials : register(t6);
 StructuredBuffer<Drawable> Drawables : register(t7);
+StructuredBuffer<uint> VisibleLights : register(t8);
 
 VertexOut VS(VertexInput IN)
 {
@@ -101,9 +103,13 @@ float4 PS(VertexOut IN) : SV_Target
 
 	float4 litColor = float4(0.0f, 0.0f, 0.0f, 0.0f);
 
-	for (uint i = 0; i < SceneInfoData.NumLights; i++)
+	uint2 tileIndex = GetTileIndexFromPosition(IN.Position.xyz);
+	uint visibleLightOffset = GetOffsetFromTileIndex(TiledCullingInfoData, tileIndex);
+
+	for (uint i = visibleLightOffset; i < visibleLightOffset + 1024 && i < VisibleLights[i] != VISIBLE_LIGHT_END; i++)
 	{
-		const Light l = Lights[i];
+		uint lightIndex = VisibleLights[i];
+		Light l = Lights[lightIndex];
 		switch (l.Type)
 		{
 		case 1:

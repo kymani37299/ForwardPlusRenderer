@@ -197,5 +197,8 @@
     <ClInclude Include="Source\Gui\DebugToolsGUI.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Utility\MathUtility.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

@@ -15,6 +15,7 @@
 #include "System/Window.h"
 #include "System/ApplicationConfiguration.h"
 #include "Loading/SceneLoading.h"
+#include "Utility/MathUtility.h"
 
 namespace ForwardPlusPrivate
 {
@@ -274,13 +275,15 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 	m_DepthPrepassShader = GFX::CreateShader("Source/Shaders/depth.hlsl", {}, SCF_VS);
 	m_GeometryShader = GFX::CreateShader("Source/Shaders/geometry.hlsl");
 	m_GeometryAlphaDiscardShader = GFX::CreateShader("Source/Shaders/geometry.hlsl", { "ALPHA_DISCARD" });
-	m_ComputeTestShader = GFX::CreateShader("Source/Shaders/compute_test.hlsl", {}, SCF_CS);
+	m_LightCullingShader = GFX::CreateShader("Source/Shaders/light_culling.hlsl", {}, SCF_CS);
 
 	GenerateSkybox(context, m_SkyboxCubemap);
 	m_FinalRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV | RCF_Bind_UAV);
 	m_FinalRT_Depth = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_DSV);
 
 	m_IndexBuffer = GFX::CreateBuffer(sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_IB | RCF_CopyDest);
+
+	UpdateCullingResources(context);
 }
 
 void ForwardPlus::OnDestroy(ID3D11DeviceContext* context)
@@ -421,6 +424,19 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		GFX::Cmd::MarkerEnd(context);
 	}
 	
+	// Light culling
+	{
+		GFX::Cmd::MarkerBegin(context, "Light Culling");
+		GFX::Cmd::BindShader(context, m_LightCullingShader);
+		GFX::Cmd::BindCBV<CS>(context, MainSceneGraph.SceneInfoBuffer, 0);
+		GFX::Cmd::BindCBV<CS>(context, m_TileCullingInfoBuffer, 1);
+		GFX::Cmd::BindSRV<CS>(context, MainSceneGraph.Lights.GetBuffer(), 0);
+		GFX::Cmd::BindUAV<CS>(context, m_VisibleLightsBuffer, 0);
+		context->Dispatch(m_NumTilesX, m_NumTilesY, 1);
+		GFX::Cmd::BindUAV<CS>(context, nullptr, 0);
+		GFX::Cmd::MarkerEnd(context);
+	}
+
 	// Geometry
 	{
 		GFX::Cmd::MarkerBegin(context, "Geometry");
@@ -447,7 +463,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Textures, 0);
 			GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
-			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.SceneInfoBuffer, 1);
+			GFX::Cmd::BindCBV<PS>(context, m_TileCullingInfoBuffer, 1);
 			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.WorldToLightClip, 3);
 			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Lights.GetBuffer(), 3);
 			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.ShadowMapTexture, 4);
@@ -455,6 +471,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Materials.GetBuffer(), 6);
 			GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Drawables.GetBuffer(), 7);
 			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Drawables.GetBuffer(), 7);
+			GFX::Cmd::BindSRV<PS>(context, m_VisibleLightsBuffer, 8);
 			GFX::Cmd::BindVertexBuffers(context, { meshStorage.GetPositions(), meshStorage.GetTexcoords(), meshStorage.GetNormals(), meshStorage.GetTangents(), meshStorage.GetDrawableIndexes() });
 			GFX::Cmd::BindIndexBuffer(context, m_IndexBuffer);
 			context->DrawIndexed(indexCount, 0, 0);
@@ -476,14 +493,6 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		}
 
 		GFX::Cmd::MarkerEnd(context);
-	}
-
-	{
-		context->OMSetRenderTargets(0, nullptr, nullptr);
-		GFX::Cmd::BindShader(context, m_ComputeTestShader);
-		GFX::Cmd::BindUAV<CS>(context, m_FinalRT, 0);
-		context->Dispatch(128 / 32, 128 / 32, 1);
-		GFX::Cmd::BindUAV<CS>(context, nullptr, 0);
 	}
 
 	return m_FinalRT;
@@ -508,4 +517,33 @@ void ForwardPlus::OnWindowResize(ID3D11DeviceContext* context)
 	GFX::Storage::Free(m_FinalRT_Depth);
 	m_FinalRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV | RCF_Bind_UAV);
 	m_FinalRT_Depth = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_DSV);
+
+	UpdateCullingResources(context);
+}
+
+void ForwardPlus::UpdateCullingResources(ID3D11DeviceContext* context)
+{
+	struct TileCullingInfoCB
+	{
+		uint32_t MaxLightsPerTile;
+		uint32_t NumTilesX;
+		uint32_t NumTilesY;
+	};
+
+	if(m_VisibleLightsBuffer.Valid())
+		GFX::Storage::Free(m_VisibleLightsBuffer);
+
+	if (!m_TileCullingInfoBuffer.Valid())
+		m_TileCullingInfoBuffer = GFX::CreateConstantBuffer<TileCullingInfoCB>();
+
+	m_NumTilesX = MathUtility::CeilDiv(AppConfig.WindowWidth, TILE_SIZE);
+	m_NumTilesY = MathUtility::CeilDiv(AppConfig.WindowHeight, TILE_SIZE);
+	m_VisibleLightsBuffer = GFX::CreateBuffer(m_NumTilesX * m_NumTilesY * (MAX_LIGHTS_PER_TILE + 1) * sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_SB | RCF_Bind_UAV);
+
+	TileCullingInfoCB tileCullingInfoCB{};
+	tileCullingInfoCB.MaxLightsPerTile = MAX_LIGHTS_PER_TILE;
+	tileCullingInfoCB.NumTilesX = m_NumTilesX;
+	tileCullingInfoCB.NumTilesY = m_NumTilesY;
+
+	GFX::Cmd::UploadToBuffer(context, m_TileCullingInfoBuffer, 0, &tileCullingInfoCB, 0, sizeof(TileCullingInfoCB));
 }
