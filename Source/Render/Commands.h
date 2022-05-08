@@ -11,7 +11,8 @@
 enum ShaderStage
 {
 	VS,
-	PS
+	PS,
+	CS
 };
 
 namespace GFX
@@ -45,6 +46,29 @@ namespace GFX
 		{
 			if constexpr (stage == VS) context->VSSetSamplers(0, GFX::GetStaticSamplersNum(), GFX::GetStaticSamplers());
 			if constexpr (stage == PS) context->PSSetSamplers(0, GFX::GetStaticSamplersNum(), GFX::GetStaticSamplers());
+			if constexpr (stage == CS) context->CSSetSamplers(0, GFX::GetStaticSamplersNum(), GFX::GetStaticSamplers());
+		}
+
+		template<ShaderStage stage>
+		void BindCBV(ID3D11DeviceContext* context, ID3D11Buffer* cbv, uint32_t slot)
+		{
+			if constexpr (stage == VS) context->VSSetConstantBuffers(slot, 1, &cbv);
+			if constexpr (stage == PS) context->PSSetConstantBuffers(slot, 1, &cbv);
+			if constexpr (stage == CS) context->CSSetConstantBuffers(slot, 1, &cbv);
+		}
+
+		template<ShaderStage stage>
+		void BindSRV(ID3D11DeviceContext* context, ID3D11ShaderResourceView* srv, uint32_t slot)
+		{
+			if constexpr (stage == VS) context->VSSetShaderResources(slot, 1, &srv);
+			if constexpr (stage == PS) context->PSSetShaderResources(slot, 1, &srv);
+			if constexpr (stage == CS) context->CSSetShaderResources(slot, 1, &srv);
+		}
+
+		template<ShaderStage stage>
+		void BindUAV(ID3D11DeviceContext* context, ID3D11UnorderedAccessView* uav, uint32_t slot)
+		{
+			if constexpr (stage == CS) context->CSSetUnorderedAccessViews(slot, 1, &uav, nullptr);
 		}
 
 		template<ShaderStage stage>
@@ -52,8 +76,7 @@ namespace GFX
 		{
 			const Buffer& buffer = GFX::Storage::GetBuffer(bufferID);
 			ID3D11Buffer* const cbv = buffer.Handle.Get();
-			if constexpr (stage == VS) context->VSSetConstantBuffers(slot, 1, &cbv);
-			if constexpr (stage == PS) context->PSSetConstantBuffers(slot, 1, &cbv);
+			BindCBV<stage>(context, cbv, slot);
 		}
 
 		template<ShaderStage stage>
@@ -61,8 +84,7 @@ namespace GFX
 		{
 			const Texture& texture = GFX::Storage::GetTexture(textureID);
 			ID3D11ShaderResourceView* const srv = texture.SRV.Get();
-			if constexpr (stage == VS) context->VSSetShaderResources(slot, 1, &srv);
-			if constexpr (stage == PS) context->PSSetShaderResources(slot, 1, &srv);
+			BindSRV<stage>(context, srv, slot);
 		}
 
 		template<ShaderStage stage>
@@ -70,8 +92,25 @@ namespace GFX
 		{
 			const Buffer& buffer = GFX::Storage::GetBuffer(bufferID);
 			ID3D11ShaderResourceView* const srv = buffer.SRV.Get();
-			if constexpr (stage == VS) context->VSSetShaderResources(slot, 1, &srv);
-			if constexpr (stage == PS) context->PSSetShaderResources(slot, 1, &srv);
+			BindSRV<stage>(context, srv, slot);
 		}
+
+		template<ShaderStage stage>
+		void BindUAV(ID3D11DeviceContext* context, BufferID bufferID, uint32_t slot)
+		{
+			const Buffer& buffer = GFX::Storage::GetBuffer(bufferID);
+			ID3D11UnorderedAccessView* const uav = buffer.UAV.Get();
+			BindUAV<stage>(context, uav, slot);
+		}
+
+		template<ShaderStage stage>
+		void BindUAV(ID3D11DeviceContext* context, TextureID textureID, uint32_t slot)
+		{
+			const Texture& texture = GFX::Storage::GetTexture(textureID);
+			ID3D11UnorderedAccessView* const uav = texture.UAV.Get();
+			BindUAV<stage>(context, uav, slot);
+		}
+
+
 	}
 }

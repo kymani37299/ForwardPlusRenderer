@@ -274,9 +274,10 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 	m_DepthPrepassShader = GFX::CreateShader("Source/Shaders/depth.hlsl", {}, SCF_VS);
 	m_GeometryShader = GFX::CreateShader("Source/Shaders/geometry.hlsl");
 	m_GeometryAlphaDiscardShader = GFX::CreateShader("Source/Shaders/geometry.hlsl", { "ALPHA_DISCARD" });
+	m_ComputeTestShader = GFX::CreateShader("Source/Shaders/compute_test.hlsl", {}, SCF_CS);
 
 	GenerateSkybox(context, m_SkyboxCubemap);
-	m_FinalRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV);
+	m_FinalRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV | RCF_Bind_UAV);
 	m_FinalRT_Depth = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_DSV);
 
 	m_IndexBuffer = GFX::CreateBuffer(sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_IB | RCF_CopyDest);
@@ -476,6 +477,14 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		GFX::Cmd::MarkerEnd(context);
 	}
 
+	{
+		context->OMSetRenderTargets(0, nullptr, nullptr);
+		GFX::Cmd::BindShader(context, m_ComputeTestShader);
+		GFX::Cmd::BindUAV<CS>(context, m_FinalRT, 0);
+		context->Dispatch(128 / 32, 128 / 32, 1);
+		GFX::Cmd::BindUAV<CS>(context, nullptr, 0);
+	}
+
 	return m_FinalRT;
 }
 
@@ -496,6 +505,6 @@ void ForwardPlus::OnWindowResize(ID3D11DeviceContext* context)
 {
 	GFX::Storage::Free(m_FinalRT);
 	GFX::Storage::Free(m_FinalRT_Depth);
-	m_FinalRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV);
+	m_FinalRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV | RCF_Bind_UAV);
 	m_FinalRT_Depth = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_DSV);
 }

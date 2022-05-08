@@ -71,8 +71,11 @@ namespace GFX
 		void BindShader(ID3D11DeviceContext* context, ShaderID shaderID, bool multiInput)
 		{
 			const Shader& shader = GFX::Storage::GetShader(shaderID);
+
 			context->VSSetShader(shader.VS.Get(), nullptr, 0);
 			context->PSSetShader(shader.PS.Get(), nullptr, 0);
+			context->CSSetShader(shader.CS.Get(), nullptr, 0);
+
 			if (multiInput)
 				context->IASetInputLayout(shader.MIL.Get());
 			else

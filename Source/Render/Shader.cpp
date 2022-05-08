@@ -237,21 +237,25 @@ namespace GFX
         D3D_SHADER_MACRO* configuration = CompileConfiguration(shader.Defines);
         ID3DBlob* vsBlob = shader.CreationFlags & SCF_VS ? ReadBlobFromFile(shader.Path, shaderCode, "VS", "vs_" + SHADER_VERSION, configuration) : nullptr;
         ID3DBlob* psBlob = shader.CreationFlags & SCF_PS ? ReadBlobFromFile(shader.Path, shaderCode, "PS", "ps_" + SHADER_VERSION, configuration) : nullptr;
+        ID3DBlob* csBlob = shader.CreationFlags & SCF_CS ? ReadBlobFromFile(shader.Path, shaderCode, "CS", "cs_" + SHADER_VERSION, configuration) : nullptr;
         free(configuration);
 
         ID3D11Device* device = Device::Get()->GetHandle();
 
         ID3D11VertexShader* vs = nullptr;
         ID3D11PixelShader* ps = nullptr;
+        ID3D11ComputeShader* cs = nullptr;
 
-        bool success = vsBlob || psBlob;
+        bool success = vsBlob || psBlob || csBlob;
         if (vsBlob) success = success && SUCCEEDED(device->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, &vs));
         if (psBlob) success = success && SUCCEEDED(device->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &ps));
+        if (csBlob) success = success && SUCCEEDED(device->CreateComputeShader(csBlob->GetBufferPointer(), csBlob->GetBufferSize(), nullptr, &cs));
 
         if (success)
         {
             shader.VS = vs;
             shader.PS = ps;
+            shader.CS = cs;
 
             if (vsBlob)
             {
@@ -265,10 +269,12 @@ namespace GFX
         {
             SAFE_RELEASE(vs);
             SAFE_RELEASE(ps);
+            SAFE_RELEASE(cs);
         }
 
         SAFE_RELEASE(vsBlob);
         SAFE_RELEASE(psBlob);
+        SAFE_RELEASE(csBlob);
 
         return success;
     }

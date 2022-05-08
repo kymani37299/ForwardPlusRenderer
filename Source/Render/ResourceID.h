@@ -55,5 +55,6 @@ enum ShaderCreationFlags : uint32_t
 
 	SCF_VS = 1 << 0,
 	SCF_PS = SCF_VS << 1,
+	SCF_CS = SCF_PS << 1,
 };
 

@@ -22,6 +22,8 @@ private:
 	ShaderID m_GeometryShader;
 	ShaderID m_GeometryAlphaDiscardShader;
 
+	ShaderID m_ComputeTestShader;
+
 	TextureID m_SkyboxCubemap;
 	TextureID m_FinalRT;
 	TextureID m_FinalRT_Depth;
