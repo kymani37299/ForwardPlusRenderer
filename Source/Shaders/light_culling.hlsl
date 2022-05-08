@@ -36,16 +36,6 @@ float LinearizeDepth(float4x4 viewToClip, float depth)
 [numthreads(TILE_SIZE, TILE_SIZE, 1)]
 void CS(uint3 threadID : SV_DispatchThreadID, uint3 groupID : SV_GroupID, uint3 localThreadID : SV_GroupThreadID)
 {
-#ifdef FAKE_ALGO
-	uint2 tileIndex = groupID.xy;
-	uint writeOffset = GetOffsetFromTileIndex(TiledCullingInfoData, tileIndex);
-	for (uint i = 0; i < 128; i++)
-	{
-		VisibleLights[writeOffset + i] = i;
-	}
-	VisibleLights[writeOffset + 128] = VISIBLE_LIGHT_END;
-#else
-
 	// Step 1: Initialization
 
 	const uint threadCount = TILE_SIZE * TILE_SIZE;
@@ -168,5 +158,4 @@ void CS(uint3 threadID : SV_DispatchThreadID, uint3 groupID : SV_GroupID, uint3 
 		}
 		VisibleLights[writeOffset + visibleLightCount] = VISIBLE_LIGHT_END;
 	}
-#endif // FAKE_ALGO
 }
