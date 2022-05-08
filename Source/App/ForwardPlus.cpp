@@ -150,7 +150,17 @@ namespace ForwardPlusPrivate
 
 		if (Input::IsKeyJustPressed(VK_TAB))
 		{
-			Window::Get()->ShowCursor(GUI::Get()->ToggleVisible());
+			if (AppConfig.Settings.contains("HIDE_GUI"))
+			{
+				Window::Get()->ShowCursor(GUI::Get()->ToggleVisible());
+			}
+			else
+			{
+				static bool showCursorToggle = false;
+				showCursorToggle = !showCursorToggle;
+				Window::Get()->ShowCursor(showCursorToggle);
+			}
+			
 		}
 
 		const float movement_speed = 10.0f;
@@ -187,6 +197,11 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 	
 	// Setup gui
 	{
+		if (AppConfig.Settings.contains("HIDE_GUI"))
+		{
+			GUI::Get()->SetVisible(false);
+		}
+
 		GUI::Get()->AddElement(new FPSCounterGUI());
 		GUI::Get()->AddElement(new DebugToolsGUI());
 	}

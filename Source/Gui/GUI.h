@@ -44,6 +44,6 @@ public:
 	inline bool ToggleVisible() { return m_Visible = !m_Visible; }
 
 private:
-	bool m_Visible = false;
+	bool m_Visible = true;
 	std::vector<GUIElement*> m_Elements;
 };

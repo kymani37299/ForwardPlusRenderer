@@ -1,0 +1,3 @@
+SIMPLE_SCENE - Loading simple scene with one cube and a plane
+NO_BG_LOADING - Disable background loading
+HIDE_GUI - Hide imgui windows when in play mode

@@ -33,6 +33,24 @@ float LinearizeDepth(float4x4 viewToClip, float depth)
 	return (0.5f * viewToClip[3][2]) / (depth + 0.5f * viewToClip[2][2] - 0.5f);
 }
 
+float ComputeLightRadius(Light light)
+{
+	switch (light.Type)
+	{
+	case LIGHT_TYPE_DIRECTIONAL:
+		return 1000000.0f;
+
+	case LIGHT_TYPE_POINT:
+	case LIGHT_TYPE_SPOT: // TODO: This can be further optimized with direction
+	{
+		return light.Falloff.y;
+	}
+	case LIGHT_TYPE_AMBIENT:
+		return 1000000.0f;
+	}
+	return 0.0f;
+}
+
 [numthreads(TILE_SIZE, TILE_SIZE, 1)]
 void CS(uint3 threadID : SV_DispatchThreadID, uint3 groupID : SV_GroupID, uint3 localThreadID : SV_GroupThreadID)
 {
@@ -115,7 +133,7 @@ void CS(uint3 threadID : SV_DispatchThreadID, uint3 groupID : SV_GroupID, uint3 
 		if (l.Type == LIGHT_TYPE_POINT || l.Type == LIGHT_TYPE_SPOT)
 		{
 			const float4 position = float4(Lights[lightIndex].Position, 1.0f);
-			const float radius = 50.0f; // TODO: Calculate radius
+			const float radius = ComputeLightRadius(l);
 		
 			float sd = 0.0; // Signed distance
 			for (uint j = 0; j < 6; j++)
