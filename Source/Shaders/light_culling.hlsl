@@ -43,7 +43,7 @@ float ComputeLightRadius(Light light)
 	case LIGHT_TYPE_POINT:
 	case LIGHT_TYPE_SPOT: // TODO: This can be further optimized with direction
 	{
-		return light.Falloff.y;
+		return 2.0f * light.Falloff.y;
 	}
 	case LIGHT_TYPE_AMBIENT:
 		return 1000000.0f;

@@ -4,7 +4,9 @@
 
 struct DebugToolsConfiguration
 {
-	bool FreezeCulling = false;
+	bool FreezeGeometryCulling = false;
+	bool FreezeLightCulling = false;
+	bool DisableLightCulling = false;
 };
 
 class DebugToolsGUI : public GUIElement

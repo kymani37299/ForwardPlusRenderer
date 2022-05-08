@@ -289,7 +289,9 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 	m_ShadowmapShader = GFX::CreateShader("Source/Shaders/shadowmap.hlsl", {}, SCF_VS);
 	m_DepthPrepassShader = GFX::CreateShader("Source/Shaders/depth.hlsl", {}, SCF_VS);
 	m_GeometryShader = GFX::CreateShader("Source/Shaders/geometry.hlsl");
+	m_GeometryShaderNoLightCulling = GFX::CreateShader("Source/Shaders/geometry.hlsl", { "DISABLE_LIGHT_CULLING" });
 	m_GeometryAlphaDiscardShader = GFX::CreateShader("Source/Shaders/geometry.hlsl", { "ALPHA_DISCARD" });
+	m_GeometryAlphaDiscardShaderNoLightCulling = GFX::CreateShader("Source/Shaders/geometry.hlsl", { "ALPHA_DISCARD", "DISABLE_LIGHT_CULLING" });
 	m_LightCullingShader = GFX::CreateShader("Source/Shaders/light_culling.hlsl", { "USE_BARRIERS"}, SCF_CS);
 
 	GenerateSkybox(context, m_SkyboxCubemap);
@@ -391,7 +393,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 
 	MainSceneGraph.FrameUpdate(context);
 
-	if (!DebugToolsConfig.FreezeCulling)
+	if (!DebugToolsConfig.FreezeGeometryCulling)
 	{
 		m_VisibilityMask = CullDrawables();
 	}
@@ -440,6 +442,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 	}
 	
 	// Light culling
+	if(!DebugToolsConfig.FreezeLightCulling && !DebugToolsConfig.DisableLightCulling)
 	{
 		context->OMSetRenderTargets(0, nullptr, nullptr);
 		GFX::Cmd::MarkerBegin(context, "Light Culling");
@@ -466,6 +469,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			GFX::Cmd::SetPipelineState(context, pso);
 		}
 
+		const bool useLightCulling = !DebugToolsConfig.DisableLightCulling;
 		{
 			const MeshStorage& meshStorage = MainSceneGraph.Geometries;
 			const auto drawableFilter = [](const Drawable& d)
@@ -477,12 +481,12 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, filteredMask);
 
 			GFX::Cmd::BindRenderTarget(context, m_FinalRT, m_FinalRT_Depth);
-			GFX::Cmd::BindShader(context, m_GeometryShader, true);
+			GFX::Cmd::BindShader(context, useLightCulling ? m_GeometryShader : m_GeometryShaderNoLightCulling, true);
 			GFX::Cmd::SetupStaticSamplers<PS>(context);
 			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Textures, 0);
 			GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
-			GFX::Cmd::BindCBV<PS>(context, m_TileCullingInfoBuffer, 1);
+			GFX::Cmd::BindCBV<PS>(context, useLightCulling ? m_TileCullingInfoBuffer : MainSceneGraph.SceneInfoBuffer, 1);
 			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.WorldToLightClip, 3);
 			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Lights.GetBuffer(), 3);
 			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.ShadowMapTexture, 4);
@@ -506,7 +510,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			const BitField filteredMask = FilterVisibilityMask(m_VisibilityMask, drawableFilter);
 			const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, filteredMask);
 
-			GFX::Cmd::BindShader(context, m_GeometryAlphaDiscardShader, true);
+			GFX::Cmd::BindShader(context, useLightCulling ? m_GeometryAlphaDiscardShader : m_GeometryAlphaDiscardShaderNoLightCulling, true);
 			GFX::Cmd::BindIndexBuffer(context, m_IndexBuffer);
 			context->DrawIndexed(indexCount, 0, 0);
 		}

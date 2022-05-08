@@ -32,7 +32,9 @@ private:
 	ShaderID m_ShadowmapShader;
 	ShaderID m_DepthPrepassShader;
 	ShaderID m_GeometryShader;
+	ShaderID m_GeometryShaderNoLightCulling;
 	ShaderID m_GeometryAlphaDiscardShader;
+	ShaderID m_GeometryAlphaDiscardShaderNoLightCulling;
 	ShaderID m_LightCullingShader;
 
 	TextureID m_SkyboxCubemap;

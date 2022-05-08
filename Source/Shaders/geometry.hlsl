@@ -26,10 +26,17 @@ cbuffer CameraCB : register(b0)
 	Camera CamData;
 }
 
+#ifdef DISABLE_LIGHT_CULLING
+cbuffer SceneInfoCB : register(b1)
+{
+	SceneInfo SceneInfoData;
+}
+#else
 cbuffer TiledCullingInfoCB : register(b1)
 {
 	TiledCullingInfo TiledCullingInfoData;
 }
+#endif // DISABLE_LIGHT_CULLING
 
 cbuffer LightSpaceCB : register(b3)
 {
@@ -103,13 +110,19 @@ float4 PS(VertexOut IN) : SV_Target
 
 	float4 litColor = float4(0.0f, 0.0f, 0.0f, 0.0f);
 
+#ifdef DISABLE_LIGHT_CULLING
+	for(uint i=0; i < SceneInfoData.NumLights; i++)
+	{
+		const Light l = Lights[i];
+#else
 	const uint2 tileIndex = GetTileIndexFromPosition(IN.Position.xyz);
 	const uint visibleLightOffset = GetOffsetFromTileIndex(TiledCullingInfoData, tileIndex);
-
 	for (uint i = visibleLightOffset; VisibleLights[i] != VISIBLE_LIGHT_END; i++)
 	{
 		const uint lightIndex = VisibleLights[i];
 		const Light l = Lights[lightIndex];
+#endif // DISABLE_LIGHT_CULLING
+
 		switch (l.Type)
 		{
 		case LIGHT_TYPE_DIRECTIONAL:
