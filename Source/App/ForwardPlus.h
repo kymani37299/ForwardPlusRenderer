@@ -27,4 +27,6 @@ private:
 	TextureID m_FinalRT_Depth;
 
 	BufferID m_IndexBuffer;
+
+	BitField m_VisibilityMask;
 };

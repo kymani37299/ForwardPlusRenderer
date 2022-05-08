@@ -307,20 +307,35 @@ bool IsVisible(const Drawable& d)
 		bv.ForwardToPlane(vf.Bottom);
 }
 
-template<typename FilterFunc>
-BitField CullDrawables(FilterFunc filterFunc)
+BitField CullDrawables()
 {
 	const uint32_t numDrawables = MainSceneGraph.Drawables.GetSize();
 	BitField visibilityMask{ numDrawables };
 	for (uint32_t i = 0; i < numDrawables; i++)
 	{
 		Drawable& d = MainSceneGraph.Drawables[i];
-		if (d.DrawableIndex != Drawable::InvalidIndex && filterFunc(d) && IsVisible(d))
+		if (d.DrawableIndex != Drawable::InvalidIndex && IsVisible(d))
 		{
 			visibilityMask.Set(i, true);
 		}
 	}
 	return visibilityMask;
+}
+
+template<typename FilterFunc>
+BitField FilterVisibilityMask(BitField& visibilityMask, FilterFunc filterFunc)
+{
+	const uint32_t numDrawables = MainSceneGraph.Drawables.GetSize();
+	BitField filteredMask{ numDrawables };
+	for (uint32_t i = 0; i < numDrawables; i++)
+	{
+		Drawable& d = MainSceneGraph.Drawables[i];
+		if (visibilityMask.Get(i) && filterFunc(d))
+		{
+			filteredMask.Set(i, true);
+		}
+	}
+	return filteredMask;
 }
 
 uint32_t PrepareIndexBuffer(ID3D11DeviceContext* context, BufferID indexBuffer, const BitField& visibilityMask)
@@ -344,6 +359,11 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 	using namespace ForwardPlusPrivate;
 
 	MainSceneGraph.FrameUpdate(context);
+
+	if (!DebugToolsConfig.FreezeCulling)
+	{
+		m_VisibilityMask = CullDrawables();
+	}
 
 	GFX::Cmd::ClearRenderTarget(context, m_FinalRT, m_FinalRT_Depth);
 	GFX::Cmd::BindRenderTarget(context, m_FinalRT, m_FinalRT_Depth);
@@ -405,11 +425,8 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			Material& mat = MainSceneGraph.Materials[d.MaterialIndex];
 			return !mat.UseAlphaDiscard && !mat.UseBlend;
 		};
-
-		static BitField lastVisibilityMask{ 0 };
-		const BitField visibilityMask = DebugToolsConfig.FreezeCulling ? lastVisibilityMask : CullDrawables(drawableFilter);
-		lastVisibilityMask = visibilityMask;
-		const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, visibilityMask);
+		const BitField filteredMask = FilterVisibilityMask(m_VisibilityMask, drawableFilter);
+		const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, filteredMask);
 
 		GFX::Cmd::BindRenderTarget(context, TextureID{}, m_FinalRT_Depth);
 		GFX::Cmd::SetPipelineState(context, pso);
@@ -441,11 +458,8 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 				Material& mat = MainSceneGraph.Materials[d.MaterialIndex];
 				return !mat.UseAlphaDiscard && !mat.UseBlend;
 			};
-
-			static BitField lastVisibilityMask{ 0 };
-			const BitField visibilityMask = DebugToolsConfig.FreezeCulling ? lastVisibilityMask : CullDrawables(drawableFilter);
-			lastVisibilityMask = visibilityMask;
-			const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, visibilityMask);
+			const BitField filteredMask = FilterVisibilityMask(m_VisibilityMask, drawableFilter);
+			const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, filteredMask);
 
 			GFX::Cmd::BindRenderTarget(context, m_FinalRT, m_FinalRT_Depth);
 			GFX::Cmd::BindShader(context, m_GeometryShader, true);
@@ -472,11 +486,8 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 				Material& mat = MainSceneGraph.Materials[d.MaterialIndex];
 				return mat.UseAlphaDiscard && !mat.UseBlend;
 			};
-
-			static BitField lastVisibilityMask{ 0 };
-			const BitField visibilityMask = DebugToolsConfig.FreezeCulling ? lastVisibilityMask : CullDrawables(drawableFilter);
-			lastVisibilityMask = visibilityMask;
-			const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, visibilityMask);
+			const BitField filteredMask = FilterVisibilityMask(m_VisibilityMask, drawableFilter);
+			const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, filteredMask);
 
 			GFX::Cmd::BindShader(context, m_GeometryAlphaDiscardShader, true);
 			GFX::Cmd::BindIndexBuffer(context, m_IndexBuffer);

@@ -178,16 +178,14 @@ namespace XMUtility
 
 class BitField
 {
-	constexpr uint32_t CeilDivide(uint32_t a, uint32_t b)
-	{
-		return (a + b - 1) / b;
-	}
-
 public:
-	BitField(uint32_t numBits):
-	m_NumBits(numBits)
-	{ 
-		m_NumElements = CeilDivide(numBits, NumBitsPerElement);
+	BitField() { }
+	BitField(uint32_t numBits) { Resize(numBits); }
+
+	void Resize(uint32_t numBits)
+	{
+		m_NumBits = numBits;
+		m_NumElements = (m_NumBits + NumBitsPerElement - 1) / NumBitsPerElement;
 		m_Data.resize(m_NumElements);
 	}
 
@@ -221,7 +219,7 @@ public:
 
 private:
 	static constexpr uint32_t NumBitsPerElement = sizeof(uint32_t) * 8;
-	uint32_t m_NumElements;
-	uint32_t m_NumBits;
+	uint32_t m_NumElements = 0;
+	uint32_t m_NumBits = 0;
 	std::vector<uint32_t> m_Data;
 };
