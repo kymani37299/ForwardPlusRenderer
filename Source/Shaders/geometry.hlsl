@@ -106,7 +106,7 @@ float4 PS(VertexOut IN) : SV_Target
 	uint2 tileIndex = GetTileIndexFromPosition(IN.Position.xyz);
 	uint visibleLightOffset = GetOffsetFromTileIndex(TiledCullingInfoData, tileIndex);
 
-	for (uint i = visibleLightOffset; i < visibleLightOffset + 1024 && i < VisibleLights[i] != VISIBLE_LIGHT_END; i++)
+	for (uint i = visibleLightOffset; VisibleLights[i] != VISIBLE_LIGHT_END; i++)
 	{
 		uint lightIndex = VisibleLights[i];
 		Light l = Lights[lightIndex];
