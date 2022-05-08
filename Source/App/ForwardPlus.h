@@ -9,6 +9,7 @@ class ForwardPlus : public Application
 	static constexpr uint8_t TILE_SIZE = 16;
 	static constexpr uint32_t MAX_LIGHTS_PER_TILE = 1024;
 
+	static constexpr bool ENABLE_STATS = true;
 public:
 	void OnInit(ID3D11DeviceContext* context);
 	void OnDestroy(ID3D11DeviceContext* context);
@@ -21,6 +22,7 @@ public:
 
 private:
 	void UpdateCullingResources(ID3D11DeviceContext* context);
+	void UpdateStats(ID3D11DeviceContext* context);
 
 private:
 	BitField m_VisibilityMask;
@@ -36,6 +38,7 @@ private:
 	ShaderID m_GeometryAlphaDiscardShader;
 	ShaderID m_GeometryAlphaDiscardShaderNoLightCulling;
 	ShaderID m_LightCullingShader;
+	ShaderID m_LightStatsShader;
 
 	TextureID m_SkyboxCubemap;
 	TextureID m_FinalRT;
@@ -44,4 +47,5 @@ private:
 	BufferID m_IndexBuffer;
 	BufferID m_VisibleLightsBuffer;
 	BufferID m_TileCullingInfoBuffer;
+	BufferID m_LightStatsBuffer;
 };

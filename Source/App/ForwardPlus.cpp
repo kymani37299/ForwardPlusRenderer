@@ -12,6 +12,7 @@
 #include "Gui/FPSCounterGUI.h"
 #include "Gui/DebugToolsGUI.h"
 #include "Gui/PositionInfoGUI.h"
+#include "Gui/RenderStatsGUI.h"
 #include "System/Input.h"
 #include "System/Window.h"
 #include "System/ApplicationConfiguration.h"
@@ -206,6 +207,9 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 		GUI::Get()->AddElement(new FPSCounterGUI());
 		GUI::Get()->AddElement(new DebugToolsGUI());
 		GUI::Get()->AddElement(new PositionInfoGUI());
+
+		if constexpr (ENABLE_STATS)
+			GUI::Get()->AddElement(new RenderStatsGUI());
 	}
 
 	MainSceneGraph.InitRenderData(context);
@@ -303,6 +307,12 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 	m_IndexBuffer = GFX::CreateBuffer(sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_IB | RCF_CopyDest);
 
 	UpdateCullingResources(context);
+
+	if constexpr (ENABLE_STATS)
+	{
+		m_LightStatsShader = GFX::CreateShader("Source/Shaders/light_stats.hlsl", {}, SCF_CS);
+		m_LightStatsBuffer = GFX::CreateBuffer(sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_SB | RCF_Bind_UAV | RCF_CPU_Read);
+	}
 }
 
 void ForwardPlus::OnDestroy(ID3D11DeviceContext* context)
@@ -417,7 +427,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 
 	// Depth prepass
 	{
-		GFX::Cmd::MarkerBegin(context, "Depth prepass");
+		GFX::Cmd::MarkerBegin(context, "Depth Prepass");
 		PipelineState pso = GFX::DefaultPipelineState();
 		pso.DS.DepthEnable = true;
 
@@ -520,6 +530,9 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		GFX::Cmd::MarkerEnd(context);
 	}
 
+	if constexpr (ENABLE_STATS)
+		UpdateStats(context);
+
 	return m_FinalRT;
 }
 
@@ -573,4 +586,47 @@ void ForwardPlus::UpdateCullingResources(ID3D11DeviceContext* context)
 	tileCullingInfoCB.NumTilesY = m_NumTilesY;
 
 	GFX::Cmd::UploadToBuffer(context, m_TileCullingInfoBuffer, 0, &tileCullingInfoCB, 0, sizeof(TileCullingInfoCB));
+}
+
+void ForwardPlus::UpdateStats(ID3D11DeviceContext* context)
+{
+	GFX::Cmd::MarkerBegin(context, "Update stats");
+
+	// Drawable stats
+	RenderStats.TotalDrawables = MainSceneGraph.Drawables.GetSize();
+	if (!DebugToolsConfig.FreezeGeometryCulling)
+	{
+		RenderStats.VisibleDrawables = 0;
+		for (uint32_t i = 0; i < RenderStats.TotalDrawables; i++)
+		{
+			if (m_VisibilityMask.Get(i)) RenderStats.VisibleDrawables++;
+		}
+	}
+	
+	// Light stats
+	RenderStats.TotalLights = MainSceneGraph.Lights.GetSize();
+
+	if (DebugToolsConfig.DisableLightCulling)
+	{
+		RenderStats.VisibleLights = RenderStats.TotalLights;
+	}
+	else if (!DebugToolsConfig.FreezeGeometryCulling)
+	{
+		GFX::Cmd::BindShader(context, m_LightStatsShader);
+		GFX::Cmd::BindUAV<CS>(context, m_LightStatsBuffer, 0);
+		GFX::Cmd::BindSRV<CS>(context, m_VisibleLightsBuffer, 0);
+		GFX::Cmd::BindCBV<CS>(context, m_TileCullingInfoBuffer, 0);
+		context->Dispatch(1, 1, 1);
+
+		D3D11_MAPPED_SUBRESOURCE mapResult;
+		const Buffer& lightStatsBuffer = GFX::Storage::GetBuffer(m_LightStatsBuffer);
+		API_CALL(context->Map(lightStatsBuffer.Handle.Get(), 0, D3D11_MAP_READ, 0, &mapResult));
+
+		uint32_t* dataPtr = reinterpret_cast<uint32_t*>(mapResult.pData);
+		RenderStats.VisibleLights = *dataPtr;
+
+		context->Unmap(lightStatsBuffer.Handle.Get(), 0);
+	}
+
+	GFX::Cmd::MarkerEnd(context);
 }
