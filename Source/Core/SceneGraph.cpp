@@ -31,6 +31,16 @@ namespace
 		uint32_t MaterialIndex;
 	};
 
+	struct LightSB
+	{
+		uint32_t LightType;
+		DirectX::XMFLOAT3 Position;
+		DirectX::XMFLOAT3 Strength;
+		DirectX::XMFLOAT2 Falloff;
+		DirectX::XMFLOAT3 Direction;
+		float SpotPower;
+	};
+
 	float DegreesToRadians(float deg)
 	{
 		const float DEG_2_RAD = 3.1415f / 180.0f;
@@ -73,6 +83,20 @@ void Drawable::UpdateBuffer(ID3D11DeviceContext* context)
 	drawableSB.EntityIndex = EntityIndex;
 	drawableSB.MaterialIndex = MaterialIndex;
 	GFX::Cmd::UploadToBuffer(context, MainSceneGraph.Drawables.GetBuffer(), sizeof(DrawableSB) * DrawableIndex, &drawableSB, 0, sizeof(DrawableSB));
+}
+
+void Light::UpdateBuffer(ID3D11DeviceContext* context)
+{
+	using namespace DirectX;
+
+	LightSB lightSB{};
+	lightSB.LightType = Type;
+	lightSB.Position = Position.ToXMF();
+	lightSB.Strength = Strength.ToXMF();
+	lightSB.Falloff = Falloff.ToXMF();
+	lightSB.Direction = Direction.ToXMF();
+	lightSB.SpotPower = SpotPower;
+	GFX::Cmd::UploadToBuffer(context, MainSceneGraph.Lights.GetBuffer(), sizeof(LightSB) * LightIndex, &lightSB, 0, sizeof(LightSB));
 }
 
 void Camera::RotToAxis(Float3 rot, Float3& forward, Float3& up, Float3& right)
@@ -123,40 +147,27 @@ void Camera::UpdateBuffer(ID3D11DeviceContext* context)
 	GFX::Cmd::UploadToBuffer(context, CameraBuffer, 0, &cameraCB, 0, sizeof(CameraCB));
 }
 
-Light Light::CreateDirectional(Float3 direction, Float3 color)
-{
-	Light l{};
-	l.Type = LT_Directional;
-	l.Direction = direction;
-	l.Strength = color;
-	return l;
-}
-
-Light Light::CreateAmbient(Float3 color)
-{
-	Light l{};
-	l.Type = LT_Ambient;
-	l.Strength = color;
-	return l;
-}
-
-Light Light::CreatePoint(Float3 position, Float3 color, Float2 falloff)
-{
-	Light l{};
-	l.Type = LT_Point;
-	l.Position = position;
-	l.Strength = color;
-	l.Falloff = falloff;
-	return l;
-}
-
 SceneGraph::SceneGraph() :
 	Entities(MAX_ENTITIES, sizeof(EntitySB)),
 	Materials(MAX_DRAWABLES, sizeof(MaterialSB)),
 	Meshes(MAX_DRAWABLES, 0),
-	Drawables(MAX_DRAWABLES, sizeof(DrawableSB))
+	Drawables(MAX_DRAWABLES, sizeof(DrawableSB)),
+	Lights(MAX_LIGHTS, sizeof(LightSB))
 {
 
+}
+
+void SceneGraph::InitRenderData(ID3D11DeviceContext* context)
+{
+	Entities.Initialize();
+	Materials.Initialize();
+	Meshes.Initialize();
+	Drawables.Initialize();
+	Lights.Initialize();
+
+	Geometries.Initialize();
+
+	Textures = GFX::CreateTextureArray(TEXTURE_SIZE, TEXTURE_SIZE, MAX_TEXTURES, RCF_Bind_SRV | RCF_CopyDest, TEXTURE_MIPS);
 }
 
 void SceneGraph::FrameUpdate(ID3D11DeviceContext* context)
@@ -180,6 +191,21 @@ void SceneGraph::FrameUpdate(ID3D11DeviceContext* context)
 		vf.Bottom = { c.Position, DirectX::XMVector3Cross(frontMultFar + halfVSide * c.Up, c.Right) };
 	}
 
+	// Scene info
+	{
+		struct SceneInfoCB
+		{
+			uint32_t NumLights;
+		};
+
+		SceneInfoCB sceneInfoCB{};
+		sceneInfoCB.NumLights = Lights.GetSize();
+
+		if (!SceneInfoBuffer.Valid()) SceneInfoBuffer = GFX::CreateConstantBuffer<SceneInfoCB>();
+
+		GFX::Cmd::UploadToBuffer(context, SceneInfoBuffer, 0, &sceneInfoCB, 0, sizeof(SceneInfoCB));
+	}
+
 	// Peding actions
 	{
 		auto f = [&context, this](Drawable d)
@@ -190,55 +216,6 @@ void SceneGraph::FrameUpdate(ID3D11DeviceContext* context)
 		DrawablesToUpdate.ForEachAndClear(f);
 	}
 
-}
-
-void SceneGraph::UpdateRenderData(ID3D11DeviceContext* context)
-{
-	MainCamera.UpdateBuffer(context);
-
-	Entities.Initialize();
-	Materials.Initialize();
-	Meshes.Initialize();
-	Drawables.Initialize();
-
-	Geometries.Initialize();
-
-	Textures = GFX::CreateTextureArray(TEXTURE_SIZE, TEXTURE_SIZE, MAX_TEXTURES, RCF_Bind_SRV | RCF_CopyDest, TEXTURE_MIPS);
-
-	// Lights
-	{
-		using namespace DirectX;
-		struct LightSB
-		{
-			uint32_t LightType;
-			XMFLOAT3 Position;
-			XMFLOAT3 Strength;
-			XMFLOAT2 Falloff;
-			XMFLOAT3 Direction;
-			float SpotPower;
-		};
-
-		// TODO: Resize buffer when new lights are added and update its data
-		if (!LightsBuffer.Valid()) LightsBuffer = GFX::CreateBuffer(sizeof(LightSB) * Lights.size(), sizeof(LightSB), RCF_Bind_SB | RCF_CPU_Write);
-		
-		ASSERT(GFX::GetNumElements(LightsBuffer) == Lights.size(), "TODO: Resize buffer when new lights are added and update its data");
-
-		std::vector<LightSB> sbLights;
-		sbLights.resize(Lights.size());
-		uint32_t index = 0;
-		for (const Light& l : Lights)
-		{
-			sbLights[index].LightType = l.Type;
-			sbLights[index].Position = l.Position.ToXMF();
-			sbLights[index].Strength = l.Strength.ToXMF();
-			sbLights[index].Falloff = l.Falloff.ToXMF();
-			sbLights[index].Direction = l.Direction.ToXMF();
-			sbLights[index].SpotPower = l.SpotPower;
-			index++;
-		}
-
-		GFX::Cmd::UploadToBuffer(context, LightsBuffer, 0, sbLights.data(), 0, sbLights.size() * sizeof(LightSB));
-	}
 }
 
 Entity& SceneGraph::CreateEntity(ID3D11DeviceContext* context, Float3 position, Float3 scale)
@@ -285,6 +262,52 @@ Drawable SceneGraph::CreateDrawable(ID3D11DeviceContext* context, Material& mate
 	}
 	
 	return drawable;
+}
+
+Light SceneGraph::CreateDirectionalLight(ID3D11DeviceContext* context, Float3 direction, Float3 color)
+{
+	Light l{};
+	l.Type = LT_Directional;
+	l.Direction = direction;
+	l.Strength = color;
+
+	return CreateLight(context, l);
+}
+
+Light SceneGraph::CreateAmbientLight(ID3D11DeviceContext* context, Float3 color)
+{
+	Light l{};
+	l.Type = LT_Ambient;
+	l.Strength = color;
+	return CreateLight(context, l);
+}
+
+Light SceneGraph::CreatePointLight(ID3D11DeviceContext* context, Float3 position, Float3 color, Float2 falloff)
+{
+	Light l{};
+	l.Type = LT_Point;
+	l.Position = position;
+	l.Strength = color;
+	l.Falloff = falloff;
+	return CreateLight(context, l);
+}
+
+Light SceneGraph::CreateLight(ID3D11DeviceContext* context, Light light)
+{
+	const uint32_t lightIndex = Lights.Next();
+	light.LightIndex = lightIndex;
+
+	Lights[lightIndex] = light;
+
+	if (Device::Get()->IsMainContext(context))
+	{
+		light.UpdateBuffer(context);
+	}
+	else
+	{
+		NOT_IMPLEMENTED;
+	}
+	return light;
 }
 
 namespace ElementBufferHelp

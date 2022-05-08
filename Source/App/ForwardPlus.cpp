@@ -107,8 +107,10 @@ namespace ForwardPlusPrivate
 	{
 		bool foundDirLight = false;
 		Float3 lightDirection;
-		for (const Light& l : MainSceneGraph.Lights)
+
+		for (uint32_t i = 0; i < MainSceneGraph.Lights.GetSize(); i++)
 		{
+			Light& l = MainSceneGraph.Lights[i];
 			if (l.Type == LT_Directional)
 			{
 				ASSERT(!foundDirLight, "Only one directional light is allowed per scene!");
@@ -188,11 +190,12 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 		GUI::Get()->AddElement(new DebugToolsGUI());
 	}
 
+	MainSceneGraph.InitRenderData(context);
 	
 	// Prepare scene
 	{
-		MainSceneGraph.Lights.push_back(Light::CreateAmbient(Float3(0.1f, 0.1f, 0.15f)));
-		MainSceneGraph.Lights.push_back(Light::CreateDirectional(Float3(-1.0f, -1.0f, -1.0f), Float3(0.2f, 0.2f, 0.23f)));
+		MainSceneGraph.CreateAmbientLight(context, Float3(0.1f, 0.1f, 0.15f));
+		MainSceneGraph.CreateDirectionalLight(context, Float3(-1.0f, -1.0f, -1.0f), Float3(0.2f, 0.2f, 0.23f));
 
 		constexpr uint32_t NUM_LIGHTS = 1024;
 		for (uint32_t i = 0; i < NUM_LIGHTS; i++)
@@ -200,10 +203,8 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 			Float3 position = Float3(200.0f, 100.0f, 200.0f) * Float3(Rand2(), Rand2(), Rand2());
 			Float3 color = Float3(Rand(), Rand(), Rand());
 			Float2 falloff = Float2(1.0f + 3.0f * Rand(), 5.0f + 10.0f * Rand());
-			MainSceneGraph.Lights.push_back(Light::CreatePoint(position, color, falloff));
+			MainSceneGraph.CreatePointLight(context, position, color, falloff);
 		}
-
-		MainSceneGraph.UpdateRenderData(context);
 
 		if (AppConfig.Settings.contains("SIMPLE_SCENE"))
 		{
@@ -225,7 +226,6 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 		MainSceneGraph.WorldToLightClip = GFX::CreateConstantBuffer<DirectX::XMFLOAT4X4>();
 		MainSceneGraph.ShadowMapTexture = GFX::CreateTexture(512, 512, RCF_Bind_DSV | RCF_Bind_SRV);
 
-		// TODO: Add new renderpass for this
 		static const float vbData[] = {
 		-1.0f,-1.0f,-1.0f,
 		-1.0f,-1.0f, 1.0f,
@@ -447,8 +447,9 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Textures, 0);
 			GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
+			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.SceneInfoBuffer, 1);
 			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.WorldToLightClip, 3);
-			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.LightsBuffer, 3);
+			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Lights.GetBuffer(), 3);
 			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.ShadowMapTexture, 4);
 			GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Entities.GetBuffer(), 5);
 			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Materials.GetBuffer(), 6);

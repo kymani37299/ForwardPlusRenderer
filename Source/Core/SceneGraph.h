@@ -104,6 +104,29 @@ struct Entity
 	void UpdateBuffer(ID3D11DeviceContext* context);
 };
 
+enum LightType : uint32_t
+{
+	LT_Invalid = 0,
+	LT_Directional = 1,
+	LT_Point = 2,
+	LT_Spot = 3,
+	LT_Ambient = 4,
+};
+
+struct Light
+{
+	uint32_t LightIndex = 0;
+
+	LightType Type = LT_Invalid;
+	Float3 Position = { 0.0f, 0.0f, 0.0f };		// Point
+	Float3 Strength = { 0.0f, 0.0f, 0.0f };		// Dir/Spot/Point/Ambient
+	Float2 Falloff = { 0.0f, 0.0f };			// Point/Spot (Start, End)
+	Float3 Direction = { 0.0f, 0.0f, 0.0f };	// Dir/Spot
+	float SpotPower = 0.0f;						// Spot
+
+	void UpdateBuffer(ID3D11DeviceContext* context);
+};
+
 struct Camera
 {
 	static void RotToAxis(Float3 rot, Float3& forward, Float3& up, Float3& right);
@@ -128,29 +151,6 @@ struct Camera
 	BufferID CameraBuffer;
 
 	ViewFrustum CameraFrustum;
-};
-
-enum LightType : uint32_t
-{
-	LT_Invalid = 0,
-	LT_Directional = 1,
-	LT_Point = 2,
-	LT_Spot = 3,
-	LT_Ambient = 4,
-};
-
-struct Light
-{
-	static Light CreateDirectional(Float3 direction, Float3 color);
-	static Light CreateAmbient(Float3 color);
-	static Light CreatePoint(Float3 position, Float3 color, Float2 falloff);
-
-	LightType Type = LT_Invalid;
-	Float3 Position = { 0.0f, 0.0f, 0.0f };		// Point
-	Float3 Strength = { 0.0f, 0.0f, 0.0f };		// Dir/Spot/Point/Ambient
-	Float2 Falloff = { 0.0f, 0.0f };			// Point/Spot (Start, End)
-	Float3 Direction = { 0.0f, 0.0f, 0.0f };	// Dir/Spot
-	float SpotPower = 0.0f;						// Spot
 };
 
 namespace ElementBufferHelp
@@ -245,22 +245,28 @@ struct SceneGraph
 {
 	static constexpr uint32_t MAX_ENTITIES = 100;
 	static constexpr uint32_t MAX_DRAWABLES = 100000;
+	static constexpr uint32_t MAX_LIGHTS = 10000;
 
 	SceneGraph();
+	void InitRenderData(ID3D11DeviceContext* context);
 
 	void FrameUpdate(ID3D11DeviceContext* context);
-	void UpdateRenderData(ID3D11DeviceContext* context);
 	Entity& CreateEntity(ID3D11DeviceContext* context, Float3 position = { 0.0f, 0.0f, 0.0f }, Float3 scale = { 1.0f, 1.0f, 1.0f });
 	Drawable CreateDrawable(ID3D11DeviceContext* context, Material& material, Mesh& mesh, BoundingSphere& boundingSphere, const Entity& entity);
+
+	Light CreateDirectionalLight(ID3D11DeviceContext* context, Float3 direction, Float3 color);
+	Light CreateAmbientLight(ID3D11DeviceContext* context, Float3 color);
+	Light CreatePointLight(ID3D11DeviceContext* context, Float3 position, Float3 color, Float2 falloff);
+	Light CreateLight(ID3D11DeviceContext* context, Light light);
 
 	Camera MainCamera{ {0.0f, 2.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, 75.0f };
 	ElementBuffer<Entity> Entities;
 	ElementBuffer<Material> Materials;
 	ElementBuffer<Mesh> Meshes;
 	ElementBuffer<Drawable> Drawables;
-	std::vector<Light> Lights; // TODO: ElementBuffer<Light>
+	ElementBuffer<Light> Lights;
 
-	BufferID LightsBuffer;
+	BufferID SceneInfoBuffer;
 	BufferID WorldToLightClip;
 	TextureID ShadowMapTexture;
 

@@ -25,6 +25,11 @@ cbuffer CameraCB : register(b0)
 	Camera CamData;
 }
 
+cbuffer SceneInfoCB : register(b1)
+{
+	SceneInfo SceneInfoData;
+}
+
 cbuffer LightSpaceCB : register(b3)
 {
 	float4x4 WorldToLightClip;
@@ -96,10 +101,7 @@ float4 PS(VertexOut IN) : SV_Target
 
 	float4 litColor = float4(0.0f, 0.0f, 0.0f, 0.0f);
 
-	uint numLights, lightStride;
-	Lights.GetDimensions(numLights, lightStride);
-
-	for (uint i = 0; i < numLights; i++)
+	for (uint i = 0; i < SceneInfoData.NumLights; i++)
 	{
 		const Light l = Lights[i];
 		switch (l.Type)

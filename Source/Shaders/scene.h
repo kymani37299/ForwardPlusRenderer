@@ -1,3 +1,8 @@
+struct SceneInfo
+{
+	uint NumLights;
+};
+
 struct Camera
 {
 	float4x4 WorldToView;
