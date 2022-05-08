@@ -112,10 +112,10 @@ void CS(uint3 threadID : SV_DispatchThreadID, uint3 groupID : SV_GroupID, uint3 
 		bool isVisible = false;
 		const Light l = Lights[lightIndex];
 	
-		if (l.Type == LIGHT_TYPE_POINT)
+		if (l.Type == LIGHT_TYPE_POINT || l.Type == LIGHT_TYPE_SPOT)
 		{
 			const float4 position = float4(Lights[lightIndex].Position, 1.0f);
-			const float radius = 1.0f; // TODO: Calculate radius
+			const float radius = 50.0f; // TODO: Calculate radius
 		
 			float sd = 0.0; // Signed distance
 			for (uint j = 0; j < 6; j++)
@@ -126,8 +126,7 @@ void CS(uint3 threadID : SV_DispatchThreadID, uint3 groupID : SV_GroupID, uint3 
 		
 			isVisible = sd > 0.0f;
 		}
-		// TODO: else if(l.Type == LIGHT_TYPE_SPOT)
-		//else
+		else
 		{
 			isVisible = true;
 		}
