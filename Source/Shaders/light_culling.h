@@ -1,15 +1,15 @@
 #define TILE_SIZE 16
+#define MAX_LIGHTS_PER_TILE 1024
 #define VISIBLE_LIGHT_END 0xffffffff
 
 struct TiledCullingInfo
 {
-	uint MaxLightsPerTile;
 	uint2 TileCount;
 };
 
 uint GetOffsetFromTileIndex(TiledCullingInfo tiledCullingInfo, uint2 tileIndex)
 {
-	const uint tileStride = tiledCullingInfo.MaxLightsPerTile + 1;
+	const uint tileStride = MAX_LIGHTS_PER_TILE + 1;
 	return tiledCullingInfo.TileCount.x * tileStride * tileIndex.y + tileIndex.x * tileStride;
 }
 

@@ -275,11 +275,11 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 	m_DepthPrepassShader = GFX::CreateShader("Source/Shaders/depth.hlsl", {}, SCF_VS);
 	m_GeometryShader = GFX::CreateShader("Source/Shaders/geometry.hlsl");
 	m_GeometryAlphaDiscardShader = GFX::CreateShader("Source/Shaders/geometry.hlsl", { "ALPHA_DISCARD" });
-	m_LightCullingShader = GFX::CreateShader("Source/Shaders/light_culling.hlsl", {}, SCF_CS);
+	m_LightCullingShader = GFX::CreateShader("Source/Shaders/light_culling.hlsl", { "FAKE_ALGO" }, SCF_CS);
 
 	GenerateSkybox(context, m_SkyboxCubemap);
-	m_FinalRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV | RCF_Bind_UAV);
-	m_FinalRT_Depth = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_DSV);
+	m_FinalRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV);
+	m_FinalRT_Depth = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_DSV | RCF_Bind_SRV);
 
 	m_IndexBuffer = GFX::CreateBuffer(sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_IB | RCF_CopyDest);
 
@@ -426,14 +426,18 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 	
 	// Light culling
 	{
+		context->OMSetRenderTargets(0, nullptr, nullptr);
 		GFX::Cmd::MarkerBegin(context, "Light Culling");
 		GFX::Cmd::BindShader(context, m_LightCullingShader);
 		GFX::Cmd::BindCBV<CS>(context, MainSceneGraph.SceneInfoBuffer, 0);
 		GFX::Cmd::BindCBV<CS>(context, m_TileCullingInfoBuffer, 1);
+		GFX::Cmd::BindCBV<CS>(context, MainSceneGraph.MainCamera.CameraBuffer, 2);
 		GFX::Cmd::BindSRV<CS>(context, MainSceneGraph.Lights.GetBuffer(), 0);
+		GFX::Cmd::BindSRV<CS>(context, m_FinalRT_Depth, 1);
 		GFX::Cmd::BindUAV<CS>(context, m_VisibleLightsBuffer, 0);
 		context->Dispatch(m_NumTilesX, m_NumTilesY, 1);
 		GFX::Cmd::BindUAV<CS>(context, nullptr, 0);
+		GFX::Cmd::BindSRV<CS>(context, nullptr, 1);
 		GFX::Cmd::MarkerEnd(context);
 	}
 
@@ -515,8 +519,8 @@ void ForwardPlus::OnWindowResize(ID3D11DeviceContext* context)
 {
 	GFX::Storage::Free(m_FinalRT);
 	GFX::Storage::Free(m_FinalRT_Depth);
-	m_FinalRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV | RCF_Bind_UAV);
-	m_FinalRT_Depth = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_DSV);
+	m_FinalRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV);
+	m_FinalRT_Depth = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_DSV | RCF_Bind_SRV);
 
 	UpdateCullingResources(context);
 }
@@ -525,7 +529,6 @@ void ForwardPlus::UpdateCullingResources(ID3D11DeviceContext* context)
 {
 	struct TileCullingInfoCB
 	{
-		uint32_t MaxLightsPerTile;
 		uint32_t NumTilesX;
 		uint32_t NumTilesY;
 	};
@@ -541,7 +544,6 @@ void ForwardPlus::UpdateCullingResources(ID3D11DeviceContext* context)
 	m_VisibleLightsBuffer = GFX::CreateBuffer(m_NumTilesX * m_NumTilesY * (MAX_LIGHTS_PER_TILE + 1) * sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_SB | RCF_Bind_UAV);
 
 	TileCullingInfoCB tileCullingInfoCB{};
-	tileCullingInfoCB.MaxLightsPerTile = MAX_LIGHTS_PER_TILE;
 	tileCullingInfoCB.NumTilesX = m_NumTilesX;
 	tileCullingInfoCB.NumTilesY = m_NumTilesY;
 

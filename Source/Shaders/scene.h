@@ -32,6 +32,11 @@ struct Material
 	uint Normal;
 };
 
+#define LIGHT_TYPE_DIRECTIONAL 1
+#define LIGHT_TYPE_POINT 2
+#define LIGHT_TYPE_SPOT 3
+#define LIGHT_TYPE_AMBIENT 4
+
 struct Light
 {
 	uint Type;			// 1 - Dir, 2 - Point, 3 - Spot, 4 - Ambient

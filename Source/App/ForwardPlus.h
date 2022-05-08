@@ -5,6 +5,7 @@
 
 class ForwardPlus : public Application
 {
+	// Note: Duplicate definitions (see also light_culling.h)
 	static constexpr uint8_t TILE_SIZE = 16;
 	static constexpr uint32_t MAX_LIGHTS_PER_TILE = 1024;
 

@@ -112,16 +112,16 @@ float4 PS(VertexOut IN) : SV_Target
 		Light l = Lights[lightIndex];
 		switch (l.Type)
 		{
-		case 1:
+		case LIGHT_TYPE_DIRECTIONAL:
 			litColor.rgb += ComputeDirectionalLight(l, mat, normal, view);
 			break;
-		case 2:
+		case LIGHT_TYPE_POINT:
 			litColor.rgb += ComputePointLight(l, mat, IN.WorldPosition, normal, view);
 			break;
-		case 3:
+		case LIGHT_TYPE_SPOT:
 			litColor.rgb += ComputeSpotLight(l, mat, IN.WorldPosition, normal, view);
 			break;
-		case 4:
+		case LIGHT_TYPE_AMBIENT:
 			litColor.rgb += ComputeAmbientLight(l, mat);
 			break;
 		}
