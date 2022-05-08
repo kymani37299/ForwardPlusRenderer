@@ -300,7 +300,6 @@ void MeshStorage::Initialize()
 	m_NormalBuffer = GFX::CreateBuffer(GetNormalStride(), GetNormalStride(), RCF_Bind_VB | RCF_CopyDest);
 	m_TangentBuffer = GFX::CreateBuffer(GetTangentStride(), GetTangentStride(), RCF_Bind_VB | RCF_CopyDest);
 	m_DrawableIndexBuffer = GFX::CreateBuffer(GetDrawableIndexStride(), GetDrawableIndexStride(), RCF_Bind_VB | RCF_CopyDest);
-	m_IndexBuffer = GFX::CreateBuffer(GetIndexBufferStride(), GetIndexBufferStride(), RCF_Bind_IB | RCF_CopyDest);
 }
 
 MeshStorage::Allocation MeshStorage::Allocate(ID3D11DeviceContext* context, uint32_t vertexCount, uint32_t indexCount)
@@ -316,7 +315,7 @@ MeshStorage::Allocation MeshStorage::Allocate(ID3D11DeviceContext* context, uint
 	GFX::ExpandBuffer(context, m_NormalBuffer, wantedVBSize * GetNormalStride());
 	GFX::ExpandBuffer(context, m_TangentBuffer, wantedVBSize * GetTangentStride());
 	GFX::ExpandBuffer(context, m_DrawableIndexBuffer, wantedVBSize * GetDrawableIndexStride());
-	GFX::ExpandBuffer(context, m_IndexBuffer, wantedIBSize * GetIndexBufferStride());
+	m_IndexBuffer.resize((size_t) wantedIBSize * GetIndexBufferStride());
 
 	return alloc;
 }

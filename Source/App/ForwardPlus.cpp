@@ -340,17 +340,29 @@ BitField FilterVisibilityMask(BitField& visibilityMask, FilterFunc filterFunc)
 
 uint32_t PrepareIndexBuffer(ID3D11DeviceContext* context, BufferID indexBuffer, const BitField& visibilityMask)
 {
+	std::vector<uint32_t> indices;
+	indices.resize(MainSceneGraph.Geometries.GetIndexCount());
+
 	uint32_t indexCount = 0;
-	GFX::ExpandBuffer(context, indexBuffer, MainSceneGraph.Geometries.GetIndexCount() * sizeof(uint32_t));
 	for (uint32_t i = 0; i < MainSceneGraph.Drawables.GetSize(); i++)
 	{
 		if (visibilityMask.Get(i))
 		{
 			const Mesh& mesh = MainSceneGraph.Meshes[MainSceneGraph.Drawables[i].MeshIndex];
-			GFX::Cmd::CopyToBuffer(context, MainSceneGraph.Geometries.GetIndexBuffer(), mesh.IndexOffset * MeshStorage::GetIndexBufferStride(), indexBuffer, indexCount * sizeof(uint32_t), mesh.IndexCount * sizeof(uint32_t));
+			
+			uint8_t* copySrc = reinterpret_cast<uint8_t*>(MainSceneGraph.Geometries.GetIndexBuffer().data());
+			copySrc += (uint64_t) mesh.IndexOffset * MeshStorage::GetIndexBufferStride();
+
+			uint8_t* copyDst = reinterpret_cast<uint8_t*>(indices.data());
+			copyDst += indexCount * sizeof(uint32_t);
+
+			memcpy(copyDst, copySrc, mesh.IndexCount * sizeof(uint32_t));
 			indexCount += mesh.IndexCount;
 		}
 	}
+
+	GFX::ExpandBuffer(context, indexBuffer, indexCount * sizeof(uint32_t));
+	GFX::Cmd::UploadToBuffer(context, indexBuffer, 0, indices.data(), 0, indexCount * sizeof(uint32_t));
 	return indexCount;
 }
 
@@ -379,39 +391,6 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		context->Draw(GFX::GetNumElements(CubeVB), 0);
 		GFX::Cmd::MarkerEnd(context);
 	}
-
-	// Shadowmap
-	//{
-	//	GFX::Cmd::MarkerBegin(context, "Shadowmap");
-	//	SetupShadowmapData(context);
-	//
-	//	PipelineState pso = GFX::DefaultPipelineState();
-	//	pso.DS.DepthEnable = true;
-	//
-	//	GFX::Cmd::SetPipelineState(context, pso);
-	//	GFX::Cmd::BindShader(context, m_ShadowmapShader, true);
-	//	GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.WorldToLightClip, 0);
-	//	GFX::Cmd::ClearRenderTarget(context, TextureID{}, MainSceneGraph.ShadowMapTexture);
-	//	GFX::Cmd::BindRenderTarget(context, TextureID{}, MainSceneGraph.ShadowMapTexture);
-	//
-	//	for (Entity& e : MainSceneGraph.Entities)
-	//	{
-	//		GFX::Cmd::BindCBV<VS>(context, e.EntityBuffer, 1);
-	//
-	//		const auto func = [&context](const Drawable& d) {
-	//			if (!d.Material.UseAlphaDiscard && !d.Material.UseBlend)
-	//			{
-	//				const Mesh& m = d.Mesh;
-	//				GFX::Cmd::BindVertexBuffer(context, m.Position);
-	//				GFX::Cmd::BindIndexBuffer(context, m.Indices);
-	//				context->DrawIndexed(GFX::GetNumElements(m.Indices), 0, 0);
-	//			}
-	//
-	//		};
-	//		e.Drawables.ForEach(func);
-	//	}
-	//	GFX::Cmd::MarkerEnd(context);
-	//}
 
 	// Depth prepass
 	{

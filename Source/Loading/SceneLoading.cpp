@@ -36,23 +36,17 @@ namespace SceneLoading
 			return data;
 		}
 
-		void UpdateIB(const LoadingContext& context, cgltf_accessor* indexAccessor, BufferID buffer, const Mesh& mesh)
+		void UpdateIB(const LoadingContext& context, cgltf_accessor* indexAccessor, std::vector<uint32_t>& buffer, const Mesh& mesh)
 		{
 			ASSERT(indexAccessor, "[SceneLoading] Trying to read indices from empty accessor");
 			ASSERT(indexAccessor->type == cgltf_type_scalar, "[SceneLoading] Indices of a mesh arent scalar.");
 			ASSERT(indexAccessor->component_type == cgltf_component_type_r_16u, "[SceneLoading] Indices must be uint16.");
 			
 			uint16_t* indexData = (uint16_t*) GetBufferData(indexAccessor);
-			std::vector<uint32_t> indices;
-			indices.resize(indexAccessor->count);
-
-			// TODO: Leave index buffer uint16_t and do adding when culling
 			for (size_t i = 0; i < indexAccessor->count; i++)
 			{
-				indices[i] = indexData[i] + mesh.VertOffset;
+				buffer[mesh.IndexOffset + i] = indexData[i] + mesh.VertOffset;
 			}
-
-			GFX::Cmd::UploadToBuffer(context.GfxContext, buffer, mesh.IndexOffset * sizeof(uint32_t), indices.data(), 0, sizeof(uint32_t) * indices.size());
 		}
 
 		template<typename T, cgltf_type TYPE, cgltf_component_type COMPONENT_TYPE>

@@ -216,17 +216,17 @@ public:
 	BufferID GetNormals() const { return m_NormalBuffer; }
 	BufferID GetTangents() const { return m_TangentBuffer; }
 	BufferID GetDrawableIndexes() const { return m_DrawableIndexBuffer; }
-	BufferID GetIndexBuffer() const { return m_IndexBuffer; }
+	std::vector<uint32_t>& GetIndexBuffer() { return m_IndexBuffer; }
 
 	uint32_t GetVertexCount() const { return m_VertexCount; }
 	uint32_t GetIndexCount() const { return m_IndexCount; }
 
-	static constexpr uint32_t GetPositionStride()		{ return sizeof(Float3); }
-	static constexpr uint32_t GetTexroordStride()		{ return sizeof(Float2); }
-	static constexpr uint32_t GetNormalStride()			{ return sizeof(Float3); }
-	static constexpr uint32_t GetTangentStride()		{ return sizeof(Float4); }
-	static constexpr uint32_t GetDrawableIndexStride()	{ return sizeof(uint32_t); }
-	static constexpr uint32_t GetIndexBufferStride()	{ return sizeof(uint32_t); }
+	static constexpr uint8_t GetPositionStride()		{ return sizeof(Float3); }
+	static constexpr uint8_t GetTexroordStride()		{ return sizeof(Float2); }
+	static constexpr uint8_t GetNormalStride()			{ return sizeof(Float3); }
+	static constexpr uint8_t GetTangentStride()			{ return sizeof(Float4); }
+	static constexpr uint8_t GetDrawableIndexStride()	{ return sizeof(uint32_t); }
+	static constexpr uint8_t GetIndexBufferStride()		{ return sizeof(uint32_t); }
 
 private:
 	std::atomic<uint32_t> m_VertexCount = 0;
@@ -237,7 +237,8 @@ private:
 	BufferID m_NormalBuffer;		// Float3
 	BufferID m_TangentBuffer;		// Float4
 	BufferID m_DrawableIndexBuffer;	// uint32_t
-	BufferID m_IndexBuffer;			// uint32_t
+
+	std::vector<uint32_t> m_IndexBuffer;
 };
 
 struct SceneGraph
