@@ -530,16 +530,21 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 	}
 
 	// Debug geometries
-	static constexpr bool DRAW_BOUNDING_SPHERES = false;
-	if constexpr(DRAW_BOUNDING_SPHERES)
+	if(DebugToolsConfig.DrawBoundingBoxes)
 	{
 		const uint32_t numDrawables = MainSceneGraph.Drawables.GetSize();
 		for (uint32_t i = 0; i < numDrawables; i++)
 		{
-			Drawable& d = MainSceneGraph.Drawables[i];
-			BoundingSphere& bs = d.BoundingVolume;
+			const Drawable& d = MainSceneGraph.Drawables[i];
+			const Entity& e = MainSceneGraph.Entities[d.EntityIndex];
+			const float maxScale = MAX(MAX(e.Scale.x, e.Scale.y), e.Scale.z);
+			
+			BoundingSphere bs;
+			bs.Center = e.Position + d.BoundingVolume.Center;
+			bs.Radius = d.BoundingVolume.Radius * 0.5f * maxScale;
+
 			DebugGeometry dg{};
-			dg.Color = Float4(Random::UNorm(i), Random::UNorm(i+1), Random::UNorm(i+2), 0.5f);
+			dg.Color = Float4(Random::UNorm(i), Random::UNorm(i+1), Random::UNorm(i+2), 0.2f);
 			dg.Position = bs.Center;
 			dg.Scale = bs.Radius;
 			m_DebugGeometries.push_back(dg);
@@ -668,7 +673,13 @@ void ForwardPlus::DrawDebugGeometries(ID3D11DeviceContext* context)
 	PipelineState pso = GFX::DefaultPipelineState();
 	pso.DS.DepthEnable = true;
 	pso.DS.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-	// TODO: Add blend
+	pso.BS.RenderTarget[0].BlendEnable = true;
+	pso.BS.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+	pso.BS.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_MAX;
+	pso.BS.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+	pso.BS.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+	pso.BS.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
+	pso.BS.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
 	GFX::Cmd::SetPipelineState(context, pso);
 	GFX::Cmd::BindShader(context, m_DebugGeometryShader);
 	GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 1);

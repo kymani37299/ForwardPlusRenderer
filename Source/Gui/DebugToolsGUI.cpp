@@ -11,5 +11,6 @@ void DebugToolsGUI::Render(ID3D11DeviceContext* context)
 	ImGui::Checkbox("Freeze geometry culling", &DebugToolsConfig.FreezeGeometryCulling);
 	ImGui::Checkbox("Freeze light culling", &DebugToolsConfig.FreezeLightCulling);
 	ImGui::Checkbox("Disable light culling", &DebugToolsConfig.DisableLightCulling);
+	ImGui::Checkbox("Draw bounding boxes", &DebugToolsConfig.DrawBoundingBoxes);
 	ImGui::End();
 }
