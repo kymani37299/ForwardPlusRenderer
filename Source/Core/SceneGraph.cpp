@@ -48,6 +48,37 @@ namespace
 	}
 }
 
+void ViewFrustum::Update(const Camera& c)
+{
+	// Near and far plane dimensions
+	const float fovTan = tanf(DegreesToRadians(c.FOV / 2.0f));
+	const float hnear = 2.0f * fovTan * c.ZNear;
+	const float wnear = hnear * c.AspectRatio;
+	const float hfar = 2.0f * fovTan * c.ZFar;
+	const float wfar = hfar * c.AspectRatio;
+
+	// 8 points of the frustum
+	const Float3 fc = c.Position + c.ZFar * c.Forward;
+	const Float3 nc = c.Position + c.ZNear * c.Forward;
+
+	const Float3 ftl = fc + (hfar / 2.0f) * c.Up - (wfar / 2.0f) * c.Right;
+	const Float3 ftr = fc + (hfar / 2.0f) * c.Up + (wfar / 2.0f) * c.Right;
+	const Float3 fbl = fc - (hfar / 2.0f) * c.Up - (wfar / 2.0f) * c.Right;
+	const Float3 fbr = fc - (hfar / 2.0f) * c.Up + (wfar / 2.0f) * c.Right;
+
+	const Float3 ntl = nc + (hnear / 2.0f) * c.Up - (wnear / 2.0f) * c.Right;
+	const Float3 ntr = nc + (hnear / 2.0f) * c.Up + (wnear / 2.0f) * c.Right;
+	const Float3 nbl = nc - (hnear / 2.0f) * c.Up - (wnear / 2.0f) * c.Right;
+	const Float3 nbr = nc - (hnear / 2.0f) * c.Up + (wnear / 2.0f) * c.Right;
+
+	Planes[0] = FrustumPlane{ ntr, ntl, ftl };	// Top
+	Planes[1] = FrustumPlane{ nbl, nbr, fbr };	// Bottom
+	Planes[2] = FrustumPlane{ ntl, nbl, fbl };	// Left
+	Planes[3] = FrustumPlane{ nbr, ntr, fbr };	// Right
+	Planes[4] = FrustumPlane{ ntl, ntr, nbr };	// Near
+	Planes[5] = FrustumPlane{ ftr, ftl, fbl };	// Far
+}
+
 void Material::UpdateBuffer(ID3D11DeviceContext* context)
 {
 	using namespace DirectX;
@@ -101,15 +132,10 @@ void Light::UpdateBuffer(ID3D11DeviceContext* context)
 
 void Camera::RotToAxis(Float3 rot, Float3& forward, Float3& up, Float3& right)
 {
-	using namespace DirectX;
-
 	// TODO: Calculate up based on roll
 	up = Float3(0.0f, 1.0f, 0.0f);
 	forward = Float3((float)(std::cos(rot.y) * std::cos(rot.x)), (float)(std::sin(rot.x)), (float)(std::sin(rot.y) * std::cos(rot.x)));
-
-	XMVECTOR vec = XMVector3Cross(forward.ToXM(), up.ToXM());
-	vec = XMVector3Normalize(vec);
-	right = Float3(vec);
+	right = forward.Cross(up);
 }
 
 Camera::Camera(Float3 position, Float3 rotation, float fov):
@@ -175,20 +201,7 @@ void SceneGraph::FrameUpdate(ID3D11DeviceContext* context)
 	// Camera
 	{
 		MainCamera.UpdateBuffer(context);
-
-		ViewFrustum& vf = MainCamera.CameraFrustum;
-		const Camera& c = MainCamera;
-
-		const float halfVSide = c.ZFar * tanf(c.FOV * .5f);
-		const float halfHSide = halfVSide * c.AspectRatio;
-		const Float3 frontMultFar = c.ZFar * c.Forward;
-
-		vf.Near = { c.Position + c.ZNear * c.Forward, c.Forward };
-		vf.Far = { c.Position + frontMultFar, -1.0f * c.Forward };
-		vf.Right = { c.Position, DirectX::XMVector3Cross(c.Up, frontMultFar + halfHSide * c.Right) };
-		vf.Left = { c.Position, DirectX::XMVector3Cross(frontMultFar - halfHSide * c.Right, c.Up) };
-		vf.Top = { c.Position, DirectX::XMVector3Cross(c.Right, frontMultFar - halfVSide * c.Up) };
-		vf.Bottom = { c.Position, DirectX::XMVector3Cross(frontMultFar + halfVSide * c.Up, c.Right) };
+		MainCamera.CameraFrustum.Update(MainCamera);
 	}
 
 	// Scene info

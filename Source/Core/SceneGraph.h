@@ -8,47 +8,66 @@
 
 struct ID3D11DeviceContext;
 
-struct FrustumPlane
-{
-	Float3 Normal{ 0.f, 1.f, 0.f };;
-	float Distance = 0.0f;
-
-	FrustumPlane() = default;
-
-	FrustumPlane(const Float3& p1, const Float3& norm):
-		Normal(DirectX::XMVector3Normalize(norm.ToXM()))
-	{
-		Float2 f2 = DirectX::XMVector3Dot(norm.ToXM(), p1.ToXM());
-		Distance = f2.x;
-	}
-
-	float GetSignedDistnace(const Float3& point) const
-	{
-		Float2 dotResult = DirectX::XMVector3Dot(point.ToXM(), Normal.ToXM());
-		return dotResult.x - Distance;
-	}
-};
-
-struct ViewFrustum
-{
-	FrustumPlane Top;
-	FrustumPlane Bottom;
-	FrustumPlane Right;
-	FrustumPlane Left;
-	FrustumPlane Far;
-	FrustumPlane Near;
-};
-
 struct BoundingSphere
 {
 	Float3 Center{ 0.0f, 0.0f, 0.0f };
 	float Radius{ 1.0f };
+};
 
-	bool ForwardToPlane(const FrustumPlane& plane) const
+// Ax + By + Cz + D
+struct FrustumPlane
+{
+	float A;
+	float B;
+	float C;
+	float D;
+
+	FrustumPlane() = default;
+
+	FrustumPlane(Float3 p0, Float3 p1, Float3 p2)
 	{
-		return plane.GetSignedDistnace(Center) > -Radius;
+		const Float3 v = p1 - p0;
+		const Float3 u = p2 - p0;
+		const Float3 normal = v.Cross(u).Normalize();
+
+		A = normal.x;
+		B = normal.y;
+		C = normal.z;
+		D = -A * p0.x - B * p0.y - C * p0.z;
+	}
+
+	float SignedDistance(const Float3& p) const
+	{
+		return A * p.x + B * p.y + C * p.z + D;
 	}
 };
+
+struct Camera;
+
+struct ViewFrustum
+{
+	// Top Bottom Left Right Near Far
+	FrustumPlane Planes[6];
+
+	void Update(const Camera& camera);
+
+	bool IsInFrustum(const BoundingSphere& sphere) const
+	{
+		for (uint32_t i = 0; i < 6; i++)
+		{
+			const float distance = Planes[i].SignedDistance(sphere.Center);
+			if (distance < -sphere.Radius)
+				return false;
+			
+			// Intersects plane
+			//if (distance < sphere.Radius)
+			//	return true;
+
+		}
+		return true;
+	}
+};
+
 
 struct Material
 {

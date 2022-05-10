@@ -321,13 +321,7 @@ bool IsVisible(const Drawable& d)
 	bv.Center = e.Position + d.BoundingVolume.Center;
 	bv.Radius = d.BoundingVolume.Radius * 0.5f * maxScale;
 
-	return 
-		bv.ForwardToPlane(vf.Left) && 
-		bv.ForwardToPlane(vf.Right) &&
-		bv.ForwardToPlane(vf.Far) &&
-		bv.ForwardToPlane(vf.Near) &&
-		bv.ForwardToPlane(vf.Top) &&
-		bv.ForwardToPlane(vf.Bottom);
+	return vf.IsInFrustum(bv);
 }
 
 BitField CullDrawables()
@@ -411,7 +405,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 
 	GFX::Cmd::ClearRenderTarget(context, m_FinalRT, m_FinalRT_Depth);
 	GFX::Cmd::BindRenderTarget(context, m_FinalRT, m_FinalRT_Depth);
-
+	
 	// Skybox
 	{
 		GFX::Cmd::MarkerBegin(context, "Skybox");
@@ -535,6 +529,8 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		const uint32_t numDrawables = MainSceneGraph.Drawables.GetSize();
 		for (uint32_t i = 0; i < numDrawables; i++)
 		{
+			if (!m_VisibilityMask.Get(i)) continue;
+
 			const Drawable& d = MainSceneGraph.Drawables[i];
 			const Entity& e = MainSceneGraph.Entities[d.EntityIndex];
 			const float maxScale = MAX(MAX(e.Scale.x, e.Scale.y), e.Scale.z);
@@ -620,8 +616,7 @@ void ForwardPlus::UpdateStats(ID3D11DeviceContext* context)
 	RenderStats.TotalDrawables = MainSceneGraph.Drawables.GetSize();
 	if (!DebugToolsConfig.FreezeGeometryCulling)
 	{
-		RenderStats.VisibleDrawables = 0;
-		RenderStats.VisibleDrawables += m_VisibilityMask.CountOnes();
+		RenderStats.VisibleDrawables = m_VisibilityMask.CountOnes();
 	}
 	
 	// Light stats

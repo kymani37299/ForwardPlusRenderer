@@ -5,6 +5,8 @@
 #include <stdint.h>
 #include <DirectXMath.h>
 
+#include "Utility/MathUtility.h"
+
 struct Float2
 {
 	Float2() : x(0), y(0) {}
@@ -46,6 +48,13 @@ struct Float2
 	DirectX::XMVECTOR ToXM() const { return DirectX::XMVectorSet(x, y, 0.0f, 0.0f); }
 	DirectX::XMFLOAT2 ToXMF() const { return DirectX::XMFLOAT2{ x,y }; }
 	DirectX::XMFLOAT2A ToXMFA() const { return DirectX::XMFLOAT2A{ x,y }; }
+
+	float Length() const { return Float2(DirectX::XMVector2Length(ToXM())).x; }
+	float LengthFast() const { return Float2(DirectX::XMVector2LengthEst(ToXM())).x; }
+	float LengthSq() const { return Float2(DirectX::XMVector2LengthSq(ToXM())).x; }
+	float Dot(const Float2& other) const { return Float2(DirectX::XMVector2Dot(ToXM(), other.ToXM())).x; }
+	Float2 Normalize() const { return Float2(DirectX::XMVector2Normalize(ToXM())); }
+	Float2 NormalizeFast() const { return Float2(DirectX::XMVector2NormalizeEst(ToXM())); }
 
 	operator DirectX::XMVECTOR() const { return ToXM(); }
 };
@@ -93,6 +102,14 @@ struct Float3
 	DirectX::XMVECTOR ToXM() const { return DirectX::XMVectorSet(x, y, z, 0.0f); }
 	DirectX::XMFLOAT3 ToXMF() const { return DirectX::XMFLOAT3{ x,y,z }; }
 	DirectX::XMFLOAT3A ToXMFA() const { return DirectX::XMFLOAT3A{ x,y,z }; }
+
+	float Length() const { return Float3(DirectX::XMVector3Length(ToXM())).x; }
+	float LengthFast() const { return Float3(DirectX::XMVector3LengthEst(ToXM())).x; }
+	float LengthSq() const { return Float3(DirectX::XMVector3LengthSq(ToXM())).x; }
+	float Dot(const Float3& other) const { return Float3(DirectX::XMVector3Dot(ToXM(), other.ToXM())).x; }
+	Float3 Normalize() const { return Float3(DirectX::XMVector3Normalize(ToXM())); }
+	Float3 NormalizeFast() const { return Float3(DirectX::XMVector3NormalizeEst(ToXM())); }
+	Float3 Cross(const Float3& other) const { return Float3(DirectX::XMVector3Cross(ToXM(), other.ToXM())); }
 
 	operator DirectX::XMVECTOR() const { return ToXM(); }
 };
@@ -142,6 +159,13 @@ struct Float4
 	DirectX::XMVECTOR ToXM() const { return DirectX::XMVectorSet(x, y, z, w); }
 	DirectX::XMFLOAT4 ToXMF() const { return DirectX::XMFLOAT4{ x,y,z,w }; }
 	DirectX::XMFLOAT4A ToXMFA() const { return DirectX::XMFLOAT4A{ x,y,z,w }; }
+
+	float Length() const { return Float4(DirectX::XMVector4Length(ToXM())).x; }
+	float LengthFast() const { return Float4(DirectX::XMVector4LengthEst(ToXM())).x; }
+	float LengthSq() const { return Float4(DirectX::XMVector4LengthSq(ToXM())).x; }
+	float Dot(const Float4& other) const { return Float4(DirectX::XMVector4Dot(ToXM(), other.ToXM())).x; }
+	Float4 Normalize() const { return Float4(DirectX::XMVector4Normalize(ToXM())); }
+	Float4 NormalizeFast() const { return Float4(DirectX::XMVector4NormalizeEst(ToXM())); }
 
 	operator DirectX::XMVECTOR() const { return ToXM(); }
 };
@@ -235,7 +259,7 @@ public:
 			lookupInitialized = true;
 		}
 		const uint8_t* bytePtr = reinterpret_cast<uint8_t*>(m_Data.data());
-		const uint32_t byteSize = m_NumBits / 8;
+		const uint32_t byteSize = MathUtility::CeilDiv(m_NumBits, 8);
 		uint32_t bitCount = 0;
 		for (uint32_t i = 0; i < byteSize; i++) bitCount += lookupTable[bytePtr[i]];
 		return bitCount;
