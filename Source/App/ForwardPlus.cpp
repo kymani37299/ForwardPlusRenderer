@@ -299,6 +299,7 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 	m_GeometryAlphaDiscardShader = GFX::CreateShader("Source/Shaders/geometry.hlsl", { "ALPHA_DISCARD" });
 	m_GeometryAlphaDiscardShaderNoLightCulling = GFX::CreateShader("Source/Shaders/geometry.hlsl", { "ALPHA_DISCARD", "DISABLE_LIGHT_CULLING" });
 	m_LightCullingShader = GFX::CreateShader("Source/Shaders/light_culling.hlsl", { "USE_BARRIERS"}, SCF_CS);
+	m_DebugGeometryShader = GFX::CreateShader("Source/Shaders/debug_geometry.hlsl");
 
 	GenerateSkybox(context, m_SkyboxCubemap);
 	m_FinalRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV);
@@ -530,6 +531,8 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		GFX::Cmd::MarkerEnd(context);
 	}
 
+	DrawDebugGeometries(context);
+
 	if constexpr (ENABLE_STATS)
 		UpdateStats(context);
 
@@ -631,4 +634,56 @@ void ForwardPlus::UpdateStats(ID3D11DeviceContext* context)
 	}
 
 	GFX::Cmd::MarkerEnd(context);
+}
+
+void ForwardPlus::DrawDebugGeometries(ID3D11DeviceContext* context)
+{
+	struct DebugGeometryDataCB
+	{
+		DirectX::XMFLOAT4X4 ModelToWorld;
+		DirectX::XMFLOAT4 Color;
+	};
+
+	if (!m_DebugGeometryBuffer.Valid()) m_DebugGeometryBuffer = GFX::CreateConstantBuffer<DebugGeometryDataCB>();
+
+	GFX::Cmd::MarkerBegin(context, "Debug Geometries");
+
+	// Prepare pipeline
+	PipelineState pso = GFX::DefaultPipelineState();
+	pso.DS.DepthEnable = true;
+	pso.DS.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+	// TODO: Add blend
+	GFX::Cmd::SetPipelineState(context, pso);
+	GFX::Cmd::BindShader(context, m_DebugGeometryShader);
+	GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 1);
+
+	for (const DebugGeometry& dg : m_DebugGeometries)
+	{
+		// Prepare constant buffer
+		{
+			using namespace DirectX;
+			Float3 scale{ dg.Scale, dg.Scale, dg.Scale };
+			XMMATRIX modelToWorld = XMMatrixTranspose(XMMatrixAffineTransformation(scale.ToXM(), Float3(0.0f, 0.0f, 0.0f).ToXM(), Float4(0.0f, 0.0f, 0.0f, 0.0f).ToXM(), dg.Position.ToXM()));
+
+			DebugGeometryDataCB debugGeometryDataCB{};
+			debugGeometryDataCB.ModelToWorld = XMUtility::ToXMFloat4x4(modelToWorld);
+			debugGeometryDataCB.Color = dg.Color.ToXMF();
+			GFX::Cmd::UploadToBuffer(context, m_DebugGeometryBuffer, 0, &debugGeometryDataCB, 0, sizeof(DebugGeometryDataCB));
+		}
+
+		// Draw
+		{
+			BufferID vb = ForwardPlusPrivate::CubeVB;
+			GFX::Cmd::BindVertexBuffer(context, vb);
+			GFX::Cmd::BindCBV<VS>(context, m_DebugGeometryBuffer, 0);
+			GFX::Cmd::BindCBV<PS>(context, m_DebugGeometryBuffer, 0);
+			context->Draw(GFX::GetNumElements(vb), 0);
+		}
+	}
+
+	GFX::Cmd::SetPipelineState(context, GFX::DefaultPipelineState());
+
+	GFX::Cmd::MarkerEnd(context);
+
+	m_DebugGeometries.clear();
 }

@@ -39,5 +39,4 @@ float4 PS(VS_Output IN) : SV_Target
 {
 	const float2 uv = SprericalToUV(normalize(IN.localPos));
 	return quadrilateralTexture.Sample(s_LinearWrap, uv);
-	//return float4(uv, 1.0f, 1.0f);
 }

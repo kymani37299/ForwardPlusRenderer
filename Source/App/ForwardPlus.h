@@ -3,6 +3,13 @@
 #include "App/Application.h"
 #include "Render/ResourceID.h"
 
+struct DebugGeometry
+{
+	Float3 Position;
+	float Scale;
+	Float4 Color;
+};
+
 class ForwardPlus : public Application
 {
 	// Note: Duplicate definitions (see also light_culling.h)
@@ -23,11 +30,13 @@ public:
 private:
 	void UpdateCullingResources(ID3D11DeviceContext* context);
 	void UpdateStats(ID3D11DeviceContext* context);
+	void DrawDebugGeometries(ID3D11DeviceContext* context);
 
 private:
 	BitField m_VisibilityMask;
 	uint32_t m_NumTilesX = 0;
 	uint32_t m_NumTilesY = 0;
+	std::vector<DebugGeometry> m_DebugGeometries;
 
 	// GFX Resources
 	ShaderID m_SkyboxShader;
@@ -39,6 +48,7 @@ private:
 	ShaderID m_GeometryAlphaDiscardShaderNoLightCulling;
 	ShaderID m_LightCullingShader;
 	ShaderID m_LightStatsShader;
+	ShaderID m_DebugGeometryShader;
 
 	TextureID m_SkyboxCubemap;
 	TextureID m_FinalRT;
@@ -48,4 +58,5 @@ private:
 	BufferID m_VisibleLightsBuffer;
 	BufferID m_TileCullingInfoBuffer;
 	BufferID m_LightStatsBuffer;
+	BufferID m_DebugGeometryBuffer;
 };
