@@ -105,7 +105,7 @@ namespace SceneLoading
 			Float3* vertexData = nullptr;
 			uint32_t vertexCount = meshData->attributes[0].data->count;
 
-			for (size_t i = 0; i < meshData->attributes_count; i++)
+			for (size_t i = 0; i < meshData->attributes_count && vertexData == nullptr; i++)
 			{
 				cgltf_attribute* vertexAttribute = (meshData->attributes + i);
 				switch (vertexAttribute->type)
@@ -140,7 +140,7 @@ namespace SceneLoading
 
 			BoundingSphere bs;
 			bs.Center = 0.5f * (maxAABB + minAABB);
-			bs.Radius = Float3(DirectX::XMVector3LengthEst(minAABB - maxAABB)).x;
+			bs.Radius = (minAABB - maxAABB).LengthFast() * 0.5f;
 
 			return bs;
 		}

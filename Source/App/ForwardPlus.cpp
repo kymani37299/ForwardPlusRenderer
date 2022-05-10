@@ -226,7 +226,7 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 		}
 		else
 		{
-			Entity& e1 = MainSceneGraph.CreateEntity(context, { 0.0f, 0.0f, 0.0f }, { 0.1f, 0.1f, 0.1f } );
+			Entity& e1 = MainSceneGraph.CreateEntity(context, { 0.0f, 0.0f, 0.0f }, { 0.1f, 0.1f, 0.1f });
 			Entity& e2 = MainSceneGraph.CreateEntity(context);
 			
 			SceneLoading::LoadEntityInBackground("Resources/sponza/sponza.gltf", e1);
@@ -318,8 +318,8 @@ bool IsVisible(const Drawable& d)
 	const float maxScale = MAX(MAX(e.Scale.x, e.Scale.y), e.Scale.z);
 
 	BoundingSphere bv;
-	bv.Center = e.Position + d.BoundingVolume.Center;
-	bv.Radius = d.BoundingVolume.Radius * 0.5f * maxScale;
+	bv.Center = e.Position + e.Scale * d.BoundingVolume.Center;
+	bv.Radius = d.BoundingVolume.Radius * maxScale;
 
 	return vf.IsInFrustum(bv);
 }
@@ -536,8 +536,8 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			const float maxScale = MAX(MAX(e.Scale.x, e.Scale.y), e.Scale.z);
 			
 			BoundingSphere bs;
-			bs.Center = e.Position + d.BoundingVolume.Center;
-			bs.Radius = d.BoundingVolume.Radius * 0.5f * maxScale;
+			bs.Center = e.Position + e.Scale * d.BoundingVolume.Center;
+			bs.Radius = d.BoundingVolume.Radius * maxScale;
 
 			DebugGeometry dg{};
 			dg.Color = Float4(Random::UNorm(i), Random::UNorm(i+1), Random::UNorm(i+2), 0.2f);
