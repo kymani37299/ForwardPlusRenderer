@@ -212,5 +212,8 @@
     <ClInclude Include="Source\Gui\RenderStatsGUI.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Utility\Random.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

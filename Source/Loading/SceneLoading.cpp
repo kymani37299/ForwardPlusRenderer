@@ -123,8 +123,8 @@ namespace SceneLoading
 			static constexpr float MAX_FLOAT = std::numeric_limits<float>::max();
 			static constexpr float MIN_FLOAT = std::numeric_limits<float>::min();
 
-			Float3 minAABB{ MIN_FLOAT , MIN_FLOAT , MIN_FLOAT };
-			Float3 maxAABB{ MAX_FLOAT, MAX_FLOAT, MAX_FLOAT };
+			Float3 minAABB{ MAX_FLOAT , MAX_FLOAT, MAX_FLOAT };
+			Float3 maxAABB{ MIN_FLOAT, MIN_FLOAT, MIN_FLOAT };
 			for (uint32_t i = 0; i < vertexCount; i++)
 			{
 				const Float3 pos = vertexData[i];

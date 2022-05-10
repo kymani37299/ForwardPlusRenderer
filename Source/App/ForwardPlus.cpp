@@ -18,22 +18,11 @@
 #include "System/ApplicationConfiguration.h"
 #include "Loading/SceneLoading.h"
 #include "Utility/MathUtility.h"
+#include "Utility/Random.h"
 
 namespace ForwardPlusPrivate
 {
 	BufferID CubeVB;
-
-	// [0,1]
-	float Rand()
-	{
-		return (float)rand() / RAND_MAX;
-	}
-
-	// [-1,1]
-	float Rand2()
-	{
-		return Rand() * 2.0f - 1.0f;
-	}
 
 	TextureID PanoramaToCubemap(ID3D11DeviceContext* context, TextureID panoramaTexture, uint32_t cubemapSize)
 	{
@@ -222,9 +211,9 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 		constexpr uint32_t NUM_LIGHTS = 1024;
 		for (uint32_t i = 0; i < NUM_LIGHTS; i++)
 		{
-			Float3 position = Float3(200.0f, 100.0f, 200.0f) * Float3(Rand2(), Rand2(), Rand2());
-			Float3 color = Float3(Rand(), Rand(), Rand());
-			Float2 falloff = Float2(1.0f + 3.0f * Rand(), 5.0f + 10.0f * Rand());
+			Float3 position = Float3(200.0f, 100.0f, 200.0f) * Float3(Random::SNorm(), Random::SNorm(), Random::SNorm());
+			Float3 color = Float3(Random::UNorm(), Random::UNorm(), Random::UNorm());
+			Float2 falloff = Float2(1.0f + 3.0f * Random::UNorm(), 5.0f + 10.0f * Random::UNorm());
 			MainSceneGraph.CreatePointLight(context, position, color, falloff);
 		}
 
@@ -408,7 +397,16 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 
 	if (!DebugToolsConfig.FreezeGeometryCulling)
 	{
-		m_VisibilityMask = CullDrawables();
+		if (DebugToolsConfig.DisableGeometryCulling)
+		{
+			uint32_t numDrawables = MainSceneGraph.Drawables.GetSize();
+			m_VisibilityMask = BitField(numDrawables);
+			for (uint32_t i = 0; i < numDrawables; i++) m_VisibilityMask.Set(i, true);
+		}
+		else
+		{
+			m_VisibilityMask = CullDrawables();
+		}
 	}
 
 	GFX::Cmd::ClearRenderTarget(context, m_FinalRT, m_FinalRT_Depth);
@@ -531,7 +529,25 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		GFX::Cmd::MarkerEnd(context);
 	}
 
-	DrawDebugGeometries(context);
+	// Debug geometries
+	static constexpr bool DRAW_BOUNDING_SPHERES = false;
+	if constexpr(DRAW_BOUNDING_SPHERES)
+	{
+		const uint32_t numDrawables = MainSceneGraph.Drawables.GetSize();
+		for (uint32_t i = 0; i < numDrawables; i++)
+		{
+			Drawable& d = MainSceneGraph.Drawables[i];
+			BoundingSphere& bs = d.BoundingVolume;
+			DebugGeometry dg{};
+			dg.Color = Float4(Random::UNorm(i), Random::UNorm(i+1), Random::UNorm(i+2), 0.5f);
+			dg.Position = bs.Center;
+			dg.Scale = bs.Radius;
+			m_DebugGeometries.push_back(dg);
+		}
+
+		DrawDebugGeometries(context);
+	}
+
 
 	if constexpr (ENABLE_STATS)
 		UpdateStats(context);

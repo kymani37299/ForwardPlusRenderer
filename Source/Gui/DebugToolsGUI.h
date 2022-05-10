@@ -4,6 +4,7 @@
 
 struct DebugToolsConfiguration
 {
+	bool DisableGeometryCulling = false;
 	bool FreezeGeometryCulling = false;
 	bool FreezeLightCulling = false;
 	bool DisableLightCulling = false;

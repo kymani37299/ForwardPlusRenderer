@@ -225,6 +225,7 @@
     <ClInclude Include="Source\System\VSConsoleRedirect.h" />
     <ClInclude Include="Source\System\Window.h" />
     <ClInclude Include="Source\Utility\DataTypes.h" />
+    <ClInclude Include="Source\Utility\Random.h" />
     <ClInclude Include="Source\Utility\MathUtility.h" />
     <ClInclude Include="Source\Utility\Multithreading.h" />
     <ClInclude Include="Source\Utility\PathUtility.h" />
