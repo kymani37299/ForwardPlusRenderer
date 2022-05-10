@@ -597,10 +597,7 @@ void ForwardPlus::UpdateStats(ID3D11DeviceContext* context)
 	if (!DebugToolsConfig.FreezeGeometryCulling)
 	{
 		RenderStats.VisibleDrawables = 0;
-		for (uint32_t i = 0; i < RenderStats.TotalDrawables; i++)
-		{
-			if (m_VisibilityMask.Get(i)) RenderStats.VisibleDrawables++;
-		}
+		RenderStats.VisibleDrawables += m_VisibilityMask.CountOnes();
 	}
 	
 	// Light stats
@@ -610,8 +607,9 @@ void ForwardPlus::UpdateStats(ID3D11DeviceContext* context)
 	{
 		RenderStats.VisibleLights = RenderStats.TotalLights;
 	}
-	else if (!DebugToolsConfig.FreezeGeometryCulling)
+	else if (!DebugToolsConfig.FreezeLightCulling)
 	{
+#ifdef LIGHT_STATS // Tmp disabled - too slow
 		GFX::Cmd::BindShader(context, m_LightStatsShader);
 		GFX::Cmd::BindUAV<CS>(context, m_LightStatsBuffer, 0);
 		GFX::Cmd::BindSRV<CS>(context, m_VisibleLightsBuffer, 0);
@@ -626,6 +624,10 @@ void ForwardPlus::UpdateStats(ID3D11DeviceContext* context)
 		RenderStats.VisibleLights = *dataPtr;
 
 		context->Unmap(lightStatsBuffer.Handle.Get(), 0);
+#else
+		RenderStats.VisibleLights = RenderStats.TotalLights;
+#endif
+		
 	}
 
 	GFX::Cmd::MarkerEnd(context);

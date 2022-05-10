@@ -217,6 +217,30 @@ public:
 		return (void*) m_Data.data();
 	}
 
+	uint32_t CountOnes()
+	{
+		static bool lookupInitialized = false;
+		static uint8_t lookupTable[1 << 8];
+		if (!lookupInitialized)
+		{
+			for (uint32_t i = 0; i < (1 << 8); i++)
+			{
+				uint8_t bitCount = 0;
+				for (uint8_t j = 0; j < 8; j++)
+				{
+					if ((i & (1 << j)) > 0) bitCount++;
+				}
+				lookupTable[i] = bitCount;
+			}
+			lookupInitialized = true;
+		}
+		const uint8_t* bytePtr = reinterpret_cast<uint8_t*>(m_Data.data());
+		const uint32_t byteSize = m_NumBits / 8;
+		uint32_t bitCount = 0;
+		for (uint32_t i = 0; i < byteSize; i++) bitCount += lookupTable[bytePtr[i]];
+		return bitCount;
+	}
+
 private:
 	static constexpr uint32_t NumBitsPerElement = sizeof(uint32_t) * 8;
 	uint32_t m_NumElements = 0;
