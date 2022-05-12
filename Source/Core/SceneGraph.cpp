@@ -136,6 +136,7 @@ void Camera::RotToAxis(Float3 rot, Float3& forward, Float3& up, Float3& right)
 	up = Float3(0.0f, 1.0f, 0.0f);
 	forward = Float3((float)(std::cos(rot.y) * std::cos(rot.x)), (float)(std::sin(rot.x)), (float)(std::sin(rot.y) * std::cos(rot.x)));
 	right = forward.Cross(up);
+	up = right.Cross(forward);
 }
 
 Camera::Camera(Float3 position, Float3 rotation, float fov):

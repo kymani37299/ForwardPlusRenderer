@@ -9,6 +9,7 @@ struct DebugToolsConfiguration
 	bool FreezeLightCulling = false;
 	bool DisableLightCulling = false;
 	bool DrawBoundingBoxes = false;
+	bool LightHeatmap = false;
 };
 
 class DebugToolsGUI : public GUIElement

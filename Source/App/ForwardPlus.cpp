@@ -289,6 +289,7 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 	m_GeometryAlphaDiscardShaderNoLightCulling = GFX::CreateShader("Source/Shaders/geometry.hlsl", { "ALPHA_DISCARD", "DISABLE_LIGHT_CULLING" });
 	m_LightCullingShader = GFX::CreateShader("Source/Shaders/light_culling.hlsl", { "USE_BARRIERS"}, SCF_CS);
 	m_DebugGeometryShader = GFX::CreateShader("Source/Shaders/debug_geometry.hlsl");
+	m_LightHeatmapShader = GFX::CreateShader("Source/Shaders/light_heatmap.hlsl");
 
 	GenerateSkybox(context, m_SkyboxCubemap);
 	m_FinalRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV);
@@ -549,6 +550,24 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		DrawDebugGeometries(context);
 	}
 
+	if(DebugToolsConfig.LightHeatmap)
+	{
+		PipelineState pso = GFX::DefaultPipelineState();
+		pso.BS.RenderTarget[0].BlendEnable = true;
+		pso.BS.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+		pso.BS.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_MAX;
+		pso.BS.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+		pso.BS.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+		pso.BS.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
+		pso.BS.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+		GFX::Cmd::SetPipelineState(context, pso);
+
+		GFX::Cmd::BindShader(context, m_LightHeatmapShader);
+		GFX::Cmd::BindCBV<PS>(context, m_TileCullingInfoBuffer, 0);
+		GFX::Cmd::BindSRV<PS>(context, m_VisibleLightsBuffer, 0);
+		GFX::Cmd::BindVertexBuffer(context, Device::Get()->GetQuadBuffer());
+		context->Draw(6, 0);
+	}
 
 	if constexpr (ENABLE_STATS)
 		UpdateStats(context);

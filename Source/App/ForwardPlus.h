@@ -49,6 +49,7 @@ private:
 	ShaderID m_LightCullingShader;
 	ShaderID m_LightStatsShader;
 	ShaderID m_DebugGeometryShader;
+	ShaderID m_LightHeatmapShader;
 
 	TextureID m_SkyboxCubemap;
 	TextureID m_FinalRT;
