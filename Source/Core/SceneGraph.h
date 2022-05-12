@@ -165,6 +165,10 @@ struct Camera
 	Float3 Right;
 	Float3 Up;
 
+	bool UseJitter = false;
+	uint8_t JitterIndex = 0;
+	Float2 Jitter[16];
+
 	DirectX::XMMATRIX WorldToView;
 
 	BufferID CameraBuffer;

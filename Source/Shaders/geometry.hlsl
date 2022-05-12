@@ -59,9 +59,10 @@ VertexOut VS(VertexInput IN)
 	const float4 worldPos = mul(modelPos, Entities[entityIndex].ModelToWorld);
 	const float4 viewPos = mul(worldPos, CamData.WorldToView);
 	const float4 clipPos = mul(viewPos, CamData.ViewToClip);
+	const float4 clipPosWithJitter = clipPos + float4(CamData.Jitter, 0.0f, 0.0f) * clipPos.w;
 
 	VertexOut OUT;
-	OUT.Position = clipPos;
+	OUT.Position = clipPosWithJitter;
 	OUT.WorldPosition = worldPos.xyz;
 	OUT.Normal = mul(IN.Normal, (float3x3) Entities[entityIndex].ModelToWorld); // Assumes nonuniform scaling; otherwise, need to use inverse-transpose of world matrix.
 	OUT.UV = IN.UV;

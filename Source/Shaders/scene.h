@@ -8,6 +8,7 @@ struct Camera
 	float4x4 WorldToView;
 	float4x4 ViewToClip;
 	float3 Position;
+	float2 Jitter;
 };
 
 struct Drawable

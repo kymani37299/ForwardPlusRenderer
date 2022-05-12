@@ -13,6 +13,7 @@
 #include "Gui/DebugToolsGUI.h"
 #include "Gui/PositionInfoGUI.h"
 #include "Gui/RenderStatsGUI.h"
+#include "Gui/PostprocessingGUI.h"
 #include "System/Input.h"
 #include "System/Window.h"
 #include "System/ApplicationConfiguration.h"
@@ -195,6 +196,7 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 
 		GUI::Get()->AddElement(new FPSCounterGUI());
 		GUI::Get()->AddElement(new DebugToolsGUI());
+		GUI::Get()->AddElement(new PostprocessingGUI());
 		GUI::Get()->AddElement(new PositionInfoGUI());
 
 		if constexpr (ENABLE_STATS)
@@ -290,13 +292,12 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 	m_LightCullingShader = GFX::CreateShader("Source/Shaders/light_culling.hlsl", { "USE_BARRIERS"}, SCF_CS);
 	m_DebugGeometryShader = GFX::CreateShader("Source/Shaders/debug_geometry.hlsl");
 	m_LightHeatmapShader = GFX::CreateShader("Source/Shaders/light_heatmap.hlsl");
+	m_TAA = GFX::CreateShader("Source/Shaders/taa.hlsl");
 
 	GenerateSkybox(context, m_SkyboxCubemap);
-	m_FinalRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV);
-	m_FinalRT_Depth = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_DSV | RCF_Bind_SRV);
-
 	m_IndexBuffer = GFX::CreateBuffer(sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_IB | RCF_CopyDest);
 
+	UpdatePresentResources(context);
 	UpdateCullingResources(context);
 
 	if constexpr (ENABLE_STATS)
@@ -388,6 +389,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 {
 	using namespace ForwardPlusPrivate;
 
+	MainSceneGraph.MainCamera.UseJitter = PostprocessSettings.EnableTAA;
 	MainSceneGraph.FrameUpdate(context);
 
 	if (!DebugToolsConfig.FreezeGeometryCulling)
@@ -524,6 +526,22 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		GFX::Cmd::MarkerEnd(context);
 	}
 
+	// Postprocessing
+	{
+		// TAA
+		if (PostprocessSettings.EnableTAA)
+		{
+			GFX::Cmd::CopyToTexture(context, m_FinalRT, m_FinalRTSRV);
+			GFX::Cmd::BindShader(context, m_TAA);
+			GFX::Cmd::SetupStaticSamplers<PS>(context);
+			GFX::Cmd::BindSRV<PS>(context, m_FinalRTSRV, 0);
+			GFX::Cmd::BindSRV<PS>(context, m_FinalRTHistory, 1);
+			GFX::Cmd::BindVertexBuffer(context, Device::Get()->GetQuadBuffer());
+			context->Draw(6, 0);
+			GFX::Cmd::CopyToTexture(context, m_FinalRT, m_FinalRTHistory);
+		}
+	}
+
 	// Debug geometries
 	if(DebugToolsConfig.DrawBoundingBoxes)
 	{
@@ -590,12 +608,48 @@ void ForwardPlus::OnShaderReload(ID3D11DeviceContext* context)
 
 void ForwardPlus::OnWindowResize(ID3D11DeviceContext* context)
 {
-	GFX::Storage::Free(m_FinalRT);
-	GFX::Storage::Free(m_FinalRT_Depth);
-	m_FinalRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV);
+	UpdatePresentResources(context);
+	UpdateCullingResources(context);
+}
+
+void ForwardPlus::UpdatePresentResources(ID3D11DeviceContext* context)
+{
+	if (m_FinalRT.Valid())
+	{
+		GFX::Storage::Free(m_FinalRT);
+		GFX::Storage::Free(m_FinalRTSRV);
+		GFX::Storage::Free(m_FinalRTHistory);
+		GFX::Storage::Free(m_FinalRT_Depth);
+	}
+
+	m_FinalRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV );
+	m_FinalRTSRV = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_SRV | RCF_CopyDest);
+	m_FinalRTHistory = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_SRV | RCF_CopyDest);
 	m_FinalRT_Depth = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_DSV | RCF_Bind_SRV);
 
-	UpdateCullingResources(context);
+	// Halton sequence
+	const Float2 haltonSequence[16] = { {0.500000,0.333333},
+							{0.250000,0.666667},
+							{0.750000,0.111111},
+							{0.125000,0.444444},
+							{0.625000,0.777778},
+							{0.375000,0.222222},
+							{0.875000,0.555556},
+							{0.062500,0.888889},
+							{0.562500,0.037037},
+							{0.312500,0.370370},
+							{0.812500,0.703704},
+							{0.187500,0.148148},
+							{0.687500,0.481481},
+							{0.437500,0.814815},
+							{0.937500,0.259259},
+							{0.031250,0.592593} };
+
+	MainSceneGraph.MainCamera.UseJitter = true;
+	for (uint32_t i = 0; i < 16; i++)
+	{
+		MainSceneGraph.MainCamera.Jitter[i] = 2.0f * ((haltonSequence[i] - Float2{ 0.5f, 0.5f }) / Float2(AppConfig.WindowWidth, AppConfig.WindowHeight));
+	}
 }
 
 void ForwardPlus::UpdateCullingResources(ID3D11DeviceContext* context)

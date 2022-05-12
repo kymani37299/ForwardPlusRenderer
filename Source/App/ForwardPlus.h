@@ -28,6 +28,7 @@ public:
 	void OnWindowResize(ID3D11DeviceContext* context);
 
 private:
+	void UpdatePresentResources(ID3D11DeviceContext* context);
 	void UpdateCullingResources(ID3D11DeviceContext* context);
 	void UpdateStats(ID3D11DeviceContext* context);
 	void DrawDebugGeometries(ID3D11DeviceContext* context);
@@ -50,9 +51,12 @@ private:
 	ShaderID m_LightStatsShader;
 	ShaderID m_DebugGeometryShader;
 	ShaderID m_LightHeatmapShader;
+	ShaderID m_TAA;
 
 	TextureID m_SkyboxCubemap;
 	TextureID m_FinalRT;
+	TextureID m_FinalRTSRV;
+	TextureID m_FinalRTHistory;
 	TextureID m_FinalRT_Depth;
 
 	BufferID m_IndexBuffer;

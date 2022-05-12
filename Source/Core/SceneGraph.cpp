@@ -154,7 +154,8 @@ void Camera::UpdateBuffer(ID3D11DeviceContext* context)
 	{
 		XMFLOAT4X4 WorldToView;
 		XMFLOAT4X4 ViewToClip;
-		XMFLOAT3 Position;
+		XMFLOAT3A Position;
+		XMFLOAT2A Jitter;
 	};
 
 	AspectRatio = (float) AppConfig.WindowWidth / AppConfig.WindowHeight;
@@ -168,7 +169,8 @@ void Camera::UpdateBuffer(ID3D11DeviceContext* context)
 	CameraCB cameraCB{};
 	cameraCB.WorldToView = XMUtility::ToXMFloat4x4(matView);
 	cameraCB.ViewToClip = XMUtility::ToXMFloat4x4(matProj);
-	cameraCB.Position = Position.ToXMF();
+	cameraCB.Position = Position.ToXMFA();
+	cameraCB.Jitter = UseJitter ? Jitter[JitterIndex].ToXMFA() : Float2(0.0f, 0.0f).ToXMFA();
 
 	if (!CameraBuffer.Valid()) CameraBuffer = GFX::CreateConstantBuffer<CameraCB>();
 	GFX::Cmd::UploadToBuffer(context, CameraBuffer, 0, &cameraCB, 0, sizeof(CameraCB));
@@ -201,8 +203,10 @@ void SceneGraph::FrameUpdate(ID3D11DeviceContext* context)
 {
 	// Camera
 	{
+		MainCamera.JitterIndex = (MainCamera.JitterIndex + 1) % 16;
 		MainCamera.UpdateBuffer(context);
 		MainCamera.CameraFrustum.Update(MainCamera);
+
 	}
 
 	// Scene info

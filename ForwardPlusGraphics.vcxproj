@@ -177,6 +177,7 @@
     <ClCompile Include="Source\Gui\Imgui\imgui_tables.cpp" />
     <ClCompile Include="Source\Gui\Imgui\imgui_widgets.cpp" />
     <ClCompile Include="Source\Gui\PositionInfoGUI.cpp" />
+    <ClCompile Include="Source\Gui\PostprocessingGUI.cpp" />
     <ClCompile Include="Source\Gui\RenderStatsGUI.cpp" />
     <ClCompile Include="Source\Loading\SceneLoading.cpp" />
     <ClCompile Include="Source\main.cpp" />
@@ -208,6 +209,7 @@
     <ClInclude Include="Source\Gui\Imgui\imstb_textedit.h" />
     <ClInclude Include="Source\Gui\Imgui\imstb_truetype.h" />
     <ClInclude Include="Source\Gui\PositionInfoGUI.h" />
+    <ClInclude Include="Source\Gui\PostprocessingGUI.h" />
     <ClInclude Include="Source\Gui\RenderStatsGUI.h" />
     <ClInclude Include="Source\Loading\LoadingThread.h" />
     <ClInclude Include="Source\Loading\SceneLoading.h" />
