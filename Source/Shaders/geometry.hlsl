@@ -15,10 +15,17 @@ struct VertexInput
 struct VertexOut
 {
 	float4 Position : SV_POSITION;
+	float4 LastFramePosition : LAST_FRAME_POS;
 	float3 WorldPosition : WORLD_POS;
 	float3 Normal : NORMAL;
 	float2 UV : TEXCOORD;
 	nointerpolation uint MaterialIndex : MAT_INDEX;
+};
+
+struct PixelOut
+{
+	float4 Albedo : SV_TARGET0;
+	float2 MotionVector : SV_TARGET1;
 };
 
 cbuffer CameraCB : register(b0)
@@ -38,6 +45,11 @@ cbuffer TiledCullingInfoCB : register(b1)
 }
 #endif // DISABLE_LIGHT_CULLING
 
+cbuffer CameraCBLastFrame : register(b2)
+{
+	Camera CamDataLastFrame;
+}
+
 cbuffer LightSpaceCB : register(b3)
 {
 	float4x4 WorldToLightClip;
@@ -51,20 +63,35 @@ StructuredBuffer<Material> Materials : register(t6);
 StructuredBuffer<Drawable> Drawables : register(t7);
 StructuredBuffer<uint> VisibleLights : register(t8);
 
+float4 GetClipPos(float3 _modelPos, float4x4 modelToWorld, Camera camera)
+{
+	const float4 modelPos = float4(_modelPos, 1.0f);
+	const float4 worldPos = mul(modelPos, modelToWorld);
+	const float4 viewPos = mul(worldPos, camera.WorldToView);
+	const float4 clipPos = mul(viewPos, camera.ViewToClip);
+	return clipPos;
+}
+
+float4 GetClipPosWithJitter(float3 modelPos, float4x4 modelToWorld, Camera camera)
+{
+	const float4 clipPos = GetClipPos(modelPos, modelToWorld, camera);
+	const float4 clipPosWithJitter = clipPos + float4(camera.Jitter, 0.0f, 0.0f) * clipPos.w;
+	return clipPosWithJitter;
+}
+
 VertexOut VS(VertexInput IN)
 {
 	Drawable d = Drawables[IN.DrawableIndex];
 	uint entityIndex = d.EntityIndex;
-	const float4 modelPos = float4(IN.Position, 1.0f);
-	const float4 worldPos = mul(modelPos, Entities[entityIndex].ModelToWorld);
-	const float4 viewPos = mul(worldPos, CamData.WorldToView);
-	const float4 clipPos = mul(viewPos, CamData.ViewToClip);
-	const float4 clipPosWithJitter = clipPos + float4(CamData.Jitter, 0.0f, 0.0f) * clipPos.w;
+
+	// TODO: lastFrameModelToWorld - to use in last frame position
+	const float4x4 modelToWorld = Entities[entityIndex].ModelToWorld;
 
 	VertexOut OUT;
-	OUT.Position = clipPosWithJitter;
-	OUT.WorldPosition = worldPos.xyz;
-	OUT.Normal = mul(IN.Normal, (float3x3) Entities[entityIndex].ModelToWorld); // Assumes nonuniform scaling; otherwise, need to use inverse-transpose of world matrix.
+	OUT.Position = GetClipPosWithJitter(IN.Position, modelToWorld, CamData);
+	OUT.LastFramePosition = GetClipPos(IN.Position, modelToWorld, CamDataLastFrame);
+	OUT.WorldPosition = mul(float4(IN.Position, 1.0), modelToWorld);
+	OUT.Normal = mul(IN.Normal, (float3x3) modelToWorld); // Assumes nonuniform scaling; otherwise, need to use inverse-transpose of world matrix.
 	OUT.UV = IN.UV;
 	OUT.MaterialIndex = d.MaterialIndex;
 	return OUT;
@@ -84,7 +111,20 @@ bool IsInShadow(float3 worldPos)
 	return lightNDC.z < Shadowmap.Sample(s_LinearWrap, lightUV.xy).r;
 }
 
-float4 PS(VertexOut IN) : SV_Target
+float2 CalculateMotionVector(float4 newPosition, float4 oldPosition, float2 screenSize)
+{
+	oldPosition /= oldPosition.w;
+	oldPosition.xy = (oldPosition.xy + float2(1.0, 1.0)) / float2(2.0f, 2.0f);
+	oldPosition.y = 1.0 - oldPosition.y;
+
+	newPosition /= newPosition.w;
+	newPosition.xy = (newPosition.xy + float2(1.0, 1.0)) / float2(2.0f, 2.0f);
+	newPosition.y = 1.0 - newPosition.y;
+
+	return (newPosition - oldPosition).xy;
+}
+
+PixelOut PS(VertexOut IN)
 {
 	const Material matParams = Materials[IN.MaterialIndex];
 	const float4 albedo = Textures.Sample(s_AnisoWrap, float3(IN.UV, matParams.Albedo) );
@@ -147,5 +187,8 @@ float4 PS(VertexOut IN) : SV_Target
 	litColor.a = 1.0f;
 #endif // ALPHA_BLEND
 
-	return litColor;
+	PixelOut OUT;
+	OUT.Albedo = litColor;
+	OUT.MotionVector = CalculateMotionVector(IN.Position, IN.LastFramePosition, float2(1024, 768)); // TODO: Use real screen size
+	return OUT;
 }

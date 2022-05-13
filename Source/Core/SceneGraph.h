@@ -148,22 +148,30 @@ struct Light
 
 struct Camera
 {
-	static void RotToAxis(Float3 rot, Float3& forward, Float3& up, Float3& right);
+	struct CameraTransform
+	{
+		Float3 Position;
+		Float3 Rotation; // (Pitch, Yaw, Roll)
+		Float3 Forward;
+		Float3 Up;
+		Float3 Right;
+	};
+
+	static void RotToAxis(CameraTransform& transform);
 
 	Camera(Float3 position, Float3 rotation, float fov);
-	void UpdateBuffer(ID3D11DeviceContext* context);
+	void FrameUpdate(ID3D11DeviceContext* context);
+	void UpdateBuffers(ID3D11DeviceContext* context);
+	void UpdateBufferForTransform(ID3D11DeviceContext* context, CameraTransform& transform, BufferID& destBuffer);
 
 	float AspectRatio;
 	float FOV;
 	float ZFar;
 	float ZNear;
 
-	Float3 Position;
-	Float3 Rotation; // (Pitch, Yaw, Roll)
-
-	Float3 Forward;
-	Float3 Right;
-	Float3 Up;
+	CameraTransform NextTransform;
+	CameraTransform CurrentTranform;
+	CameraTransform LastTransform;
 
 	bool UseJitter = false;
 	uint8_t JitterIndex = 0;
@@ -172,6 +180,7 @@ struct Camera
 	DirectX::XMMATRIX WorldToView;
 
 	BufferID CameraBuffer;
+	BufferID LastFrameCameraBuffer;
 
 	ViewFrustum CameraFrustum;
 };

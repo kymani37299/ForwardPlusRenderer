@@ -50,6 +50,8 @@ namespace
 
 void ViewFrustum::Update(const Camera& c)
 {
+	const Camera::CameraTransform& t = c.CurrentTranform;
+
 	// Near and far plane dimensions
 	const float fovTan = tanf(DegreesToRadians(c.FOV / 2.0f));
 	const float hnear = 2.0f * fovTan * c.ZNear;
@@ -58,18 +60,18 @@ void ViewFrustum::Update(const Camera& c)
 	const float wfar = hfar * c.AspectRatio;
 
 	// 8 points of the frustum
-	const Float3 fc = c.Position + c.ZFar * c.Forward;
-	const Float3 nc = c.Position + c.ZNear * c.Forward;
+	const Float3 fc = t.Position + c.ZFar * t.Forward;
+	const Float3 nc = t.Position + c.ZNear * t.Forward;
 
-	const Float3 ftl = fc + (hfar / 2.0f) * c.Up - (wfar / 2.0f) * c.Right;
-	const Float3 ftr = fc + (hfar / 2.0f) * c.Up + (wfar / 2.0f) * c.Right;
-	const Float3 fbl = fc - (hfar / 2.0f) * c.Up - (wfar / 2.0f) * c.Right;
-	const Float3 fbr = fc - (hfar / 2.0f) * c.Up + (wfar / 2.0f) * c.Right;
+	const Float3 ftl = fc + (hfar / 2.0f) * t.Up - (wfar / 2.0f) * t.Right;
+	const Float3 ftr = fc + (hfar / 2.0f) * t.Up + (wfar / 2.0f) * t.Right;
+	const Float3 fbl = fc - (hfar / 2.0f) * t.Up - (wfar / 2.0f) * t.Right;
+	const Float3 fbr = fc - (hfar / 2.0f) * t.Up + (wfar / 2.0f) * t.Right;
 
-	const Float3 ntl = nc + (hnear / 2.0f) * c.Up - (wnear / 2.0f) * c.Right;
-	const Float3 ntr = nc + (hnear / 2.0f) * c.Up + (wnear / 2.0f) * c.Right;
-	const Float3 nbl = nc - (hnear / 2.0f) * c.Up - (wnear / 2.0f) * c.Right;
-	const Float3 nbr = nc - (hnear / 2.0f) * c.Up + (wnear / 2.0f) * c.Right;
+	const Float3 ntl = nc + (hnear / 2.0f) * t.Up - (wnear / 2.0f) * t.Right;
+	const Float3 ntr = nc + (hnear / 2.0f) * t.Up + (wnear / 2.0f) * t.Right;
+	const Float3 nbl = nc - (hnear / 2.0f) * t.Up - (wnear / 2.0f) * t.Right;
+	const Float3 nbr = nc - (hnear / 2.0f) * t.Up + (wnear / 2.0f) * t.Right;
 
 	Planes[0] = FrustumPlane{ ntr, ntl, ftl };	// Top
 	Planes[1] = FrustumPlane{ nbl, nbr, fbr };	// Bottom
@@ -130,24 +132,25 @@ void Light::UpdateBuffer(ID3D11DeviceContext* context)
 	GFX::Cmd::UploadToBuffer(context, MainSceneGraph.Lights.GetBuffer(), sizeof(LightSB) * LightIndex, &lightSB, 0, sizeof(LightSB));
 }
 
-void Camera::RotToAxis(Float3 rot, Float3& forward, Float3& up, Float3& right)
+void Camera::RotToAxis(CameraTransform& transform)
 {
 	// TODO: Calculate up based on roll
-	up = Float3(0.0f, 1.0f, 0.0f);
-	forward = Float3((float)(std::cos(rot.y) * std::cos(rot.x)), (float)(std::sin(rot.x)), (float)(std::sin(rot.y) * std::cos(rot.x)));
-	right = forward.Cross(up);
-	up = right.Cross(forward);
+	transform.Up = Float3(0.0f, 1.0f, 0.0f);
+	transform.Forward = Float3((float)(std::cos(transform.Rotation.y) * std::cos(transform.Rotation.x)), (float)(std::sin(transform.Rotation.x)), (float)(std::sin(transform.Rotation.y) * std::cos(transform.Rotation.x)));
+	transform.Right = transform.Forward.Cross(transform.Up);
+	transform.Up = transform.Right.Cross(transform.Forward);
 }
 
 Camera::Camera(Float3 position, Float3 rotation, float fov):
-	Position(position),
-	Rotation(rotation),
+	CurrentTranform({ position, rotation }),
+	LastTransform({ position, rotation }),
+	NextTransform({ position, rotation }),
 	FOV(fov),
 	ZFar(1000.0f),
 	ZNear(0.1f)
 { }
 
-void Camera::UpdateBuffer(ID3D11DeviceContext* context)
+void Camera::UpdateBufferForTransform(ID3D11DeviceContext* context, CameraTransform& transform, BufferID& destBuffer)
 {
 	using namespace DirectX;
 	struct CameraCB
@@ -159,9 +162,9 @@ void Camera::UpdateBuffer(ID3D11DeviceContext* context)
 	};
 
 	AspectRatio = (float) AppConfig.WindowWidth / AppConfig.WindowHeight;
-	RotToAxis(Rotation, Forward, Up, Right);
+	RotToAxis(transform);
 
-	XMMATRIX matView = XMMatrixTranspose(XMMatrixLookAtLH(Position.ToXM(), (Position + Forward).ToXM(), Up.ToXM()));
+	XMMATRIX matView = XMMatrixTranspose(XMMatrixLookAtLH(transform.Position.ToXM(), (transform.Position + transform.Forward).ToXM(), transform.Up.ToXM()));
 	XMMATRIX matProj = XMMatrixTranspose(XMMatrixPerspectiveFovLH(DegreesToRadians(FOV), AspectRatio, ZNear, ZFar));
 	
 	WorldToView = matView;
@@ -169,11 +172,26 @@ void Camera::UpdateBuffer(ID3D11DeviceContext* context)
 	CameraCB cameraCB{};
 	cameraCB.WorldToView = XMUtility::ToXMFloat4x4(matView);
 	cameraCB.ViewToClip = XMUtility::ToXMFloat4x4(matProj);
-	cameraCB.Position = Position.ToXMFA();
+	cameraCB.Position = transform.Position.ToXMFA();
 	cameraCB.Jitter = UseJitter ? Jitter[JitterIndex].ToXMFA() : Float2(0.0f, 0.0f).ToXMFA();
 
-	if (!CameraBuffer.Valid()) CameraBuffer = GFX::CreateConstantBuffer<CameraCB>();
-	GFX::Cmd::UploadToBuffer(context, CameraBuffer, 0, &cameraCB, 0, sizeof(CameraCB));
+	if (!destBuffer.Valid()) destBuffer = GFX::CreateConstantBuffer<CameraCB>();
+	GFX::Cmd::UploadToBuffer(context, destBuffer, 0, &cameraCB, 0, sizeof(CameraCB));
+}
+
+void Camera::UpdateBuffers(ID3D11DeviceContext* context)
+{
+	UpdateBufferForTransform(context, CurrentTranform, CameraBuffer);
+	UpdateBufferForTransform(context, LastTransform, LastFrameCameraBuffer);
+}
+
+void Camera::FrameUpdate(ID3D11DeviceContext* context)
+{
+	LastTransform = CurrentTranform;
+	CurrentTranform = NextTransform;
+	JitterIndex = (JitterIndex + 1) % 16;
+	UpdateBuffers(context);
+	CameraFrustum.Update(*this);
 }
 
 SceneGraph::SceneGraph() :
@@ -201,13 +219,7 @@ void SceneGraph::InitRenderData(ID3D11DeviceContext* context)
 
 void SceneGraph::FrameUpdate(ID3D11DeviceContext* context)
 {
-	// Camera
-	{
-		MainCamera.JitterIndex = (MainCamera.JitterIndex + 1) % 16;
-		MainCamera.UpdateBuffer(context);
-		MainCamera.CameraFrustum.Update(MainCamera);
-
-	}
+	MainCamera.FrameUpdate(context);
 
 	// Scene info
 	{

@@ -55,6 +55,7 @@ private:
 
 	TextureID m_SkyboxCubemap;
 	TextureID m_FinalRT;
+	TextureID m_MotionVectorRT;
 	TextureID m_FinalRTSRV;
 	TextureID m_FinalRTHistory;
 	TextureID m_FinalRT_Depth;

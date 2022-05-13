@@ -125,7 +125,34 @@ namespace GFX
 				const Texture& depthTexture = GFX::Storage::GetTexture(depthID);
 				dsv = depthTexture.DSV.Get();
 			}
-			context->OMSetRenderTargets(1, &rtv, dsv);
+
+			context->OMSetRenderTargets(rtv ? 1 : 0, &rtv, dsv);
+		}
+
+		void BindRenderTargets(ID3D11DeviceContext* context, std::vector<TextureID> colorID, TextureID depthID)
+		{
+			ID3D11DepthStencilView* dsv = nullptr;
+			std::vector<ID3D11RenderTargetView*> rtvs;
+			rtvs.resize(colorID.size());
+			for(uint32_t i=0;i<colorID.size();i++)
+			{
+				const TextureID texID = colorID[i];
+				if (texID.Valid())
+				{
+					const Texture& colorTexture = GFX::Storage::GetTexture(texID);
+					rtvs[i] = colorTexture.RTV.Get();
+				}
+				else
+				{
+					rtvs[i] = nullptr;
+				}
+			}
+			if (depthID.Valid())
+			{
+				const Texture& depthTexture = GFX::Storage::GetTexture(depthID);
+				dsv = depthTexture.DSV.Get();
+			}
+			context->OMSetRenderTargets(rtvs.size(), rtvs.data(), dsv);
 		}
 
 		void BindCBV_VS(ID3D11DeviceContext* context, BufferID bufferID, uint32_t slot)

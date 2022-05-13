@@ -114,7 +114,7 @@ namespace ForwardPlusPrivate
 		ASSERT(foundDirLight, "No directional light found! Please add a directional light to the scene!");
 
 		using namespace DirectX;
-		Float3 camPos = MainSceneGraph.MainCamera.Position.ToXM();
+		Float3 camPos = MainSceneGraph.MainCamera.CurrentTranform.Position.ToXM();
 		
 		// TODO: Reduce number of variables used
 		XMMATRIX view = XMMatrixLookAtLH(camPos.ToXM(), (camPos + lightDirection).ToXM(), Float3(0.0f, -1.0f, 0.0f).ToXM());
@@ -170,12 +170,12 @@ namespace ForwardPlusPrivate
 
 		Float4 moveDir4{ moveDir.x, moveDir.y, moveDir.z, 1.0f };
 		Float4 relativeDir = Float4(DirectX::XMVector4Transform(moveDir4.ToXM(), MainSceneGraph.MainCamera.WorldToView));
-		MainSceneGraph.MainCamera.Position += Float3(relativeDir.x, relativeDir.y, relativeDir.z);
+		MainSceneGraph.MainCamera.NextTransform.Position += Float3(relativeDir.x, relativeDir.y, relativeDir.z);
 
 		if (!Window::Get()->IsCursorShown())
 		{
 			Float2 mouseDelta = Input::GetMouseDelta();
-			Float3& cameraRot = MainSceneGraph.MainCamera.Rotation;
+			Float3& cameraRot = MainSceneGraph.MainCamera.NextTransform.Rotation;
 			cameraRot.y -= dtSec * mouse_speed * mouseDelta.x;
 			cameraRot.x -= dtSec * mouse_speed * mouseDelta.y;
 			cameraRot.x = std::clamp(cameraRot.x, -1.5f, 1.5f);
@@ -488,13 +488,14 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			const BitField filteredMask = FilterVisibilityMask(m_VisibilityMask, drawableFilter);
 			const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, filteredMask);
 
-			GFX::Cmd::BindRenderTarget(context, m_FinalRT, m_FinalRT_Depth);
+			GFX::Cmd::BindRenderTargets(context, { m_FinalRT, m_MotionVectorRT }, m_FinalRT_Depth);
 			GFX::Cmd::BindShader(context, useLightCulling ? m_GeometryShader : m_GeometryShaderNoLightCulling, true);
 			GFX::Cmd::SetupStaticSamplers<PS>(context);
 			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Textures, 0);
 			GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 			GFX::Cmd::BindCBV<PS>(context, useLightCulling ? m_TileCullingInfoBuffer : MainSceneGraph.SceneInfoBuffer, 1);
+			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.MainCamera.LastFrameCameraBuffer, 2);
 			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.WorldToLightClip, 3);
 			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Lights.GetBuffer(), 3);
 			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.ShadowMapTexture, 4);
@@ -528,18 +529,30 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 
 	// Postprocessing
 	{
+		GFX::Cmd::MarkerBegin(context, "Postprocessing");
+
 		// TAA
 		if (PostprocessSettings.EnableTAA)
 		{
+			GFX::Cmd::MarkerBegin(context, "TAA");
+
+			// NOTE: TAA only works with static geometries now
+			// In order for it to work with dynamic we need to store last frame model matrix so we calculate motion vectors good
 			GFX::Cmd::CopyToTexture(context, m_FinalRT, m_FinalRTSRV);
+			GFX::Cmd::BindRenderTarget(context, m_FinalRT);
 			GFX::Cmd::BindShader(context, m_TAA);
 			GFX::Cmd::SetupStaticSamplers<PS>(context);
 			GFX::Cmd::BindSRV<PS>(context, m_FinalRTSRV, 0);
 			GFX::Cmd::BindSRV<PS>(context, m_FinalRTHistory, 1);
+			GFX::Cmd::BindSRV<PS>(context, m_MotionVectorRT, 2);
 			GFX::Cmd::BindVertexBuffer(context, Device::Get()->GetQuadBuffer());
 			context->Draw(6, 0);
 			GFX::Cmd::CopyToTexture(context, m_FinalRT, m_FinalRTHistory);
+
+			GFX::Cmd::MarkerEnd(context);
 		}
+
+		GFX::Cmd::MarkerEnd(context);
 	}
 
 	// Debug geometries
@@ -620,12 +633,14 @@ void ForwardPlus::UpdatePresentResources(ID3D11DeviceContext* context)
 		GFX::Storage::Free(m_FinalRTSRV);
 		GFX::Storage::Free(m_FinalRTHistory);
 		GFX::Storage::Free(m_FinalRT_Depth);
+		GFX::Storage::Free(m_MotionVectorRT);
 	}
 
 	m_FinalRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV );
 	m_FinalRTSRV = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_SRV | RCF_CopyDest);
 	m_FinalRTHistory = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_SRV | RCF_CopyDest);
 	m_FinalRT_Depth = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_DSV | RCF_Bind_SRV);
+	m_MotionVectorRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV, 1, DXGI_FORMAT_R16G16_UNORM);
 
 	// Halton sequence
 	const Float2 haltonSequence[16] = { {0.500000,0.333333},
@@ -749,6 +764,7 @@ void ForwardPlus::DrawDebugGeometries(ID3D11DeviceContext* context)
 	pso.BS.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
 	pso.BS.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
 	GFX::Cmd::SetPipelineState(context, pso);
+	GFX::Cmd::BindRenderTarget(context, m_FinalRT, m_FinalRT_Depth);
 	GFX::Cmd::BindShader(context, m_DebugGeometryShader);
 	GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 1);
 
