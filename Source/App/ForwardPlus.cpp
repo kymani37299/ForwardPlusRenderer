@@ -409,18 +409,6 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 	GFX::Cmd::ClearRenderTarget(context, m_FinalRT, m_FinalRT_Depth);
 	GFX::Cmd::BindRenderTarget(context, m_FinalRT, m_FinalRT_Depth);
 	
-	// Skybox
-	{
-		GFX::Cmd::MarkerBegin(context, "Skybox");
-		GFX::Cmd::BindShader(context, m_SkyboxShader);
-		GFX::Cmd::BindVertexBuffer(context, CubeVB);
-		GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
-		GFX::Cmd::BindSRV<PS>(context, m_SkyboxCubemap, 0);
-		GFX::Cmd::SetupStaticSamplers<PS>(context);
-		context->Draw(GFX::GetNumElements(CubeVB), 0);
-		GFX::Cmd::MarkerEnd(context);
-	}
-
 	// Depth prepass
 	{
 		GFX::Cmd::MarkerBegin(context, "Depth Prepass");
@@ -474,6 +462,12 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			PipelineState pso = GFX::DefaultPipelineState();
 			pso.DS.DepthEnable = true;
 			pso.DS.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+			pso.DS.StencilEnable = true;
+			pso.DS.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+			pso.DS.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
+			pso.DS.FrontFace.StencilPassOp = D3D11_STENCIL_OP_REPLACE;
+			pso.DS.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+			pso.DS.BackFace = pso.DS.FrontFace;
 			GFX::Cmd::SetPipelineState(context, pso);
 		}
 
@@ -495,7 +489,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 			GFX::Cmd::BindCBV<PS>(context, useLightCulling ? m_TileCullingInfoBuffer : MainSceneGraph.SceneInfoBuffer, 1);
-			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.MainCamera.LastFrameCameraBuffer, 2);
+			GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.LastFrameCameraBuffer, 2);
 			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.WorldToLightClip, 3);
 			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Lights.GetBuffer(), 3);
 			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.ShadowMapTexture, 4);
@@ -531,6 +525,10 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 	{
 		GFX::Cmd::MarkerBegin(context, "Postprocessing");
 
+		// Prepare last frame
+		GFX::Cmd::CopyToTexture(context, m_FinalRTHistory[1], m_FinalRTHistory[0]);
+		GFX::Cmd::CopyToTexture(context, m_FinalRT, m_FinalRTHistory[1]);
+
 		// TAA
 		if (PostprocessSettings.EnableTAA)
 		{
@@ -539,19 +537,41 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			// NOTE: TAA only works with static geometries now
 			// In order for it to work with dynamic we need to store last frame model matrix so we calculate motion vectors good
 			GFX::Cmd::CopyToTexture(context, m_FinalRT, m_FinalRTSRV);
+
 			GFX::Cmd::BindRenderTarget(context, m_FinalRT);
 			GFX::Cmd::BindShader(context, m_TAA);
 			GFX::Cmd::SetupStaticSamplers<PS>(context);
 			GFX::Cmd::BindSRV<PS>(context, m_FinalRTSRV, 0);
-			GFX::Cmd::BindSRV<PS>(context, m_FinalRTHistory, 1);
+			GFX::Cmd::BindSRV<PS>(context, m_FinalRTHistory[0], 1);
 			GFX::Cmd::BindSRV<PS>(context, m_MotionVectorRT, 2);
 			GFX::Cmd::BindVertexBuffer(context, Device::Get()->GetQuadBuffer());
 			context->Draw(6, 0);
-			GFX::Cmd::CopyToTexture(context, m_FinalRT, m_FinalRTHistory);
-
 			GFX::Cmd::MarkerEnd(context);
 		}
 
+		GFX::Cmd::MarkerEnd(context);
+	}
+
+	// Skybox
+	{
+		PipelineState pso = GFX::DefaultPipelineState();
+		pso.DS.StencilEnable = true;
+		pso.DS.StencilWriteMask = 0;
+		pso.DS.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+		pso.DS.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
+		pso.DS.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+		pso.DS.FrontFace.StencilFunc = D3D11_COMPARISON_NOT_EQUAL;
+		pso.DS.BackFace = pso.DS.FrontFace;
+
+		GFX::Cmd::MarkerBegin(context, "Skybox");
+		GFX::Cmd::SetPipelineState(context, pso);
+		GFX::Cmd::BindRenderTarget(context, m_FinalRT, m_FinalRT_Depth);
+		GFX::Cmd::BindShader(context, m_SkyboxShader);
+		GFX::Cmd::BindVertexBuffer(context, CubeVB);
+		GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
+		GFX::Cmd::BindSRV<PS>(context, m_SkyboxCubemap, 0);
+		GFX::Cmd::SetupStaticSamplers<PS>(context);
+		context->Draw(GFX::GetNumElements(CubeVB), 0);
 		GFX::Cmd::MarkerEnd(context);
 	}
 
@@ -631,16 +651,23 @@ void ForwardPlus::UpdatePresentResources(ID3D11DeviceContext* context)
 	{
 		GFX::Storage::Free(m_FinalRT);
 		GFX::Storage::Free(m_FinalRTSRV);
-		GFX::Storage::Free(m_FinalRTHistory);
+		GFX::Storage::Free(m_FinalRTHistory[0]);
+		GFX::Storage::Free(m_FinalRTHistory[1]);
 		GFX::Storage::Free(m_FinalRT_Depth);
 		GFX::Storage::Free(m_MotionVectorRT);
 	}
 
 	m_FinalRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV );
 	m_FinalRTSRV = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_SRV | RCF_CopyDest);
-	m_FinalRTHistory = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_SRV | RCF_CopyDest);
+	m_FinalRTHistory[0] = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_SRV | RCF_CopyDest);
+	m_FinalRTHistory[1] = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_SRV | RCF_CopyDest);
 	m_FinalRT_Depth = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_DSV | RCF_Bind_SRV);
 	m_MotionVectorRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV, 1, DXGI_FORMAT_R16G16_UNORM);
+
+	// Create stencil view
+	{
+
+	}
 
 	// Halton sequence
 	const Float2 haltonSequence[16] = { {0.500000,0.333333},

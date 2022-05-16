@@ -21,20 +21,11 @@ TextureCube SkyboxTexture : register(t0);
 
 VertexOut VS(VertexInput IN)
 {
-	// TODO: Do not do transpose
-	float4x4 worldToViewNoTranslation = transpose(CamData.WorldToView);
-	worldToViewNoTranslation[0].w = 0.0;
-	worldToViewNoTranslation[1].w = 0.0;
-	worldToViewNoTranslation[2].w = 0.0;
-	worldToViewNoTranslation = transpose(worldToViewNoTranslation);
-
-	const float4 worldPos = float4(IN.Position, 1.0f);
-	const float4 viewPos = mul(worldPos, worldToViewNoTranslation);
-	const float4 clipPos = mul(viewPos, CamData.ViewToClip);
-
+	const float3 viewPos = mul(IN.Position, (float3x3) CamData.WorldToView);
+	const float4 clipPos = mul(float4(viewPos, 1.0f), CamData.ViewToClip);
 	VertexOut OUT;
 	OUT.Position = clipPos;
-	OUT.SkyRay = worldPos;
+	OUT.SkyRay = IN.Position;
 	return OUT;
 }
 

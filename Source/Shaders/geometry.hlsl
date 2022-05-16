@@ -2,6 +2,7 @@
 #include "scene.h"
 #include "lighting.h"
 #include "light_culling.h"
+#include "util.h"
 
 struct VertexInput
 {
@@ -15,6 +16,7 @@ struct VertexInput
 struct VertexOut
 {
 	float4 Position : SV_POSITION;
+	float4 ClipPosition : CLIP_POS;
 	float4 LastFramePosition : LAST_FRAME_POS;
 	float3 WorldPosition : WORLD_POS;
 	float3 Normal : NORMAL;
@@ -63,22 +65,6 @@ StructuredBuffer<Material> Materials : register(t6);
 StructuredBuffer<Drawable> Drawables : register(t7);
 StructuredBuffer<uint> VisibleLights : register(t8);
 
-float4 GetClipPos(float3 _modelPos, float4x4 modelToWorld, Camera camera)
-{
-	const float4 modelPos = float4(_modelPos, 1.0f);
-	const float4 worldPos = mul(modelPos, modelToWorld);
-	const float4 viewPos = mul(worldPos, camera.WorldToView);
-	const float4 clipPos = mul(viewPos, camera.ViewToClip);
-	return clipPos;
-}
-
-float4 GetClipPosWithJitter(float3 modelPos, float4x4 modelToWorld, Camera camera)
-{
-	const float4 clipPos = GetClipPos(modelPos, modelToWorld, camera);
-	const float4 clipPosWithJitter = clipPos + float4(camera.Jitter, 0.0f, 0.0f) * clipPos.w;
-	return clipPosWithJitter;
-}
-
 VertexOut VS(VertexInput IN)
 {
 	Drawable d = Drawables[IN.DrawableIndex];
@@ -89,6 +75,7 @@ VertexOut VS(VertexInput IN)
 
 	VertexOut OUT;
 	OUT.Position = GetClipPosWithJitter(IN.Position, modelToWorld, CamData);
+	OUT.ClipPosition = OUT.Position;
 	OUT.LastFramePosition = GetClipPos(IN.Position, modelToWorld, CamDataLastFrame);
 	OUT.WorldPosition = mul(float4(IN.Position, 1.0), modelToWorld);
 	OUT.Normal = mul(IN.Normal, (float3x3) modelToWorld); // Assumes nonuniform scaling; otherwise, need to use inverse-transpose of world matrix.
@@ -109,19 +96,6 @@ bool IsInShadow(float3 worldPos)
 	}
 
 	return lightNDC.z < Shadowmap.Sample(s_LinearWrap, lightUV.xy).r;
-}
-
-float2 CalculateMotionVector(float4 newPosition, float4 oldPosition, float2 screenSize)
-{
-	oldPosition /= oldPosition.w;
-	oldPosition.xy = (oldPosition.xy + float2(1.0, 1.0)) / float2(2.0f, 2.0f);
-	oldPosition.y = 1.0 - oldPosition.y;
-
-	newPosition /= newPosition.w;
-	newPosition.xy = (newPosition.xy + float2(1.0, 1.0)) / float2(2.0f, 2.0f);
-	newPosition.y = 1.0 - newPosition.y;
-
-	return (newPosition - oldPosition).xy;
 }
 
 PixelOut PS(VertexOut IN)
@@ -189,6 +163,6 @@ PixelOut PS(VertexOut IN)
 
 	PixelOut OUT;
 	OUT.Albedo = litColor;
-	OUT.MotionVector = CalculateMotionVector(IN.Position, IN.LastFramePosition, float2(1024, 768)); // TODO: Use real screen size
+	OUT.MotionVector = CalculateMotionVector(IN.ClipPosition, IN.LastFramePosition, float2(1024, 768)); // TODO: Use real screen size
 	return OUT;
 }

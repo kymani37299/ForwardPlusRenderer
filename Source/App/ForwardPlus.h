@@ -57,7 +57,7 @@ private:
 	TextureID m_FinalRT;
 	TextureID m_MotionVectorRT;
 	TextureID m_FinalRTSRV;
-	TextureID m_FinalRTHistory;
+	TextureID m_FinalRTHistory[2];
 	TextureID m_FinalRT_Depth;
 
 	BufferID m_IndexBuffer;
