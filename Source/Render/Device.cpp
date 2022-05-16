@@ -102,11 +102,26 @@ void Device::DeferredInit()
 
 void Device::CreateStaticSamplers()
 {
-    m_StaticSamplers.resize(3);
+    m_StaticSamplers.resize(4);
 
     D3D11_SAMPLER_DESC samplerDesc{};
-    
+    D3D11_SAMPLER_DESC defaultSamplerDesc{};
+    defaultSamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+	defaultSamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	defaultSamplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	defaultSamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+    defaultSamplerDesc.MipLODBias = 0;
+    defaultSamplerDesc.MaxAnisotropy = 16;
+    defaultSamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    defaultSamplerDesc.BorderColor[0] = 0.0f;
+    defaultSamplerDesc.BorderColor[1] = 0.0f;
+	defaultSamplerDesc.BorderColor[2] = 0.0f;
+	defaultSamplerDesc.BorderColor[3] = 0.0f;
+	defaultSamplerDesc.MinLOD = 0.0f;
+    defaultSamplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+
     // s_LinearWrap
+    samplerDesc = defaultSamplerDesc;
     samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
     samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
     samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -114,6 +129,7 @@ void Device::CreateStaticSamplers()
     m_Device->CreateSamplerState(&samplerDesc, &m_StaticSamplers[0]);
 
     // s_AnisoWrap
+    samplerDesc = defaultSamplerDesc;
     samplerDesc.Filter = D3D11_FILTER_ANISOTROPIC;
     samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
     samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -121,11 +137,20 @@ void Device::CreateStaticSamplers()
     m_Device->CreateSamplerState(&samplerDesc, &m_StaticSamplers[1]);
 
     // s_PointWrap
+    samplerDesc = defaultSamplerDesc;
     samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
     samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
     samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
     samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
     m_Device->CreateSamplerState(&samplerDesc, &m_StaticSamplers[2]);
+
+	// s_PointBorder
+    samplerDesc = defaultSamplerDesc;
+	samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_BORDER;
+	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_BORDER;
+	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_BORDER;
+	m_Device->CreateSamplerState(&samplerDesc, &m_StaticSamplers[3]);
 }
 
 void Device::EndFrame(TextureID finalImage)
