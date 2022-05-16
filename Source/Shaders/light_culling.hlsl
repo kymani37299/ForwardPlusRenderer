@@ -6,11 +6,6 @@ cbuffer SceneInfoCB : register(b0)
 	SceneInfo SceneInfoData;
 }
 
-cbuffer TiledCullingInfoCB : register(b1)
-{
-	TiledCullingInfo TiledCullingInfoData;
-}
-
 cbuffer CameraCB : register(b2)
 {
 	Camera CamData;
@@ -77,7 +72,7 @@ void CS(uint3 threadID : SV_DispatchThreadID, uint3 groupID : SV_GroupID, uint3 
 	// Step 2: Min and max depth
 
 	float maxDepth, minDepth;
-	const uint3 readPixelCoord = uint3(min(pixelCoord.x, TiledCullingInfoData.ScreenSize.x - 1), min(pixelCoord.y, TiledCullingInfoData.ScreenSize.y - 1), 0);
+	const uint3 readPixelCoord = uint3(min(pixelCoord.x, SceneInfoData.ScreenSize.x - 1), min(pixelCoord.y, SceneInfoData.ScreenSize.y - 1), 0);
 	const float depth = DepthTexture.Load(readPixelCoord);
 	const float linearizedDepth = LinearizeDepth(CamData.ViewToClip, depth);
 	const uint depthUint = asuint(linearizedDepth);
@@ -95,9 +90,10 @@ void CS(uint3 threadID : SV_DispatchThreadID, uint3 groupID : SV_GroupID, uint3 
 	{
 		minDepth = asfloat(gsMinDepth);
 		maxDepth = asfloat(gsMaxDepth);
-	
-		const float2 negativeStep = (2.0f * float2(tileIndex)) / float2(TiledCullingInfoData.TileCount);
-		const float2 positiveStep = (2.0f * float2(tileIndex + uint2(1, 1))) / float2(TiledCullingInfoData.TileCount);
+		
+		const uint2 numTiles = GetNumTiles(SceneInfoData);
+		const float2 negativeStep = (2.0f * float2(tileIndex)) / float2(numTiles);
+		const float2 positiveStep = (2.0f * float2(tileIndex + uint2(1, 1))) / float2(numTiles);
 	
 		gsFrustumPlanes[0] = float4(1.0, 0.0, 0.0, 1.0 - negativeStep.x);		// Left
 		gsFrustumPlanes[1] = float4(-1.0, 0.0, 0.0, -1.0 + positiveStep.x);		// Right
@@ -167,7 +163,7 @@ void CS(uint3 threadID : SV_DispatchThreadID, uint3 groupID : SV_GroupID, uint3 
 
 	if (isMainThread)
 	{
-		const uint writeOffset = GetOffsetFromTileIndex(TiledCullingInfoData, tileIndex);
+		const uint writeOffset = GetOffsetFromTileIndex(SceneInfoData, tileIndex);
 		const uint visibleLightCount = min(gsVisibleLightCount, MAX_LIGHTS_PER_TILE);
 		for (uint i = 0; i < visibleLightCount; i++)
 		{

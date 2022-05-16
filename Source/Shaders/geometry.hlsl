@@ -35,17 +35,10 @@ cbuffer CameraCB : register(b0)
 	Camera CamData;
 }
 
-#ifdef DISABLE_LIGHT_CULLING
 cbuffer SceneInfoCB : register(b1)
 {
 	SceneInfo SceneInfoData;
 }
-#else
-cbuffer TiledCullingInfoCB : register(b1)
-{
-	TiledCullingInfo TiledCullingInfoData;
-}
-#endif // DISABLE_LIGHT_CULLING
 
 cbuffer CameraCBLastFrame : register(b2)
 {
@@ -131,7 +124,7 @@ PixelOut PS(VertexOut IN)
 		const Light l = Lights[i];
 #else
 	const uint2 tileIndex = GetTileIndexFromPosition(IN.Position.xyz);
-	const uint visibleLightOffset = GetOffsetFromTileIndex(TiledCullingInfoData, tileIndex);
+	const uint visibleLightOffset = GetOffsetFromTileIndex(SceneInfoData, tileIndex);
 	for (uint i = visibleLightOffset; VisibleLights[i] != VISIBLE_LIGHT_END; i++)
 	{
 		const uint lightIndex = VisibleLights[i];
@@ -163,6 +156,6 @@ PixelOut PS(VertexOut IN)
 
 	PixelOut OUT;
 	OUT.Albedo = litColor;
-	OUT.MotionVector = CalculateMotionVector(IN.ClipPosition, IN.LastFramePosition, float2(1024, 768)); // TODO: Use real screen size
+	OUT.MotionVector = CalculateMotionVector(IN.ClipPosition, IN.LastFramePosition, SceneInfoData.ScreenSize);
 	return OUT;
 }

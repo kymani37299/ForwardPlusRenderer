@@ -62,7 +62,6 @@ private:
 
 	BufferID m_IndexBuffer;
 	BufferID m_VisibleLightsBuffer;
-	BufferID m_TileCullingInfoBuffer;
 	BufferID m_LightStatsBuffer;
 	BufferID m_DebugGeometryBuffer;
 };

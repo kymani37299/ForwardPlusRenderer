@@ -444,7 +444,6 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		GFX::Cmd::MarkerBegin(context, "Light Culling");
 		GFX::Cmd::BindShader(context, m_LightCullingShader);
 		GFX::Cmd::BindCBV<CS>(context, MainSceneGraph.SceneInfoBuffer, 0);
-		GFX::Cmd::BindCBV<CS>(context, m_TileCullingInfoBuffer, 1);
 		GFX::Cmd::BindCBV<CS>(context, MainSceneGraph.MainCamera.CameraBuffer, 2);
 		GFX::Cmd::BindSRV<CS>(context, MainSceneGraph.Lights.GetBuffer(), 0);
 		GFX::Cmd::BindSRV<CS>(context, m_FinalRT_Depth, 1);
@@ -488,7 +487,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Textures, 0);
 			GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
-			GFX::Cmd::BindCBV<PS>(context, useLightCulling ? m_TileCullingInfoBuffer : MainSceneGraph.SceneInfoBuffer, 1);
+			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.SceneInfoBuffer, 1);
 			GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.LastFrameCameraBuffer, 2);
 			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.WorldToLightClip, 3);
 			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Lights.GetBuffer(), 3);
@@ -614,7 +613,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		GFX::Cmd::SetPipelineState(context, pso);
 
 		GFX::Cmd::BindShader(context, m_LightHeatmapShader);
-		GFX::Cmd::BindCBV<PS>(context, m_TileCullingInfoBuffer, 0);
+		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.SceneInfoBuffer, 0);
 		GFX::Cmd::BindSRV<PS>(context, m_VisibleLightsBuffer, 0);
 		GFX::Cmd::BindVertexBuffer(context, Device::Get()->GetQuadBuffer());
 		context->Draw(6, 0);
@@ -707,20 +706,9 @@ void ForwardPlus::UpdateCullingResources(ID3D11DeviceContext* context)
 	if(m_VisibleLightsBuffer.Valid())
 		GFX::Storage::Free(m_VisibleLightsBuffer);
 
-	if (!m_TileCullingInfoBuffer.Valid())
-		m_TileCullingInfoBuffer = GFX::CreateConstantBuffer<TileCullingInfoCB>();
-
 	m_NumTilesX = MathUtility::CeilDiv(AppConfig.WindowWidth, TILE_SIZE);
 	m_NumTilesY = MathUtility::CeilDiv(AppConfig.WindowHeight, TILE_SIZE);
 	m_VisibleLightsBuffer = GFX::CreateBuffer(m_NumTilesX * m_NumTilesY * (MAX_LIGHTS_PER_TILE + 1) * sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_SB | RCF_Bind_UAV);
-
-	TileCullingInfoCB tileCullingInfoCB{};
-	tileCullingInfoCB.ScreenSizeX = AppConfig.WindowWidth;
-	tileCullingInfoCB.ScreenSizeY = AppConfig.WindowHeight;
-	tileCullingInfoCB.NumTilesX = m_NumTilesX;
-	tileCullingInfoCB.NumTilesY = m_NumTilesY;
-
-	GFX::Cmd::UploadToBuffer(context, m_TileCullingInfoBuffer, 0, &tileCullingInfoCB, 0, sizeof(TileCullingInfoCB));
 }
 
 void ForwardPlus::UpdateStats(ID3D11DeviceContext* context)

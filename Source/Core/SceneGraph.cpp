@@ -226,10 +226,14 @@ void SceneGraph::FrameUpdate(ID3D11DeviceContext* context)
 		struct SceneInfoCB
 		{
 			uint32_t NumLights;
+			DirectX::XMFLOAT2A ScreenSize;
+			float AspectRatio;
 		};
 
 		SceneInfoCB sceneInfoCB{};
 		sceneInfoCB.NumLights = Lights.GetSize();
+		sceneInfoCB.ScreenSize = { (float) AppConfig.WindowWidth, (float) AppConfig.WindowHeight };
+		sceneInfoCB.AspectRatio = (float) AppConfig.WindowWidth / AppConfig.WindowHeight;
 
 		if (!SceneInfoBuffer.Valid()) SceneInfoBuffer = GFX::CreateConstantBuffer<SceneInfoCB>();
 

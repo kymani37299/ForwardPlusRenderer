@@ -1,6 +1,8 @@
 struct SceneInfo
 {
 	uint NumLights;
+	float2 ScreenSize;
+	float AspectRatio;
 };
 
 struct Camera
