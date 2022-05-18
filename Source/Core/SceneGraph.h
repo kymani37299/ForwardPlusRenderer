@@ -60,8 +60,8 @@ struct ViewFrustum
 				return false;
 			
 			// Intersects plane
-			//if (distance < sphere.Radius)
-			//	return true;
+			if (distance < sphere.Radius)
+				return true;
 
 		}
 		return true;

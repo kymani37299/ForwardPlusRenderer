@@ -23,4 +23,10 @@ namespace Random
 	{
 		return UNorm() * 2.0f - 1.0f;
 	}
+
+	// Random float [a,b]
+	float Float(float a, float b)
+	{
+		return UNorm() * (b - a) + a;
+	}
 }

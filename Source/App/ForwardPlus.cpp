@@ -24,6 +24,7 @@
 namespace ForwardPlusPrivate
 {
 	BufferID CubeVB;
+	BufferID SphereVB;
 
 	TextureID PanoramaToCubemap(ID3D11DeviceContext* context, TextureID panoramaTexture, uint32_t cubemapSize)
 	{
@@ -181,6 +182,81 @@ namespace ForwardPlusPrivate
 			cameraRot.x = std::clamp(cameraRot.x, -1.5f, 1.5f);
 		}
 	}
+
+	BufferID GenerateSphereVB()
+	{
+		constexpr uint32_t parallels = 11;
+		constexpr uint32_t meridians = 22;
+		constexpr float PI = 3.14159265358979323846;
+
+		std::vector<Float3> verticesRaw;
+		std::vector<Float3> vertices;
+
+		verticesRaw.push_back({ 0.0f, 1.0f, 0.0f });
+		for (uint32_t j = 0; j < parallels - 1; ++j)
+		{
+			float polar = PI * float(j + 1) / float(parallels);
+			float sp = std::sin(polar);
+			float cp = std::cos(polar);
+			for (uint32_t i = 0; i < meridians; ++i)
+			{
+				float azimuth = 2.0 * PI * float(i) / float(meridians);
+				float sa = std::sin(azimuth);
+				float ca = std::cos(azimuth);
+				float x = sp * ca;
+				float y = cp;
+				float z = sp * sa;
+				verticesRaw.push_back({ x, y, z });
+			}
+		}
+		verticesRaw.push_back({ 0.0f, -1.0f, 0.0f });
+
+		for (uint32_t i = 0; i < meridians; ++i)
+		{
+			uint32_t const a = i + 1;
+			uint32_t const b = (i + 1) % meridians + 1;
+			vertices.push_back(verticesRaw[0]);
+			vertices.push_back(verticesRaw[b]);
+			vertices.push_back(verticesRaw[a]);
+		}
+
+		for (uint32_t j = 0; j < parallels - 2; ++j)
+		{
+			uint32_t aStart = j * meridians + 1;
+			uint32_t bStart = (j + 1) * meridians + 1;
+			for (uint32_t i = 0; i < meridians; ++i)
+			{
+				const uint32_t a = aStart + i;
+				const uint32_t a1 = aStart + (i + 1) % meridians;
+				const uint32_t b = bStart + i;
+				const uint32_t b1 = bStart + (i + 1) % meridians;
+				vertices.push_back(verticesRaw[a]);
+				vertices.push_back(verticesRaw[a1]);
+				vertices.push_back(verticesRaw[b1]);
+				vertices.push_back(verticesRaw[b]);
+				vertices.push_back(verticesRaw[a]);
+				vertices.push_back(verticesRaw[b1]);
+			}
+		}
+
+		for (uint32_t i = 0; i < meridians; ++i)
+		{
+			uint32_t const a = i + meridians * (parallels - 2) + 1;
+			uint32_t const b = (i + 1) % meridians + meridians * (parallels - 2) + 1;
+			vertices.push_back(verticesRaw[verticesRaw.size()-1]);
+			vertices.push_back(verticesRaw[a]);
+			vertices.push_back(verticesRaw[b]);
+		}
+
+		return GFX::CreateVertexBuffer<Float3>(vertices.size(), vertices.data());
+	}
+
+	BufferID GenerateCubeVB()
+	{
+		static const float vbData[] = { -1.0f,-1.0f,-1.0f,-1.0f,-1.0f, 1.0f,-1.0f, 1.0f, 1.0f,1.0f, 1.0f,-1.0f,-1.0f,-1.0f,-1.0f,-1.0f, 1.0f,-1.0f,1.0f,-1.0f, 1.0f,-1.0f,-1.0f,-1.0f,1.0f,-1.0f,-1.0f,1.0f, 1.0f,-1.0f,1.0f,-1.0f,-1.0f,-1.0f,-1.0f,-1.0f,-1.0f,-1.0f,-1.0f,-1.0f, 1.0f, 1.0f,-1.0f, 1.0f,-1.0f,1.0f,-1.0f, 1.0f,-1.0f,-1.0f, 1.0f,-1.0f,-1.0f,-1.0f,-1.0f, 1.0f, 1.0f,-1.0f,-1.0f, 1.0f,1.0f,-1.0f, 1.0f,1.0f, 1.0f, 1.0f,1.0f,-1.0f,-1.0f,1.0f, 1.0f,-1.0f,1.0f,-1.0f,-1.0f,1.0f, 1.0f, 1.0f,1.0f,-1.0f, 1.0f,1.0f, 1.0f, 1.0f,1.0f, 1.0f,-1.0f,-1.0f, 1.0f,-1.0f,1.0f, 1.0f, 1.0f,-1.0f, 1.0f,-1.0f,-1.0f, 1.0f, 1.0f,1.0f, 1.0f, 1.0f,-1.0f, 1.0f, 1.0f,1.0f,-1.0f, 1.0f };
+		static uint32_t numVertices = STATIC_ARRAY_SIZE(vbData) / 3;
+		return GFX::CreateVertexBuffer<Float3>(numVertices, (Float3*)vbData);
+	}
 }
 
 void ForwardPlus::OnInit(ID3D11DeviceContext* context)
@@ -221,10 +297,17 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 
 		if (AppConfig.Settings.contains("SIMPLE_SCENE"))
 		{
-			Entity& e1 = MainSceneGraph.CreateEntity(context, { 0.0f, -10.0f, 0.0f }, { 10000.0f, 1.0f, 10000.0f });
-			Entity& e2 = MainSceneGraph.CreateEntity(context, { 10.0f, 0.0f, 10.0f });
-			SceneLoading::LoadEntity("Resources/cube/cube.gltf", e1);
-			SceneLoading::LoadEntity("Resources/cube/cube.gltf", e2);
+			Entity& plane = MainSceneGraph.CreateEntity(context, { 0.0f, -10.0f, 0.0f }, { 10000.0f, 1.0f, 10000.0f });
+			SceneLoading::LoadEntity("Resources/cube/cube.gltf", plane);
+
+			constexpr uint32_t NUM_CUBES = 50;
+			for (uint32_t i = 0; i < NUM_CUBES; i++)
+			{
+				const Float3 position = Float3{ Random::SNorm(), Random::SNorm(), Random::SNorm() } * Float3{ 100.0f, 100.0f, 100.0f};
+				const Float3 scale = Float3{ Random::Float(0.1f, 10.0f), Random::Float(0.1f, 10.0f) , Random::Float(0.1f, 10.0f) };
+				Entity& cube = MainSceneGraph.CreateEntity(context, position, scale);
+				SceneLoading::LoadEntity("Resources/cube/cube.gltf", cube);
+			}
 		}
 		else
 		{
@@ -239,47 +322,8 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 		MainSceneGraph.WorldToLightClip = GFX::CreateConstantBuffer<DirectX::XMFLOAT4X4>();
 		MainSceneGraph.ShadowMapTexture = GFX::CreateTexture(512, 512, RCF_Bind_DSV | RCF_Bind_SRV);
 
-		static const float vbData[] = {
-		-1.0f,-1.0f,-1.0f,
-		-1.0f,-1.0f, 1.0f,
-		-1.0f, 1.0f, 1.0f,
-		1.0f, 1.0f,-1.0f,
-		-1.0f,-1.0f,-1.0f,
-		-1.0f, 1.0f,-1.0f,
-		1.0f,-1.0f, 1.0f,
-		-1.0f,-1.0f,-1.0f,
-		1.0f,-1.0f,-1.0f,
-		1.0f, 1.0f,-1.0f,
-		1.0f,-1.0f,-1.0f,
-		-1.0f,-1.0f,-1.0f,
-		-1.0f,-1.0f,-1.0f,
-		-1.0f, 1.0f, 1.0f,
-		-1.0f, 1.0f,-1.0f,
-		1.0f,-1.0f, 1.0f,
-		-1.0f,-1.0f, 1.0f,
-		-1.0f,-1.0f,-1.0f,
-		-1.0f, 1.0f, 1.0f,
-		-1.0f,-1.0f, 1.0f,
-		1.0f,-1.0f, 1.0f,
-		1.0f, 1.0f, 1.0f,
-		1.0f,-1.0f,-1.0f,
-		1.0f, 1.0f,-1.0f,
-		1.0f,-1.0f,-1.0f,
-		1.0f, 1.0f, 1.0f,
-		1.0f,-1.0f, 1.0f,
-		1.0f, 1.0f, 1.0f,
-		1.0f, 1.0f,-1.0f,
-		-1.0f, 1.0f,-1.0f,
-		1.0f, 1.0f, 1.0f,
-		-1.0f, 1.0f,-1.0f,
-		-1.0f, 1.0f, 1.0f,
-		1.0f, 1.0f, 1.0f,
-		-1.0f, 1.0f, 1.0f,
-		1.0f,-1.0f, 1.0f
-		};
-		static uint32_t numVertices = STATIC_ARRAY_SIZE(vbData) / 3;
-
-		CubeVB = GFX::CreateVertexBuffer<Float3>(numVertices, (Float3*)vbData);
+		CubeVB = GenerateCubeVB();
+		SphereVB = GenerateSphereVB();
 	}
 
 	m_SkyboxShader = GFX::CreateShader("Source/Shaders/skybox.hlsl");
@@ -591,6 +635,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			bs.Radius = d.BoundingVolume.Radius * maxScale;
 
 			DebugGeometry dg{};
+			dg.Type = DebugGeometryType::SPHERE;
 			dg.Color = Float4(Random::UNorm(i), Random::UNorm(i+1), Random::UNorm(i+2), 0.2f);
 			dg.Position = bs.Center;
 			dg.Scale = bs.Radius;
@@ -662,11 +707,6 @@ void ForwardPlus::UpdatePresentResources(ID3D11DeviceContext* context)
 	m_FinalRTHistory[1] = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_SRV | RCF_CopyDest);
 	m_FinalRT_Depth = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_DSV | RCF_Bind_SRV);
 	m_MotionVectorRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV, 1, DXGI_FORMAT_R16G16_UNORM);
-
-	// Create stencil view
-	{
-
-	}
 
 	// Halton sequence
 	const Float2 haltonSequence[16] = { {0.500000,0.333333},
@@ -785,9 +825,22 @@ void ForwardPlus::DrawDebugGeometries(ID3D11DeviceContext* context)
 
 	for (const DebugGeometry& dg : m_DebugGeometries)
 	{
-		// Prepare constant buffer
+		BufferID vertexBuffer;
+
+		// Prepare data
 		{
 			using namespace DirectX;
+
+			switch (dg.Type)
+			{
+			case DebugGeometryType::CUBE:
+				vertexBuffer = ForwardPlusPrivate::CubeVB;
+				break;
+			case DebugGeometryType::SPHERE:
+				vertexBuffer = ForwardPlusPrivate::SphereVB;
+				break;
+			}
+
 			Float3 scale{ dg.Scale, dg.Scale, dg.Scale };
 			XMMATRIX modelToWorld = XMMatrixTranspose(XMMatrixAffineTransformation(scale.ToXM(), Float3(0.0f, 0.0f, 0.0f).ToXM(), Float4(0.0f, 0.0f, 0.0f, 0.0f).ToXM(), dg.Position.ToXM()));
 
@@ -799,11 +852,10 @@ void ForwardPlus::DrawDebugGeometries(ID3D11DeviceContext* context)
 
 		// Draw
 		{
-			BufferID vb = ForwardPlusPrivate::CubeVB;
-			GFX::Cmd::BindVertexBuffer(context, vb);
+			GFX::Cmd::BindVertexBuffer(context, vertexBuffer);
 			GFX::Cmd::BindCBV<VS>(context, m_DebugGeometryBuffer, 0);
 			GFX::Cmd::BindCBV<PS>(context, m_DebugGeometryBuffer, 0);
-			context->Draw(GFX::GetNumElements(vb), 0);
+			context->Draw(GFX::GetNumElements(vertexBuffer), 0);
 		}
 	}
 

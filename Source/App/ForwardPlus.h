@@ -3,8 +3,15 @@
 #include "App/Application.h"
 #include "Render/ResourceID.h"
 
+enum class DebugGeometryType
+{
+	CUBE,
+	SPHERE
+};
+
 struct DebugGeometry
 {
+	DebugGeometryType Type;
 	Float3 Position;
 	float Scale;
 	Float4 Color;
