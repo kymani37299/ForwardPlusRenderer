@@ -14,6 +14,19 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
 
 GUI* GUI::s_Instance = nullptr;
 
+void GUIElement::RenderElement(ID3D11DeviceContext* context)
+{
+	if (m_Shown)
+	{
+		if (ImGui::Begin(m_Name.c_str(), &m_Shown))
+		{
+			Render(context);
+			ImGui::End();
+		}
+	}
+	
+}
+
 GUI::GUI()
 {
 	IMGUI_CHECKVERSION();
@@ -54,9 +67,24 @@ void GUI::Render(ID3D11DeviceContext* context)
 	ImGui_ImplWin32_NewFrame();
 	ImGui::NewFrame();
 
+	// Draw menu bar
+	if (ImGui::BeginMainMenuBar())
+	{
+		if (ImGui::BeginMenu("Tools"))
+		{
+			for (GUIElement* element : m_Elements)
+			{
+				ImGui::MenuItem(element->GetName().c_str(), 0, &element->GetShownRef());
+			}
+			ImGui::EndMenu();
+		}
+		ImGui::EndMainMenuBar();
+	}
+
+	// Draw elements
 	for (GUIElement* element : m_Elements)
 	{
-		element->Render(context);
+		element->RenderElement(context);
 	}
 
 	ImGui::Render();

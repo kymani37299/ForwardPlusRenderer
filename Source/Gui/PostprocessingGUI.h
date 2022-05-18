@@ -4,12 +4,14 @@
 
 struct PostprocessingSettings
 {
-	bool EnableTAA = true;
+	bool EnableTAA = false;
 };
 
 class PostprocessingGUI : public GUIElement
 {
 public:
+	PostprocessingGUI() : GUIElement("Postprocessing") {}
+
 	virtual void Update(float dt) {}
 	virtual void Render(ID3D11DeviceContext* context);
 

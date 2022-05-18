@@ -14,11 +14,10 @@ struct RenderStatistics
 class RenderStatsGUI : public GUIElement
 {
 public:
+	RenderStatsGUI() : GUIElement("Render stats") {}
+
 	virtual void Update(float dt) {}
 	virtual void Render(ID3D11DeviceContext* context);
-
-private:
-	bool m_Shown = true;
 };
 
 extern RenderStatistics RenderStats;
