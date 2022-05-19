@@ -136,9 +136,9 @@ void Camera::RotToAxis(CameraTransform& transform)
 {
 	// TODO: Calculate up based on roll
 	transform.Up = Float3(0.0f, 1.0f, 0.0f);
-	transform.Forward = Float3((float)(std::cos(transform.Rotation.y) * std::cos(transform.Rotation.x)), (float)(std::sin(transform.Rotation.x)), (float)(std::sin(transform.Rotation.y) * std::cos(transform.Rotation.x)));
-	transform.Right = transform.Forward.Cross(transform.Up);
-	transform.Up = transform.Right.Cross(transform.Forward);
+	transform.Forward = Float3((float)(std::cos(transform.Rotation.y) * std::cos(transform.Rotation.x)), (float)(std::sin(transform.Rotation.x)), (float)(std::sin(transform.Rotation.y) * std::cos(transform.Rotation.x))).Normalize();
+	transform.Right = transform.Forward.Cross(transform.Up).Normalize();
+	transform.Up = transform.Right.Cross(transform.Forward).Normalize();
 }
 
 Camera::Camera(Float3 position, Float3 rotation, float fov):
