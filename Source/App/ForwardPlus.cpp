@@ -490,57 +490,59 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 	// Geometry
 	{
 		GFX::Cmd::MarkerBegin(context, "Geometry");
-		{
-			PipelineState pso = GFX::DefaultPipelineState();
-			pso.DS.DepthEnable = true;
-			pso.DS.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-			pso.DS.StencilEnable = true;
-			pso.DS.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
-			pso.DS.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
-			pso.DS.FrontFace.StencilPassOp = D3D11_STENCIL_OP_REPLACE;
-			pso.DS.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
-			pso.DS.BackFace = pso.DS.FrontFace;
-			GFX::Cmd::SetPipelineState(context, pso);
-		}
-
-		const bool useLightCulling = !DebugToolsConfig.DisableLightCulling;
-		{
-			RenderGroup& renderGroup = MainSceneGraph.RenderGroups[RenderGroupType::Opaque];
-			const MeshStorage& meshStorage = renderGroup.MeshData;
-			const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, renderGroup);
-
-			GFX::Cmd::BindRenderTarget(context, m_FinalRT, m_FinalRT_Depth);
-			GFX::Cmd::BindShader(context, useLightCulling ? m_GeometryShader : m_GeometryShaderNoLightCulling, true);
-			GFX::Cmd::SetupStaticSamplers<PS>(context);
-			GFX::Cmd::BindSRV<PS>(context, renderGroup.TextureData, 0);
-			GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
-			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
-			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.SceneInfoBuffer, 1);
-			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.WorldToLightClip, 3);
-			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Lights.GetBuffer(), 3);
-			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.ShadowMapTexture, 4);
-			GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Entities.GetBuffer(), 5);
-			GFX::Cmd::BindSRV<PS>(context, renderGroup.Materials.GetBuffer(), 6);
-			GFX::Cmd::BindSRV<VS>(context, renderGroup.Drawables.GetBuffer(), 7);
-			GFX::Cmd::BindSRV<PS>(context, renderGroup.Drawables.GetBuffer(), 7);
-			GFX::Cmd::BindSRV<PS>(context, m_VisibleLightsBuffer, 8);
-			GFX::Cmd::BindVertexBuffers(context, { meshStorage.GetPositions(), meshStorage.GetTexcoords(), meshStorage.GetNormals(), meshStorage.GetTangents(), meshStorage.GetDrawableIndexes() });
-			GFX::Cmd::BindIndexBuffer(context, m_IndexBuffer);
-			context->DrawIndexed(indexCount, 0, 0);
-		}
 		
+		const auto rgTypeToShader = [this](RenderGroupType rgType) {
+			const bool useLightCulling = !DebugToolsConfig.DisableLightCulling;
+			switch (rgType)
+			{
+			case RenderGroupType::Opaque:
+				return useLightCulling ? m_GeometryShader : m_GeometryShaderNoLightCulling;
+			case RenderGroupType::AlphaDiscard:
+				return useLightCulling ? m_GeometryAlphaDiscardShader : m_GeometryAlphaDiscardShaderNoLightCulling;
+			default:
+				NOT_IMPLEMENTED;
+			}
+		};
+
+		// Initial setup
+		PipelineState pso = GFX::DefaultPipelineState();
+		pso.DS.DepthEnable = true;
+		pso.DS.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+		pso.DS.StencilEnable = true;
+		pso.DS.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+		pso.DS.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
+		pso.DS.FrontFace.StencilPassOp = D3D11_STENCIL_OP_REPLACE;
+		pso.DS.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+		pso.DS.BackFace = pso.DS.FrontFace;
+		GFX::Cmd::SetPipelineState(context, pso);
+
+		GFX::Cmd::BindRenderTarget(context, m_FinalRT, m_FinalRT_Depth);
+		GFX::Cmd::SetupStaticSamplers<PS>(context);
+		GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
+		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
+		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.SceneInfoBuffer, 1);
+		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.WorldToLightClip, 3);
+		GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Lights.GetBuffer(), 3);
+		GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.ShadowMapTexture, 4);
+		GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Entities.GetBuffer(), 5);
+		GFX::Cmd::BindSRV<PS>(context, m_VisibleLightsBuffer, 8);
+		GFX::Cmd::BindIndexBuffer(context, m_IndexBuffer);
+
+		for (uint32_t i = 0; i < RenderGroupType::Count; i++)
 		{
-			RenderGroup& renderGroup = MainSceneGraph.RenderGroups[RenderGroupType::AlphaDiscard];
+			RenderGroupType rgType = (RenderGroupType) i;
+			RenderGroup& renderGroup = MainSceneGraph.RenderGroups[i];
+			if (renderGroup.Drawables.GetSize() == 0) continue;
+
 			const MeshStorage& meshStorage = renderGroup.MeshData;
 			const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, renderGroup);
 
-			GFX::Cmd::BindShader(context, useLightCulling ? m_GeometryAlphaDiscardShader : m_GeometryAlphaDiscardShaderNoLightCulling, true);
+			GFX::Cmd::BindShader(context, rgTypeToShader(rgType), true);
 			GFX::Cmd::BindSRV<PS>(context, renderGroup.TextureData, 0);
 			GFX::Cmd::BindSRV<PS>(context, renderGroup.Materials.GetBuffer(), 6);
 			GFX::Cmd::BindSRV<VS>(context, renderGroup.Drawables.GetBuffer(), 7);
 			GFX::Cmd::BindSRV<PS>(context, renderGroup.Drawables.GetBuffer(), 7);
 			GFX::Cmd::BindVertexBuffers(context, { meshStorage.GetPositions(), meshStorage.GetTexcoords(), meshStorage.GetNormals(), meshStorage.GetTangents(), meshStorage.GetDrawableIndexes() });
-			GFX::Cmd::BindIndexBuffer(context, m_IndexBuffer);
 			context->DrawIndexed(indexCount, 0, 0);
 		}
 
