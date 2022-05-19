@@ -9,11 +9,7 @@
 #include "Render/Device.h"
 #include "Render/Resource.h"
 #include "Gui/GUI.h"
-#include "Gui/FPSCounterGUI.h"
-#include "Gui/DebugToolsGUI.h"
-#include "Gui/PositionInfoGUI.h"
-#include "Gui/RenderStatsGUI.h"
-#include "Gui/PostprocessingGUI.h"
+#include "Gui/GUI_Implementations.h"
 #include "System/Input.h"
 #include "System/Window.h"
 #include "System/ApplicationConfiguration.h"
@@ -271,7 +267,7 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 		}
 
 		GUI::Get()->AddElement(new FPSCounterGUI());
-		GUI::Get()->AddElement(new DebugToolsGUI());
+		GUI::Get()->AddElement(new DebugToolsGUI(true));
 		GUI::Get()->AddElement(new PostprocessingGUI());
 		GUI::Get()->AddElement(new PositionInfoGUI());
 

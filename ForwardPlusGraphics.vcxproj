@@ -166,9 +166,8 @@
     <ClCompile Include="Source\App\ForwardPlus.cpp" />
     <ClCompile Include="Source\Core\Engine.cpp" />
     <ClCompile Include="Source\Core\SceneGraph.cpp" />
-    <ClCompile Include="Source\Gui\DebugToolsGUI.cpp" />
-    <ClCompile Include="Source\Gui\FPSCounterGUI.cpp" />
     <ClCompile Include="Source\Gui\GUI.cpp" />
+    <ClCompile Include="Source\Gui\GUI_Implementations.cpp" />
     <ClCompile Include="Source\Gui\Imgui\imgui.cpp" />
     <ClCompile Include="Source\Gui\Imgui\imgui_demo.cpp" />
     <ClCompile Include="Source\Gui\Imgui\imgui_draw.cpp" />
@@ -176,9 +175,6 @@
     <ClCompile Include="Source\Gui\Imgui\imgui_impl_win32.cpp" />
     <ClCompile Include="Source\Gui\Imgui\imgui_tables.cpp" />
     <ClCompile Include="Source\Gui\Imgui\imgui_widgets.cpp" />
-    <ClCompile Include="Source\Gui\PositionInfoGUI.cpp" />
-    <ClCompile Include="Source\Gui\PostprocessingGUI.cpp" />
-    <ClCompile Include="Source\Gui\RenderStatsGUI.cpp" />
     <ClCompile Include="Source\Loading\SceneLoading.cpp" />
     <ClCompile Include="Source\main.cpp" />
     <ClCompile Include="Source\Render\Buffer.cpp" />
@@ -197,9 +193,8 @@
     <ClInclude Include="Source\Common.h" />
     <ClInclude Include="Source\Core\Engine.h" />
     <ClInclude Include="Source\Core\SceneGraph.h" />
-    <ClInclude Include="Source\Gui\DebugToolsGUI.h" />
-    <ClInclude Include="Source\Gui\FPSCounterGUI.h" />
     <ClInclude Include="Source\Gui\GUI.h" />
+    <ClInclude Include="Source\Gui\GUI_Implementations.h" />
     <ClInclude Include="Source\Gui\Imgui\imconfig.h" />
     <ClInclude Include="Source\Gui\Imgui\imgui.h" />
     <ClInclude Include="Source\Gui\Imgui\imgui_impl_dx11.h" />
@@ -208,9 +203,6 @@
     <ClInclude Include="Source\Gui\Imgui\imstb_rectpack.h" />
     <ClInclude Include="Source\Gui\Imgui\imstb_textedit.h" />
     <ClInclude Include="Source\Gui\Imgui\imstb_truetype.h" />
-    <ClInclude Include="Source\Gui\PositionInfoGUI.h" />
-    <ClInclude Include="Source\Gui\PostprocessingGUI.h" />
-    <ClInclude Include="Source\Gui\RenderStatsGUI.h" />
     <ClInclude Include="Source\Loading\LoadingThread.h" />
     <ClInclude Include="Source\Loading\SceneLoading.h" />
     <ClInclude Include="Source\Render\Buffer.h" />

@@ -10,7 +10,7 @@ struct ID3D11DeviceContext;
 class GUIElement
 {
 public:
-	GUIElement(const std::string name): m_Name(name) {}
+	GUIElement(const std::string name, bool shown): m_Name(name), m_Shown(shown) {}
 	virtual ~GUIElement() {}
 
 	virtual void Reset() {}

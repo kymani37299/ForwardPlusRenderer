@@ -81,19 +81,7 @@
     <ClCompile Include="Source\App\ForwardPlus.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Gui\FPSCounterGUI.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Gui\DebugToolsGUI.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Gui\PositionInfoGUI.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Gui\RenderStatsGUI.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Gui\PostprocessingGUI.cpp">
+    <ClCompile Include="Source\Gui\GUI_Implementations.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -200,25 +188,13 @@
     <ClInclude Include="Source\App\ForwardPlus.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Gui\FPSCounterGUI.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Gui\DebugToolsGUI.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Source\Utility\MathUtility.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Gui\PositionInfoGUI.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Gui\RenderStatsGUI.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Source\Utility\Random.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Gui\PostprocessingGUI.h">
+    <ClInclude Include="Source\Gui\GUI_Implementations.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
