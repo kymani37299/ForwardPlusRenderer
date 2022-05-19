@@ -328,7 +328,7 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 
 	m_SkyboxShader = GFX::CreateShader("Source/Shaders/skybox.hlsl");
 	m_ShadowmapShader = GFX::CreateShader("Source/Shaders/shadowmap.hlsl", {}, SCF_VS);
-	m_DepthPrepassShader = GFX::CreateShader("Source/Shaders/depth.hlsl", {}, SCF_VS);
+	m_DepthPrepassShader = GFX::CreateShader("Source/Shaders/depth.hlsl");
 	m_GeometryShader = GFX::CreateShader("Source/Shaders/geometry.hlsl");
 	m_GeometryShaderNoLightCulling = GFX::CreateShader("Source/Shaders/geometry.hlsl", { "DISABLE_LIGHT_CULLING" });
 	m_GeometryAlphaDiscardShader = GFX::CreateShader("Source/Shaders/geometry.hlsl", { "ALPHA_DISCARD" });
@@ -468,11 +468,13 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		const BitField filteredMask = FilterVisibilityMask(m_VisibilityMask, drawableFilter);
 		const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, filteredMask);
 
-		GFX::Cmd::BindRenderTarget(context, TextureID{}, m_FinalRT_Depth);
+		GFX::Cmd::BindRenderTarget(context, m_MotionVectorRT, m_FinalRT_Depth);
 		GFX::Cmd::SetPipelineState(context, pso);
 		GFX::Cmd::BindShader(context, m_DepthPrepassShader, true);
 		GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
+		GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.LastFrameCameraBuffer, 1);
+		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.SceneInfoBuffer, 2);
 		GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Entities.GetBuffer(), 0);
 		GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Drawables.GetBuffer(), 1);
 		GFX::Cmd::BindVertexBuffers(context, { meshStorage.GetPositions(), meshStorage.GetDrawableIndexes() });
@@ -525,14 +527,13 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			const BitField filteredMask = FilterVisibilityMask(m_VisibilityMask, drawableFilter);
 			const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, filteredMask);
 
-			GFX::Cmd::BindRenderTargets(context, { m_FinalRT, m_MotionVectorRT }, m_FinalRT_Depth);
+			GFX::Cmd::BindRenderTarget(context, m_FinalRT, m_FinalRT_Depth);
 			GFX::Cmd::BindShader(context, useLightCulling ? m_GeometryShader : m_GeometryShaderNoLightCulling, true);
 			GFX::Cmd::SetupStaticSamplers<PS>(context);
 			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Textures, 0);
 			GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.SceneInfoBuffer, 1);
-			GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.LastFrameCameraBuffer, 2);
 			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.WorldToLightClip, 3);
 			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Lights.GetBuffer(), 3);
 			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.ShadowMapTexture, 4);

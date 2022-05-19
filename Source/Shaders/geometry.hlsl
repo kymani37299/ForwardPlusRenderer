@@ -16,18 +16,10 @@ struct VertexInput
 struct VertexOut
 {
 	float4 Position : SV_POSITION;
-	float4 ClipPosition : CLIP_POS;
-	float4 LastFramePosition : LAST_FRAME_POS;
 	float3 WorldPosition : WORLD_POS;
 	float3 Normal : NORMAL;
 	float2 UV : TEXCOORD;
 	nointerpolation uint MaterialIndex : MAT_INDEX;
-};
-
-struct PixelOut
-{
-	float4 Albedo : SV_TARGET0;
-	float2 MotionVector : SV_TARGET1;
 };
 
 cbuffer CameraCB : register(b0)
@@ -38,11 +30,6 @@ cbuffer CameraCB : register(b0)
 cbuffer SceneInfoCB : register(b1)
 {
 	SceneInfo SceneInfoData;
-}
-
-cbuffer CameraCBLastFrame : register(b2)
-{
-	Camera CamDataLastFrame;
 }
 
 cbuffer LightSpaceCB : register(b3)
@@ -61,15 +48,11 @@ StructuredBuffer<uint> VisibleLights : register(t8);
 VertexOut VS(VertexInput IN)
 {
 	Drawable d = Drawables[IN.DrawableIndex];
-	uint entityIndex = d.EntityIndex;
-
-	// TODO: lastFrameModelToWorld - to use in last frame position
+	const uint entityIndex = d.EntityIndex;
 	const float4x4 modelToWorld = Entities[entityIndex].ModelToWorld;
 
 	VertexOut OUT;
 	OUT.Position = GetClipPosWithJitter(IN.Position, modelToWorld, CamData);
-	OUT.ClipPosition = OUT.Position;
-	OUT.LastFramePosition = GetClipPos(IN.Position, modelToWorld, CamDataLastFrame);
 	OUT.WorldPosition = mul(float4(IN.Position, 1.0), modelToWorld);
 	OUT.Normal = mul(IN.Normal, (float3x3) modelToWorld); // Assumes nonuniform scaling; otherwise, need to use inverse-transpose of world matrix.
 	OUT.UV = IN.UV;
@@ -91,7 +74,7 @@ bool IsInShadow(float3 worldPos)
 	return lightNDC.z < Shadowmap.Sample(s_LinearWrap, lightUV.xy).r;
 }
 
-PixelOut PS(VertexOut IN)
+float4 PS(VertexOut IN) : SV_TARGET
 {
 	const Material matParams = Materials[IN.MaterialIndex];
 	const float4 albedo = Textures.Sample(s_AnisoWrap, float3(IN.UV, matParams.Albedo) );
@@ -154,8 +137,5 @@ PixelOut PS(VertexOut IN)
 	litColor.a = 1.0f;
 #endif // ALPHA_BLEND
 
-	PixelOut OUT;
-	OUT.Albedo = litColor;
-	OUT.MotionVector = CalculateMotionVector(IN.ClipPosition, IN.LastFramePosition, SceneInfoData.ScreenSize);
-	return OUT;
+	return litColor;
 }
