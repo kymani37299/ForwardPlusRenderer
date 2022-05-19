@@ -21,6 +21,7 @@ namespace ForwardPlusPrivate
 {
 	BufferID CubeVB;
 	BufferID SphereVB;
+	BufferID PlaneVB;
 
 	TextureID PanoramaToCubemap(ID3D11DeviceContext* context, TextureID panoramaTexture, uint32_t cubemapSize)
 	{
@@ -253,6 +254,13 @@ namespace ForwardPlusPrivate
 		static uint32_t numVertices = STATIC_ARRAY_SIZE(vbData) / 3;
 		return GFX::CreateVertexBuffer<Float3>(numVertices, (Float3*)vbData);
 	}
+
+	BufferID GeneratePlaneVB()
+	{
+		static const float vbData[] = { 1.0,0.0,1.0,-1.0,0.0,-1.0,1.0,0.0,-1.0,1.0,0.0,1.0,-1.0,0.0,1.0,-1.0,0.0,-1.0 };
+		static uint32_t numVertices = STATIC_ARRAY_SIZE(vbData) / 3;
+		return GFX::CreateVertexBuffer<Float3>(numVertices, (Float3*)vbData);
+	}
 }
 
 void ForwardPlus::OnInit(ID3D11DeviceContext* context)
@@ -320,6 +328,7 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 
 		CubeVB = GenerateCubeVB();
 		SphereVB = GenerateSphereVB();
+		PlaneVB = GeneratePlaneVB();
 	}
 
 	m_SkyboxShader = GFX::CreateShader("Source/Shaders/skybox.hlsl");
@@ -635,12 +644,12 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			dg.Type = DebugGeometryType::SPHERE;
 			dg.Color = Float4(Random::UNorm(i), Random::UNorm(i+1), Random::UNorm(i+2), 0.2f);
 			dg.Position = bs.Center;
-			dg.Scale = bs.Radius;
+			dg.Scale = { bs.Radius, bs.Radius, bs.Radius };
 			m_DebugGeometries.push_back(dg);
 		}
-
-		DrawDebugGeometries(context);
 	}
+
+	DrawDebugGeometries(context);
 
 	if(DebugToolsConfig.LightHeatmap)
 	{
@@ -828,21 +837,36 @@ void ForwardPlus::DrawDebugGeometries(ID3D11DeviceContext* context)
 		{
 			using namespace DirectX;
 
+			XMMATRIX modelToWorld;
+
 			switch (dg.Type)
 			{
 			case DebugGeometryType::CUBE:
+				modelToWorld = XMMatrixAffineTransformation(dg.Scale.ToXM(), Float3(0.0f, 0.0f, 0.0f).ToXM(), Float4(0.0f, 0.0f, 0.0f, 0.0f).ToXM(), dg.Position.ToXM());
 				vertexBuffer = ForwardPlusPrivate::CubeVB;
 				break;
 			case DebugGeometryType::SPHERE:
+				modelToWorld = XMMatrixAffineTransformation(dg.Scale.ToXM(), Float3(0.0f, 0.0f, 0.0f).ToXM(), Float4(0.0f, 0.0f, 0.0f, 0.0f).ToXM(), dg.Position.ToXM());
 				vertexBuffer = ForwardPlusPrivate::SphereVB;
 				break;
+			case DebugGeometryType::PLANE:
+			{
+				const Float3 upVec = Float3(0.0f, 1.0f, 0.0f);
+				const Float3 normal = dg.Normal.NormalizeFast();
+				const Float3 position = normal * dg.Distance;
+				Float3 rotAxis = upVec.Cross(normal).Normalize();
+				rotAxis = rotAxis.Length() < FLT_EPSILON ? upVec : rotAxis; // In case that upVec == normal
+				const float rotAngle = acos(upVec.Dot(normal));
+				modelToWorld = XMMatrixAffineTransformation(dg.Scale.ToXM(), Float3(0.0f, 0.0f, 0.0f).ToXM(), Float4(0.0f, 0.0f, 0.0f, 0.0f).ToXM(), Float4(0.0f, 0.0f, 0.0f, 0.0f).ToXM());
+				modelToWorld = XMMatrixMultiply(modelToWorld, XMMatrixRotationAxis(rotAxis.ToXM(), rotAngle));
+				modelToWorld = XMMatrixMultiply(modelToWorld, XMMatrixTranslation(position.x, position.y, position.z));
+				vertexBuffer = ForwardPlusPrivate::PlaneVB;
+			} break;
+			default: NOT_IMPLEMENTED;
 			}
-
-			Float3 scale{ dg.Scale, dg.Scale, dg.Scale };
-			XMMATRIX modelToWorld = XMMatrixTranspose(XMMatrixAffineTransformation(scale.ToXM(), Float3(0.0f, 0.0f, 0.0f).ToXM(), Float4(0.0f, 0.0f, 0.0f, 0.0f).ToXM(), dg.Position.ToXM()));
-
+			
 			DebugGeometryDataCB debugGeometryDataCB{};
-			debugGeometryDataCB.ModelToWorld = XMUtility::ToXMFloat4x4(modelToWorld);
+			debugGeometryDataCB.ModelToWorld = XMUtility::ToXMFloat4x4(XMMatrixTranspose(modelToWorld));
 			debugGeometryDataCB.Color = dg.Color.ToXMF();
 			GFX::Cmd::UploadToBuffer(context, m_DebugGeometryBuffer, 0, &debugGeometryDataCB, 0, sizeof(DebugGeometryDataCB));
 		}

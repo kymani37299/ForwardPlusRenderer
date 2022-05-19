@@ -6,15 +6,24 @@
 enum class DebugGeometryType
 {
 	CUBE,
-	SPHERE
+	SPHERE,
+	PLANE
 };
 
 struct DebugGeometry
 {
 	DebugGeometryType Type;
-	Float3 Position;
-	float Scale;
+
+	// ALL
+	Float3 Scale;
 	Float4 Color;
+
+	// CUBE, SPHERE
+	Float3 Position; 
+
+	// PLANE
+	Float3 Normal; 
+	float Distance;
 };
 
 class ForwardPlus : public Application
