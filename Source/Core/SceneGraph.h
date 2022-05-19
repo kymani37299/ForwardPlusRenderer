@@ -68,6 +68,7 @@ struct ViewFrustum
 	}
 };
 
+class RenderGroup;
 
 struct Material
 {
@@ -84,7 +85,7 @@ struct Material
 	uint32_t MetallicRoughness;
 	uint32_t Normal;
 
-	void UpdateBuffer(ID3D11DeviceContext* context);
+	void UpdateBuffer(ID3D11DeviceContext* context, RenderGroup& renderGroup);
 };
 
 struct Mesh
@@ -110,7 +111,7 @@ struct Drawable
 
 	BoundingSphere BoundingVolume;
 
-	void UpdateBuffer(ID3D11DeviceContext* context);
+	void UpdateBuffer(ID3D11DeviceContext* context, RenderGroup& renderGroup);
 };
 
 struct Entity
@@ -212,6 +213,7 @@ public:
 	}
 
 	T& operator [] (uint32_t index) { return m_Storage[index]; }
+
 	size_t GetSize() const { return m_NextIndex; }
 	size_t Next() 
 	{ 
@@ -273,10 +275,40 @@ private:
 	std::vector<uint32_t> m_IndexBuffer;
 };
 
+// Group of data that can be rendered at once
+struct RenderGroup
+{
+	static constexpr uint32_t MAX_DRAWABLES = 100000;
+	static constexpr uint32_t MAX_TEXTURES = 500;
+	static constexpr uint32_t TEXTURE_MIPS = 8;
+	static constexpr uint32_t TEXTURE_SIZE = 1024;
+
+	RenderGroup();
+	void Initialize(ID3D11DeviceContext* context);
+	Drawable CreateDrawable(ID3D11DeviceContext* context, Material& material, Mesh& mesh, BoundingSphere& boundingSphere, const Entity& entity);
+
+	ElementBuffer<Material> Materials;
+	ElementBuffer<Mesh> Meshes;
+	ElementBuffer<Drawable> Drawables;
+
+	std::atomic<uint32_t> NextTextureIndex = 0;
+	TextureID TextureData;
+	MeshStorage MeshData;
+
+	BitField VisibilityMask;
+};
+
+enum RenderGroupType : uint8_t
+{
+	Opaque = 0,
+	AlphaDiscard = 1,
+	Transparent = 2,
+	Count,
+};
+
 struct SceneGraph
 {
 	static constexpr uint32_t MAX_ENTITIES = 100;
-	static constexpr uint32_t MAX_DRAWABLES = 100000;
 	static constexpr uint32_t MAX_LIGHTS = 10000;
 
 	SceneGraph();
@@ -284,7 +316,6 @@ struct SceneGraph
 
 	void FrameUpdate(ID3D11DeviceContext* context);
 	Entity& CreateEntity(ID3D11DeviceContext* context, Float3 position = { 0.0f, 0.0f, 0.0f }, Float3 scale = { 1.0f, 1.0f, 1.0f });
-	Drawable CreateDrawable(ID3D11DeviceContext* context, Material& material, Mesh& mesh, BoundingSphere& boundingSphere, const Entity& entity);
 
 	Light CreateDirectionalLight(ID3D11DeviceContext* context, Float3 direction, Float3 color);
 	Light CreateAmbientLight(ID3D11DeviceContext* context, Float3 color);
@@ -292,25 +323,14 @@ struct SceneGraph
 	Light CreateLight(ID3D11DeviceContext* context, Light light);
 
 	Camera MainCamera{ {0.0f, 2.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, 75.0f };
+
 	ElementBuffer<Entity> Entities;
-	ElementBuffer<Material> Materials;
-	ElementBuffer<Mesh> Meshes;
-	ElementBuffer<Drawable> Drawables;
+	RenderGroup RenderGroups[RenderGroupType::Count];
 	ElementBuffer<Light> Lights;
 
 	BufferID SceneInfoBuffer;
 	BufferID WorldToLightClip;
 	TextureID ShadowMapTexture;
-
-	static constexpr uint32_t MAX_TEXTURES = 500;
-	static constexpr uint32_t TEXTURE_MIPS = 8;
-	static constexpr uint32_t TEXTURE_SIZE = 1024;
-	std::atomic<uint32_t> NextTextureIndex = 0;
-	TextureID Textures;
-
-	MeshStorage Geometries;
-
-	MTR::MutexVector<Drawable> DrawablesToUpdate;
 };
 
 extern SceneGraph MainSceneGraph;

@@ -81,11 +81,11 @@ void ViewFrustum::Update(const Camera& c)
 	Planes[5] = FrustumPlane{ ftr, ftl, fbl };	// Far
 }
 
-void Material::UpdateBuffer(ID3D11DeviceContext* context)
+void Material::UpdateBuffer(ID3D11DeviceContext* context, RenderGroup& renderGroup)
 {
 	using namespace DirectX;
 	
-	Material& mat = MainSceneGraph.Materials[MaterialIndex];
+	Material& mat = renderGroup.Materials[MaterialIndex];
 
 	MaterialSB matSB{};
 	matSB.AlbedoFactor = mat.AlbedoFactor.ToXMFA();
@@ -95,7 +95,7 @@ void Material::UpdateBuffer(ID3D11DeviceContext* context)
 	matSB.Albedo = mat.Albedo;
 	matSB.MetallicRoughness = mat.MetallicRoughness;
 	matSB.Normal = mat.Normal;
-	GFX::Cmd::UploadToBuffer(context, MainSceneGraph.Materials.GetBuffer(), MaterialIndex * sizeof(MaterialSB), &matSB, 0, sizeof(MaterialSB));
+	GFX::Cmd::UploadToBuffer(context, renderGroup.Materials.GetBuffer(), MaterialIndex * sizeof(MaterialSB), &matSB, 0, sizeof(MaterialSB));
 }
 
 void Entity::UpdateBuffer(ID3D11DeviceContext* context)
@@ -108,14 +108,14 @@ void Entity::UpdateBuffer(ID3D11DeviceContext* context)
 	GFX::Cmd::UploadToBuffer(context, MainSceneGraph.Entities.GetBuffer(), sizeof(EntitySB) * EntityIndex, &entitySB, 0, sizeof(EntitySB));
 }
 
-void Drawable::UpdateBuffer(ID3D11DeviceContext* context)
+void Drawable::UpdateBuffer(ID3D11DeviceContext* context, RenderGroup& renderGroup)
 {
 	using namespace DirectX;
 
 	DrawableSB drawableSB{};
 	drawableSB.EntityIndex = EntityIndex;
 	drawableSB.MaterialIndex = MaterialIndex;
-	GFX::Cmd::UploadToBuffer(context, MainSceneGraph.Drawables.GetBuffer(), sizeof(DrawableSB) * DrawableIndex, &drawableSB, 0, sizeof(DrawableSB));
+	GFX::Cmd::UploadToBuffer(context, renderGroup.Drawables.GetBuffer(), sizeof(DrawableSB) * DrawableIndex, &drawableSB, 0, sizeof(DrawableSB));
 }
 
 void Light::UpdateBuffer(ID3D11DeviceContext* context)
@@ -194,11 +194,59 @@ void Camera::FrameUpdate(ID3D11DeviceContext* context)
 	CameraFrustum.Update(*this);
 }
 
-SceneGraph::SceneGraph() :
-	Entities(MAX_ENTITIES, sizeof(EntitySB)),
+RenderGroup::RenderGroup():
 	Materials(MAX_DRAWABLES, sizeof(MaterialSB)),
 	Meshes(MAX_DRAWABLES, 0),
-	Drawables(MAX_DRAWABLES, sizeof(DrawableSB)),
+	Drawables(MAX_DRAWABLES, sizeof(DrawableSB))
+{
+
+}
+
+void RenderGroup::Initialize(ID3D11DeviceContext* context)
+{
+
+	Materials.Initialize();
+	Meshes.Initialize();
+	Drawables.Initialize();
+	MeshData.Initialize();
+	TextureData = GFX::CreateTextureArray(TEXTURE_SIZE, TEXTURE_SIZE, MAX_TEXTURES, RCF_Bind_SRV | RCF_CopyDest, TEXTURE_MIPS);
+}
+
+Drawable RenderGroup::CreateDrawable(ID3D11DeviceContext* context, Material& material, Mesh& mesh, BoundingSphere& boundingSphere, const Entity& entity)
+{
+	const uint32_t dIndex = Drawables.Next();
+	const uint32_t matIndex = Materials.Next();
+	const uint32_t mIndex = Meshes.Next();
+
+	Drawable drawable;
+	drawable.DrawableIndex = dIndex;
+	drawable.MaterialIndex = matIndex;
+	drawable.MeshIndex = mIndex;
+	drawable.EntityIndex = entity.EntityIndex;
+	drawable.BoundingVolume = boundingSphere;
+
+	material.MaterialIndex = matIndex;
+	mesh.MeshIndex = mIndex;
+
+	Drawables[dIndex] = drawable;
+	Materials[matIndex] = material;
+	Meshes[mIndex] = mesh;
+
+	if (Device::Get()->IsMainContext(context))
+	{
+		material.UpdateBuffer(context, *this);
+		drawable.UpdateBuffer(context, *this);
+	}
+	else
+	{
+		NOT_IMPLEMENTED;
+	}
+
+	return drawable;
+}
+
+SceneGraph::SceneGraph() :
+	Entities(MAX_ENTITIES, sizeof(EntitySB)),
 	Lights(MAX_LIGHTS, sizeof(LightSB))
 {
 
@@ -206,15 +254,12 @@ SceneGraph::SceneGraph() :
 
 void SceneGraph::InitRenderData(ID3D11DeviceContext* context)
 {
+	for (uint32_t i = 0; i < RenderGroupType::Count; i++)
+	{
+		RenderGroups[i].Initialize(context);
+	}
 	Entities.Initialize();
-	Materials.Initialize();
-	Meshes.Initialize();
-	Drawables.Initialize();
 	Lights.Initialize();
-
-	Geometries.Initialize();
-
-	Textures = GFX::CreateTextureArray(TEXTURE_SIZE, TEXTURE_SIZE, MAX_TEXTURES, RCF_Bind_SRV | RCF_CopyDest, TEXTURE_MIPS);
 }
 
 void SceneGraph::FrameUpdate(ID3D11DeviceContext* context)
@@ -239,17 +284,6 @@ void SceneGraph::FrameUpdate(ID3D11DeviceContext* context)
 
 		GFX::Cmd::UploadToBuffer(context, SceneInfoBuffer, 0, &sceneInfoCB, 0, sizeof(SceneInfoCB));
 	}
-
-	// Peding actions
-	{
-		auto f = [&context, this](Drawable d)
-		{
-			Materials[d.MaterialIndex].UpdateBuffer(context);
-			d.UpdateBuffer(context);
-		};
-		DrawablesToUpdate.ForEachAndClear(f);
-	}
-
 }
 
 Entity& SceneGraph::CreateEntity(ID3D11DeviceContext* context, Float3 position, Float3 scale)
@@ -263,39 +297,6 @@ Entity& SceneGraph::CreateEntity(ID3D11DeviceContext* context, Float3 position, 
 	e.UpdateBuffer(context);
 
 	return Entities[eIndex];
-}
-
-Drawable SceneGraph::CreateDrawable(ID3D11DeviceContext* context, Material& material, Mesh& mesh, BoundingSphere& boundingSphere, const Entity& entity)
-{
-	const uint32_t dIndex = Drawables.Next();
-	const uint32_t matIndex = Materials.Next();
-	const uint32_t mIndex = Meshes.Next();
-
-	Drawable drawable;
-	drawable.DrawableIndex = dIndex;
-	drawable.MaterialIndex = matIndex;
-	drawable.MeshIndex = mIndex;
-	drawable.EntityIndex = entity.EntityIndex;
-	drawable.BoundingVolume = boundingSphere;
-
-	material.MaterialIndex = matIndex;
-	mesh.MeshIndex = mIndex;
-
-	Drawables[dIndex] = drawable;
-	Materials[matIndex] = material;
-	Meshes[mIndex] = mesh;
-
-	if (Device::Get()->IsMainContext(context))
-	{
-		material.UpdateBuffer(context);
-		drawable.UpdateBuffer(context);
-	}
-	else
-	{
-		MainSceneGraph.DrawablesToUpdate.Add(drawable);
-	}
-	
-	return drawable;
 }
 
 Light SceneGraph::CreateDirectionalLight(ID3D11DeviceContext* context, Float3 direction, Float3 color)

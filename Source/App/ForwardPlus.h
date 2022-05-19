@@ -50,7 +50,6 @@ private:
 	void DrawDebugGeometries(ID3D11DeviceContext* context);
 
 private:
-	BitField m_VisibilityMask;
 	uint32_t m_NumTilesX = 0;
 	uint32_t m_NumTilesY = 0;
 	std::vector<DebugGeometry> m_DebugGeometries;

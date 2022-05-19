@@ -375,50 +375,33 @@ bool IsVisible(const Drawable& d)
 	return vf.IsInFrustum(bv);
 }
 
-BitField CullDrawables()
+void CullRenderGroup(RenderGroup& rg)
 {
-	const uint32_t numDrawables = MainSceneGraph.Drawables.GetSize();
-	BitField visibilityMask{ numDrawables };
+	const uint32_t numDrawables = rg.Drawables.GetSize();
+	rg.VisibilityMask = BitField{ numDrawables };
 	for (uint32_t i = 0; i < numDrawables; i++)
 	{
-		Drawable& d = MainSceneGraph.Drawables[i];
+		Drawable& d = rg.Drawables[i];
 		if (d.DrawableIndex != Drawable::InvalidIndex && IsVisible(d))
 		{
-			visibilityMask.Set(i, true);
+			rg.VisibilityMask.Set(i, true);
 		}
 	}
-	return visibilityMask;
 }
 
-template<typename FilterFunc>
-BitField FilterVisibilityMask(BitField& visibilityMask, FilterFunc filterFunc)
-{
-	const uint32_t numDrawables = MainSceneGraph.Drawables.GetSize();
-	BitField filteredMask{ numDrawables };
-	for (uint32_t i = 0; i < numDrawables; i++)
-	{
-		Drawable& d = MainSceneGraph.Drawables[i];
-		if (visibilityMask.Get(i) && filterFunc(d))
-		{
-			filteredMask.Set(i, true);
-		}
-	}
-	return filteredMask;
-}
-
-uint32_t PrepareIndexBuffer(ID3D11DeviceContext* context, BufferID indexBuffer, const BitField& visibilityMask)
+uint32_t PrepareIndexBuffer(ID3D11DeviceContext* context, BufferID indexBuffer, RenderGroup& rg)
 {
 	std::vector<uint32_t> indices;
-	indices.resize(MainSceneGraph.Geometries.GetIndexCount());
+	indices.resize(rg.MeshData.GetIndexCount());
 
 	uint32_t indexCount = 0;
-	for (uint32_t i = 0; i < MainSceneGraph.Drawables.GetSize(); i++)
+	for (uint32_t i = 0; i < rg.Drawables.GetSize(); i++)
 	{
-		if (visibilityMask.Get(i))
+		if (rg.VisibilityMask.Get(i))
 		{
-			const Mesh& mesh = MainSceneGraph.Meshes[MainSceneGraph.Drawables[i].MeshIndex];
+			const Mesh& mesh = rg.Meshes[rg.Drawables[i].MeshIndex];
 			
-			uint8_t* copySrc = reinterpret_cast<uint8_t*>(MainSceneGraph.Geometries.GetIndexBuffer().data());
+			uint8_t* copySrc = reinterpret_cast<uint8_t*>(rg.MeshData.GetIndexBuffer().data());
 			copySrc += (uint64_t) mesh.IndexOffset * MeshStorage::GetIndexBufferStride();
 
 			uint8_t* copyDst = reinterpret_cast<uint8_t*>(indices.data());
@@ -443,15 +426,19 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 
 	if (!DebugToolsConfig.FreezeGeometryCulling)
 	{
-		if (DebugToolsConfig.DisableGeometryCulling)
+		for (uint32_t i = 0; i < RenderGroupType::Count; i++)
 		{
-			uint32_t numDrawables = MainSceneGraph.Drawables.GetSize();
-			m_VisibilityMask = BitField(numDrawables);
-			for (uint32_t i = 0; i < numDrawables; i++) m_VisibilityMask.Set(i, true);
-		}
-		else
-		{
-			m_VisibilityMask = CullDrawables();
+			RenderGroup& rg = MainSceneGraph.RenderGroups[i];
+			if (DebugToolsConfig.DisableGeometryCulling)
+			{
+				uint32_t numDrawables = rg.Drawables.GetSize();
+				rg.VisibilityMask = BitField(numDrawables);
+				for (uint32_t i = 0; i < numDrawables; i++) rg.VisibilityMask.Set(i, true);
+			}
+			else
+			{
+				CullRenderGroup(rg);
+			}
 		}
 	}
 
@@ -464,14 +451,9 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		PipelineState pso = GFX::DefaultPipelineState();
 		pso.DS.DepthEnable = true;
 
-		const MeshStorage& meshStorage = MainSceneGraph.Geometries;
-		const auto drawableFilter = [](const Drawable& d)
-		{
-			Material& mat = MainSceneGraph.Materials[d.MaterialIndex];
-			return !mat.UseAlphaDiscard && !mat.UseBlend;
-		};
-		const BitField filteredMask = FilterVisibilityMask(m_VisibilityMask, drawableFilter);
-		const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, filteredMask);
+		RenderGroup& renderGroup = MainSceneGraph.RenderGroups[RenderGroupType::Opaque];
+		const MeshStorage& meshStorage = renderGroup.MeshData;
+		const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, renderGroup);
 
 		GFX::Cmd::BindRenderTarget(context, m_MotionVectorRT, m_FinalRT_Depth);
 		GFX::Cmd::SetPipelineState(context, pso);
@@ -481,7 +463,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.LastFrameCameraBuffer, 1);
 		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.SceneInfoBuffer, 2);
 		GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Entities.GetBuffer(), 0);
-		GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Drawables.GetBuffer(), 1);
+		GFX::Cmd::BindSRV<VS>(context, renderGroup.Drawables.GetBuffer(), 1);
 		GFX::Cmd::BindVertexBuffers(context, { meshStorage.GetPositions(), meshStorage.GetDrawableIndexes() });
 		GFX::Cmd::BindIndexBuffer(context, m_IndexBuffer);
 		context->DrawIndexed(indexCount, 0, 0);
@@ -523,19 +505,14 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 
 		const bool useLightCulling = !DebugToolsConfig.DisableLightCulling;
 		{
-			const MeshStorage& meshStorage = MainSceneGraph.Geometries;
-			const auto drawableFilter = [](const Drawable& d)
-			{
-				Material& mat = MainSceneGraph.Materials[d.MaterialIndex];
-				return !mat.UseAlphaDiscard && !mat.UseBlend;
-			};
-			const BitField filteredMask = FilterVisibilityMask(m_VisibilityMask, drawableFilter);
-			const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, filteredMask);
+			RenderGroup& renderGroup = MainSceneGraph.RenderGroups[RenderGroupType::Opaque];
+			const MeshStorage& meshStorage = renderGroup.MeshData;
+			const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, renderGroup);
 
 			GFX::Cmd::BindRenderTarget(context, m_FinalRT, m_FinalRT_Depth);
 			GFX::Cmd::BindShader(context, useLightCulling ? m_GeometryShader : m_GeometryShaderNoLightCulling, true);
 			GFX::Cmd::SetupStaticSamplers<PS>(context);
-			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Textures, 0);
+			GFX::Cmd::BindSRV<PS>(context, renderGroup.TextureData, 0);
 			GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.SceneInfoBuffer, 1);
@@ -543,9 +520,9 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Lights.GetBuffer(), 3);
 			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.ShadowMapTexture, 4);
 			GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Entities.GetBuffer(), 5);
-			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Materials.GetBuffer(), 6);
-			GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Drawables.GetBuffer(), 7);
-			GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Drawables.GetBuffer(), 7);
+			GFX::Cmd::BindSRV<PS>(context, renderGroup.Materials.GetBuffer(), 6);
+			GFX::Cmd::BindSRV<VS>(context, renderGroup.Drawables.GetBuffer(), 7);
+			GFX::Cmd::BindSRV<PS>(context, renderGroup.Drawables.GetBuffer(), 7);
 			GFX::Cmd::BindSRV<PS>(context, m_VisibleLightsBuffer, 8);
 			GFX::Cmd::BindVertexBuffers(context, { meshStorage.GetPositions(), meshStorage.GetTexcoords(), meshStorage.GetNormals(), meshStorage.GetTangents(), meshStorage.GetDrawableIndexes() });
 			GFX::Cmd::BindIndexBuffer(context, m_IndexBuffer);
@@ -553,16 +530,16 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		}
 		
 		{
-			const MeshStorage& meshStorage = MainSceneGraph.Geometries;
-			const auto drawableFilter = [](const Drawable& d)
-			{
-				Material& mat = MainSceneGraph.Materials[d.MaterialIndex];
-				return mat.UseAlphaDiscard && !mat.UseBlend;
-			};
-			const BitField filteredMask = FilterVisibilityMask(m_VisibilityMask, drawableFilter);
-			const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, filteredMask);
+			RenderGroup& renderGroup = MainSceneGraph.RenderGroups[RenderGroupType::AlphaDiscard];
+			const MeshStorage& meshStorage = renderGroup.MeshData;
+			const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, renderGroup);
 
 			GFX::Cmd::BindShader(context, useLightCulling ? m_GeometryAlphaDiscardShader : m_GeometryAlphaDiscardShaderNoLightCulling, true);
+			GFX::Cmd::BindSRV<PS>(context, renderGroup.TextureData, 0);
+			GFX::Cmd::BindSRV<PS>(context, renderGroup.Materials.GetBuffer(), 6);
+			GFX::Cmd::BindSRV<VS>(context, renderGroup.Drawables.GetBuffer(), 7);
+			GFX::Cmd::BindSRV<PS>(context, renderGroup.Drawables.GetBuffer(), 7);
+			GFX::Cmd::BindVertexBuffers(context, { meshStorage.GetPositions(), meshStorage.GetTexcoords(), meshStorage.GetNormals(), meshStorage.GetTangents(), meshStorage.GetDrawableIndexes() });
 			GFX::Cmd::BindIndexBuffer(context, m_IndexBuffer);
 			context->DrawIndexed(indexCount, 0, 0);
 		}
@@ -627,26 +604,31 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 	// Debug geometries
 	if(DebugToolsConfig.DrawBoundingBoxes)
 	{
-		const uint32_t numDrawables = MainSceneGraph.Drawables.GetSize();
-		for (uint32_t i = 0; i < numDrawables; i++)
+		for (uint32_t rgType = 0; rgType < RenderGroupType::Count; rgType++)
 		{
-			if (!m_VisibilityMask.Get(i)) continue;
+			RenderGroup& rg = MainSceneGraph.RenderGroups[rgType];
+			const uint32_t numDrawables = rg.Drawables.GetSize();
+			for (uint32_t i = 0; i < numDrawables; i++)
+			{
+				if (!rg.VisibilityMask.Get(i)) continue;
 
-			const Drawable& d = MainSceneGraph.Drawables[i];
-			const Entity& e = MainSceneGraph.Entities[d.EntityIndex];
-			const float maxScale = MAX(MAX(e.Scale.x, e.Scale.y), e.Scale.z);
-			
-			BoundingSphere bs;
-			bs.Center = e.Position + e.Scale * d.BoundingVolume.Center;
-			bs.Radius = d.BoundingVolume.Radius * maxScale;
+				const Drawable& d = rg.Drawables[i];
+				const Entity& e = MainSceneGraph.Entities[d.EntityIndex];
+				const float maxScale = MAX(MAX(e.Scale.x, e.Scale.y), e.Scale.z);
 
-			DebugGeometry dg{};
-			dg.Type = DebugGeometryType::SPHERE;
-			dg.Color = Float4(Random::UNorm(i), Random::UNorm(i+1), Random::UNorm(i+2), 0.2f);
-			dg.Position = bs.Center;
-			dg.Scale = { bs.Radius, bs.Radius, bs.Radius };
-			m_DebugGeometries.push_back(dg);
+				BoundingSphere bs;
+				bs.Center = e.Position + e.Scale * d.BoundingVolume.Center;
+				bs.Radius = d.BoundingVolume.Radius * maxScale;
+
+				DebugGeometry dg{};
+				dg.Type = DebugGeometryType::SPHERE;
+				dg.Color = Float4(Random::UNorm(i), Random::UNorm(i + 1), Random::UNorm(i + 2), 0.2f);
+				dg.Position = bs.Center;
+				dg.Scale = { bs.Radius, bs.Radius, bs.Radius };
+				m_DebugGeometries.push_back(dg);
+			}
 		}
+		
 	}
 
 	DrawDebugGeometries(context);
@@ -762,11 +744,18 @@ void ForwardPlus::UpdateStats(ID3D11DeviceContext* context)
 	GFX::Cmd::MarkerBegin(context, "Update stats");
 
 	// Drawable stats
-	RenderStats.TotalDrawables = MainSceneGraph.Drawables.GetSize();
-	if (!DebugToolsConfig.FreezeGeometryCulling)
+	RenderStats.TotalDrawables = 0;
+	RenderStats.VisibleDrawables = 0;
+	for (uint32_t i = 0; i < RenderGroupType::Count; i++)
 	{
-		RenderStats.VisibleDrawables = m_VisibilityMask.CountOnes();
+		RenderGroup& rg = MainSceneGraph.RenderGroups[i];
+		RenderStats.TotalDrawables += rg.Drawables.GetSize();
+		if (!DebugToolsConfig.FreezeGeometryCulling)
+		{
+			RenderStats.VisibleDrawables += rg.VisibilityMask.CountOnes();
+		}
 	}
+
 	
 	// Light stats
 	RenderStats.TotalLights = MainSceneGraph.Lights.GetSize();

@@ -27,6 +27,7 @@ namespace SceneLoading
 			ID3D11DeviceContext* GfxContext;
 			Entity* LoadingEntity;
 			SceneGraph* LoadingScene;
+			RenderGroup* LoadingRG;
 		};
 
 		void* GetBufferData(cgltf_accessor* accessor)
@@ -148,7 +149,7 @@ namespace SceneLoading
 		uint32_t AddTexture(const LoadingContext& context, TextureID texture)
 		{
 			static TextureID stagingTexture;
-			if (!stagingTexture.Valid()) stagingTexture = GFX::CreateTexture(SceneGraph::TEXTURE_SIZE, SceneGraph::TEXTURE_SIZE, RCF_Bind_RTV | RCF_GenerateMips | RCF_Bind_SRV, SceneGraph::TEXTURE_MIPS);
+			if (!stagingTexture.Valid()) stagingTexture = GFX::CreateTexture(RenderGroup::TEXTURE_SIZE, RenderGroup::TEXTURE_SIZE, RCF_Bind_RTV | RCF_GenerateMips | RCF_Bind_SRV, RenderGroup::TEXTURE_MIPS);
 
 			const Texture& stagingTex = GFX::Storage::GetTexture(stagingTexture);
 			
@@ -159,7 +160,7 @@ namespace SceneLoading
 			GFX::Cmd::SetupStaticSamplers<PS>(c);
 			GFX::Cmd::BindShader(c, Device::Get()->GetCopyShader());
 			c->OMSetRenderTargets(1, stagingTex.RTV.GetAddressOf(), nullptr);
-			GFX::Cmd::SetViewport(c, { (float) SceneGraph::TEXTURE_SIZE, (float) SceneGraph::TEXTURE_SIZE });
+			GFX::Cmd::SetViewport(c, { (float) RenderGroup::TEXTURE_SIZE, (float) RenderGroup::TEXTURE_SIZE });
 			GFX::Cmd::BindVertexBuffer(c, Device::Get()->GetQuadBuffer());
 			GFX::Cmd::BindSRV<PS>(c, texture, 0);
 			c->Draw(6, 0);
@@ -170,9 +171,9 @@ namespace SceneLoading
 			GFX::Storage::Free(texture);
 
 			// Copy to the array
-			const Texture& textureArray = GFX::Storage::GetTexture(context.LoadingScene->Textures);
-			const uint32_t textureIndex = context.LoadingScene->NextTextureIndex++;
-			ASSERT(textureIndex < SceneGraph::MAX_TEXTURES, "textureIndex < SceneGraph::MAX_TEXTURES");
+			const Texture& textureArray = GFX::Storage::GetTexture(context.LoadingRG->TextureData);
+			const uint32_t textureIndex = context.LoadingRG->NextTextureIndex++;
+			ASSERT(textureIndex < RenderGroup::MAX_TEXTURES, "textureIndex < SceneGraph::MAX_TEXTURES");
 			ASSERT(stagingTex.Format == textureArray.Format, "stagingTex.Format == tex.Format");
 
 			for (uint32_t mip = 0; mip < textureArray.NumMips; mip++)
@@ -207,7 +208,7 @@ namespace SceneLoading
 			return Float3{ color[0], color[1], color[2] };
 		}
 
-		Material LoadMaterial(const LoadingContext& context, cgltf_material* materialData)
+		Material LoadMaterial(LoadingContext& context, cgltf_material* materialData)
 		{
 			ASSERT(materialData->has_pbr_metallic_roughness, "[SceneLoading] Every material must have a base color texture!");
 
@@ -216,23 +217,31 @@ namespace SceneLoading
 			Material material;
 			material.UseBlend = materialData->alpha_mode == cgltf_alpha_mode_blend;
 			material.UseAlphaDiscard = materialData->alpha_mode == cgltf_alpha_mode_mask;
-			material.Albedo = LoadTexture(context, mat.base_color_texture.texture);
 			material.AlbedoFactor = ToFloat3(mat.base_color_factor);
-			material.MetallicRoughness = LoadTexture(context, mat.metallic_roughness_texture.texture);
 			material.MetallicFactor = mat.metallic_factor;
 			material.RoughnessFactor = mat.roughness_factor;
+
+			// Load render group based on material
+			RenderGroupType rgType = RenderGroupType::Opaque;
+			if (material.UseBlend) rgType = RenderGroupType::Transparent;
+			else if (material.UseAlphaDiscard) rgType = RenderGroupType::AlphaDiscard;
+			context.LoadingRG = &context.LoadingScene->RenderGroups[rgType];
+
+			material.Albedo = LoadTexture(context, mat.base_color_texture.texture);
+			material.MetallicRoughness = LoadTexture(context, mat.metallic_roughness_texture.texture);
 			material.Normal = LoadTexture(context, materialData->normal_texture.texture, ColorUNORM(0.5f, 0.5f, 1.0f, 1.0f));
+
 			return material;
 		}
 
-		Drawable LoadDrawable(const LoadingContext& context, cgltf_primitive* meshData)
+		Drawable LoadDrawable(LoadingContext& context, cgltf_primitive* meshData)
 		{
 			Material material = LoadMaterial(context, meshData->material);
-			MeshStorage& meshStorage = context.LoadingScene->Geometries;
+			MeshStorage& meshStorage = context.LoadingRG->MeshData;
 
 			Mesh mesh = LoadMesh(context, meshStorage, meshData);
 			BoundingSphere boundingSphere = CalculateBoundingSphere(meshData);
-			Drawable drawable = context.LoadingScene->CreateDrawable(context.GfxContext, material, mesh, boundingSphere, *context.LoadingEntity);
+			Drawable drawable = context.LoadingRG->CreateDrawable(context.GfxContext, material, mesh, boundingSphere, *context.LoadingEntity);
 
 			std::vector<uint32_t> drawIndexData;
 			uint32_t drawIndex = drawable.DrawableIndex;
