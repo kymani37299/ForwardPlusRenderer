@@ -271,6 +271,7 @@ void SceneGraph::FrameUpdate(ID3D11DeviceContext* context)
 		struct SceneInfoCB
 		{
 			uint32_t NumLights;
+			DirectX::XMFLOAT3 Padding;
 			DirectX::XMFLOAT2A ScreenSize;
 			float AspectRatio;
 		};

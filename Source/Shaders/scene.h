@@ -1,7 +1,9 @@
 struct SceneInfo
 {
 	uint NumLights;
+	float3 Padding1;
 	float2 ScreenSize;
+	float2 Padding2;
 	float AspectRatio;
 };
 
