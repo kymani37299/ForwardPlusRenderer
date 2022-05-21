@@ -94,39 +94,6 @@ namespace ForwardPlusPrivate
 		GFX::Storage::Free(skyboxPanorama);
 	}
 
-	void SetupShadowmapData(ID3D11DeviceContext* context)
-	{
-		bool foundDirLight = false;
-		Float3 lightDirection;
-
-		for (uint32_t i = 0; i < MainSceneGraph.Lights.GetSize(); i++)
-		{
-			Light& l = MainSceneGraph.Lights[i];
-			if (l.Type == LT_Directional)
-			{
-				ASSERT(!foundDirLight, "Only one directional light is allowed per scene!");
-				foundDirLight = true;
-				lightDirection = l.Direction;
-			}
-		}
-		ASSERT(foundDirLight, "No directional light found! Please add a directional light to the scene!");
-
-		using namespace DirectX;
-		Float3 camPos = MainSceneGraph.MainCamera.CurrentTranform.Position.ToXM();
-		
-		// TODO: Reduce number of variables used
-		XMMATRIX view = XMMatrixLookAtLH(camPos.ToXM(), (camPos + lightDirection).ToXM(), Float3(0.0f, -1.0f, 0.0f).ToXM());
-		//XMMATRIX proj = XMMatrixOrthographicLH(500.0f, 500.0f, -100.0f, 100.0f);
-		XMMATRIX proj = XMMatrixOrthographicOffCenterLH(-100.0f, 100.0f, -100.0f, 100.0f, -1000.0f, 1000.0f);
-		XMMATRIX viewProj = XMMatrixMultiply(view, proj);
-		XMMATRIX viewProjFinal = XMMatrixTranspose(viewProj);
-
-		XMFLOAT4X4 worldToLightClip;
-		XMStoreFloat4x4(&worldToLightClip, viewProjFinal);
-
-		GFX::Cmd::UploadToBuffer(context, MainSceneGraph.WorldToLightClip, 0, &worldToLightClip, 0, sizeof(XMFLOAT4X4));
-	}
-
 	void UpdateInput(float dt, Application* app)
 	{
 		float dtSec = dt / 1000.0f;
@@ -322,17 +289,12 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 			SceneLoading::LoadEntity("Resources/cube/cube.gltf", e2);
 		}
 
-		// Shadows
-		MainSceneGraph.WorldToLightClip = GFX::CreateConstantBuffer<DirectX::XMFLOAT4X4>();
-		MainSceneGraph.ShadowMapTexture = GFX::CreateTexture(512, 512, RCF_Bind_DSV | RCF_Bind_SRV);
-
 		CubeVB = GenerateCubeVB();
 		SphereVB = GenerateSphereVB();
 		PlaneVB = GeneratePlaneVB();
 	}
 
 	m_SkyboxShader = GFX::CreateShader("Source/Shaders/skybox.hlsl");
-	m_ShadowmapShader = GFX::CreateShader("Source/Shaders/shadowmap.hlsl", {}, SCF_VS);
 	m_DepthPrepassShader = GFX::CreateShader("Source/Shaders/depth.hlsl");
 	m_GeometryShader = GFX::CreateShader("Source/Shaders/geometry.hlsl");
 	m_GeometryShaderNoLightCulling = GFX::CreateShader("Source/Shaders/geometry.hlsl", { "DISABLE_LIGHT_CULLING" });
@@ -521,9 +483,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.SceneInfoBuffer, 1);
-		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.WorldToLightClip, 3);
 		GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Lights.GetBuffer(), 3);
-		GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.ShadowMapTexture, 4);
 		GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Entities.GetBuffer(), 5);
 		GFX::Cmd::BindSRV<PS>(context, m_VisibleLightsBuffer, 8);
 		GFX::Cmd::BindIndexBuffer(context, m_IndexBuffer);

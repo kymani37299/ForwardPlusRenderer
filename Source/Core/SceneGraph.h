@@ -329,8 +329,6 @@ struct SceneGraph
 	ElementBuffer<Light> Lights;
 
 	BufferID SceneInfoBuffer;
-	BufferID WorldToLightClip;
-	TextureID ShadowMapTexture;
 };
 
 extern SceneGraph MainSceneGraph;
