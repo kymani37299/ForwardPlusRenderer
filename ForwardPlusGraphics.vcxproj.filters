@@ -197,5 +197,8 @@
     <ClInclude Include="Source\Gui\GUI_Implementations.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Utility\Hash.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
