@@ -297,10 +297,7 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 	m_SkyboxShader = GFX::CreateShader("Source/Shaders/skybox.hlsl");
 	m_DepthPrepassShader = GFX::CreateShader("Source/Shaders/depth.hlsl");
 	m_GeometryShader = GFX::CreateShader("Source/Shaders/geometry.hlsl");
-	m_GeometryShaderNoLightCulling = GFX::CreateShader("Source/Shaders/geometry.hlsl", { "DISABLE_LIGHT_CULLING" });
-	m_GeometryAlphaDiscardShader = GFX::CreateShader("Source/Shaders/geometry.hlsl", { "ALPHA_DISCARD" });
-	m_GeometryAlphaDiscardShaderNoLightCulling = GFX::CreateShader("Source/Shaders/geometry.hlsl", { "ALPHA_DISCARD", "DISABLE_LIGHT_CULLING" });
-	m_LightCullingShader = GFX::CreateShader("Source/Shaders/light_culling.hlsl", { "USE_BARRIERS"}, SCF_CS);
+	m_LightCullingShader = GFX::CreateShader("Source/Shaders/light_culling.hlsl", SCF_CS);
 	m_DebugGeometryShader = GFX::CreateShader("Source/Shaders/debug_geometry.hlsl");
 	m_LightHeatmapShader = GFX::CreateShader("Source/Shaders/light_heatmap.hlsl");
 	m_TAA = GFX::CreateShader("Source/Shaders/taa.hlsl");
@@ -313,7 +310,7 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 
 	if constexpr (ENABLE_STATS)
 	{
-		m_LightStatsShader = GFX::CreateShader("Source/Shaders/light_stats.hlsl", {}, SCF_CS);
+		m_LightStatsShader = GFX::CreateShader("Source/Shaders/light_stats.hlsl", SCF_CS);
 		m_LightStatsBuffer = GFX::CreateBuffer(sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_SB | RCF_Bind_UAV | RCF_CPU_Read);
 	}
 }
@@ -419,7 +416,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 
 		GFX::Cmd::BindRenderTarget(context, m_MotionVectorRT, m_FinalRT_Depth);
 		GFX::Cmd::SetPipelineState(context, pso);
-		GFX::Cmd::BindShader(context, m_DepthPrepassShader, true);
+		GFX::Cmd::BindShader(context, m_DepthPrepassShader, {}, true);
 		GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 		GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.LastFrameCameraBuffer, 1);
@@ -437,7 +434,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 	{
 		context->OMSetRenderTargets(0, nullptr, nullptr);
 		GFX::Cmd::MarkerBegin(context, "Light Culling");
-		GFX::Cmd::BindShader(context, m_LightCullingShader);
+		GFX::Cmd::BindShader(context, m_LightCullingShader, { "USE_BARRIERS" });
 		GFX::Cmd::BindCBV<CS>(context, MainSceneGraph.SceneInfoBuffer, 0);
 		GFX::Cmd::BindCBV<CS>(context, MainSceneGraph.MainCamera.CameraBuffer, 2);
 		GFX::Cmd::BindSRV<CS>(context, MainSceneGraph.Lights.GetBuffer(), 0);
@@ -453,19 +450,6 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 	{
 		GFX::Cmd::MarkerBegin(context, "Geometry");
 		
-		const auto rgTypeToShader = [this](RenderGroupType rgType) {
-			const bool useLightCulling = !DebugToolsConfig.DisableLightCulling;
-			switch (rgType)
-			{
-			case RenderGroupType::Opaque:
-				return useLightCulling ? m_GeometryShader : m_GeometryShaderNoLightCulling;
-			case RenderGroupType::AlphaDiscard:
-				return useLightCulling ? m_GeometryAlphaDiscardShader : m_GeometryAlphaDiscardShaderNoLightCulling;
-			default:
-				NOT_IMPLEMENTED;
-			}
-		};
-
 		// Initial setup
 		PipelineState pso = GFX::DefaultPipelineState();
 		pso.DS.DepthEnable = true;
@@ -497,7 +481,11 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			const MeshStorage& meshStorage = renderGroup.MeshData;
 			const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, renderGroup);
 
-			GFX::Cmd::BindShader(context, rgTypeToShader(rgType), true);
+			std::vector<std::string> configuration;
+			if (rgType == RenderGroupType::AlphaDiscard) configuration.push_back("ALPHA_DISCARD");
+			if (DebugToolsConfig.DisableLightCulling) configuration.push_back("DISABLE_LIGHT_CULLING");
+
+			GFX::Cmd::BindShader(context, m_GeometryShader, configuration, true);
 			GFX::Cmd::BindSRV<PS>(context, renderGroup.TextureData, 0);
 			GFX::Cmd::BindSRV<PS>(context, renderGroup.Materials.GetBuffer(), 6);
 			GFX::Cmd::BindSRV<VS>(context, renderGroup.Drawables.GetBuffer(), 7);
@@ -651,7 +639,7 @@ void ForwardPlus::UpdatePresentResources(ID3D11DeviceContext* context)
 		GFX::Storage::Free(m_MotionVectorRT);
 	}
 
-	m_FinalRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV );
+	m_FinalRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV);
 	m_FinalRTSRV = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_SRV | RCF_CopyDest);
 	m_FinalRTHistory[0] = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_SRV | RCF_CopyDest);
 	m_FinalRTHistory[1] = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_SRV | RCF_CopyDest);

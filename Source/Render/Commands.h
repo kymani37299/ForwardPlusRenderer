@@ -25,7 +25,7 @@ namespace GFX
 		ID3D11DeviceContext* CreateDeferredContext();
 		void SubmitDeferredContext(ID3D11DeviceContext* context);
 
-		void BindShader(ID3D11DeviceContext* context, ShaderID shaderID, bool multiInput = false);
+		void BindShader(ID3D11DeviceContext* context, ShaderID shaderID, std::vector<std::string> configuration = {}, bool multiInput = false);
 		void BindVertexBuffer(ID3D11DeviceContext* context, BufferID bufferID);
 		void BindVertexBuffers(ID3D11DeviceContext* context, std::vector<BufferID> buffers);
 		void BindIndexBuffer(ID3D11DeviceContext* context, BufferID bufferID);

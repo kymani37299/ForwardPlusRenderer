@@ -1,5 +1,6 @@
 #pragma once
 
+#include <unordered_map>
 #include <vector>
 
 #include "Render/ResourceID.h"
@@ -83,17 +84,20 @@ struct Texture
 	uint32_t SlicePitch;
 };
 
-struct Shader
+struct ShaderImplementation
 {
 	ComPtr<ID3D11VertexShader> VS;
 	ComPtr<ID3D11PixelShader> PS;
 	ComPtr<ID3D11ComputeShader> CS;
 	ComPtr<ID3D11InputLayout> IL;
 	ComPtr<ID3D11InputLayout> MIL;
+};
 
+struct Shader
+{
 	std::string Path;
-	std::vector<std::string> Defines;
 	uint32_t CreationFlags;
+	std::unordered_map<uint32_t, ShaderImplementation> Implementations;
 };
 
 namespace GFX

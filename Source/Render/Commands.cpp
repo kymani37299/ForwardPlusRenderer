@@ -3,6 +3,7 @@
 #include "System/ApplicationConfiguration.h"
 #include "Render/Device.h"
 #include "Render/Resource.h"
+#include "Render/Shader.h"
 #include "Utility/StringUtility.h"
 
 namespace GFX
@@ -68,18 +69,18 @@ namespace GFX
 			Device::Get()->SubmitDeferredContext(context);
 		}
 
-		void BindShader(ID3D11DeviceContext* context, ShaderID shaderID, bool multiInput)
+		void BindShader(ID3D11DeviceContext* context, ShaderID shaderID, std::vector<std::string> configuration, bool multiInput)
 		{
-			const Shader& shader = GFX::Storage::GetShader(shaderID);
+			const ShaderImplementation& impl = GetShaderImplementation(shaderID, configuration);
 
-			context->VSSetShader(shader.VS.Get(), nullptr, 0);
-			context->PSSetShader(shader.PS.Get(), nullptr, 0);
-			context->CSSetShader(shader.CS.Get(), nullptr, 0);
+			context->VSSetShader(impl.VS.Get(), nullptr, 0);
+			context->PSSetShader(impl.PS.Get(), nullptr, 0);
+			context->CSSetShader(impl.CS.Get(), nullptr, 0);
 
 			if (multiInput)
-				context->IASetInputLayout(shader.MIL.Get());
+				context->IASetInputLayout(impl.MIL.Get());
 			else
-				context->IASetInputLayout(shader.IL.Get());
+				context->IASetInputLayout(impl.IL.Get());
 		}
 
 		void BindVertexBuffer(ID3D11DeviceContext* context, BufferID bufferID)

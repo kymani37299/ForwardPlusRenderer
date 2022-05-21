@@ -69,4 +69,11 @@ namespace Hash
 	{
 		return Crc32(reinterpret_cast<const uint8_t*>(&data), sizeof(T));
 	}
+
+	template<>
+	uint32_t Crc32<std::string>(const std::string& data)
+	{
+		static_assert(sizeof(uint8_t) == sizeof(char));
+		return Crc32(reinterpret_cast<const uint8_t*>(data.c_str()), data.size());
+	}
 }

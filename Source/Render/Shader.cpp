@@ -9,6 +9,7 @@
 #include "Render/Resource.h"
 #include "Utility/StringUtility.h"
 #include "Utility/PathUtility.h"
+#include "Utility/Hash.h"
 
 namespace GFX
 {
@@ -210,72 +211,85 @@ namespace GFX
 
             return inputLayout;
         }
+
+        // Returns true if compile success
+		bool CompileShader(const std::string path, const uint32_t creationFlags, const std::vector<std::string>& defines, ShaderImplementation& implementation)
+		{
+            static const std::string SHADER_VERSION = "5_0";
+
+			std::string shaderCode;
+			ReadShaderFile(path, shaderCode);
+
+			D3D_SHADER_MACRO* configuration = CompileConfiguration(defines);
+			ID3DBlob* vsBlob = creationFlags & SCF_VS ? ReadBlobFromFile(path, shaderCode, "VS", "vs_" + SHADER_VERSION, configuration) : nullptr;
+			ID3DBlob* psBlob = creationFlags & SCF_PS ? ReadBlobFromFile(path, shaderCode, "PS", "ps_" + SHADER_VERSION, configuration) : nullptr;
+			ID3DBlob* csBlob = creationFlags & SCF_CS ? ReadBlobFromFile(path, shaderCode, "CS", "cs_" + SHADER_VERSION, configuration) : nullptr;
+			free(configuration);
+
+			ID3D11Device* device = Device::Get()->GetHandle();
+
+			ID3D11VertexShader* vs = nullptr;
+			ID3D11PixelShader* ps = nullptr;
+			ID3D11ComputeShader* cs = nullptr;
+
+			bool success = vsBlob || psBlob || csBlob;
+			if (vsBlob) success = success && SUCCEEDED(device->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, &vs));
+			if (psBlob) success = success && SUCCEEDED(device->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &ps));
+			if (csBlob) success = success && SUCCEEDED(device->CreateComputeShader(csBlob->GetBufferPointer(), csBlob->GetBufferSize(), nullptr, &cs));
+
+			if (success)
+			{
+				implementation.VS = vs;
+				implementation.PS = ps;
+				implementation.CS = cs;
+
+				if (vsBlob)
+				{
+					implementation.IL.Reset();
+					implementation.MIL.Reset();
+					implementation.IL = CreateInputLayout(vsBlob, false);
+					implementation.MIL = CreateInputLayout(vsBlob, true);
+				}
+			}
+			else
+			{
+				SAFE_RELEASE(vs);
+				SAFE_RELEASE(ps);
+				SAFE_RELEASE(cs);
+			}
+
+			SAFE_RELEASE(vsBlob);
+			SAFE_RELEASE(psBlob);
+			SAFE_RELEASE(csBlob);
+
+			return success;
+		}
     }
     
-    static const std::string SHADER_VERSION = "5_0";
-
-	ShaderID CreateShader(const std::string& path, const std::vector<std::string>& defines, uint32_t creationFlags)
+	ShaderID CreateShader(const std::string& path, uint32_t creationFlags)
 	{
 		ShaderID id;
 		Shader& shader = Storage::CreateShader(id);
         shader.Path = path;
-        shader.Defines = defines;
         shader.CreationFlags = creationFlags;
-        bool result = ReloadShader(id);
-        ASSERT(result, "[CreateShader] Shader compilation failed!");
         return id;
 	}
 
-    bool ReloadShader(ShaderID shaderID)
-    {
-        // Small hack in order to reload a shader
-        Shader& shader = const_cast<Shader&>(Storage::GetShader(shaderID));
+	const ShaderImplementation& GetShaderImplementation(ShaderID shaderID, const std::vector<std::string>& defines)
+	{
+		// TODO: Sort defines so we don't make duplicates
+		std::string defAll = " "; for (const std::string& def : defines) defAll += def;
+		const uint32_t implHash = Hash::Crc32(defAll);
 
-        std::string shaderCode;
-        ReadShaderFile(shader.Path, shaderCode);
+        const Shader& shader = Storage::GetShader(shaderID);
+		if (!shader.Implementations.contains(implHash))
+		{
+			Shader& modShader = const_cast<Shader&>(shader);
+			bool success = CompileShader(modShader.Path, modShader.CreationFlags, defines, modShader.Implementations[implHash]);
+			ASSERT(success, "Shader compilation failed!");
+		}
+		return shader.Implementations.at(implHash);
+	}
 
-        D3D_SHADER_MACRO* configuration = CompileConfiguration(shader.Defines);
-        ID3DBlob* vsBlob = shader.CreationFlags & SCF_VS ? ReadBlobFromFile(shader.Path, shaderCode, "VS", "vs_" + SHADER_VERSION, configuration) : nullptr;
-        ID3DBlob* psBlob = shader.CreationFlags & SCF_PS ? ReadBlobFromFile(shader.Path, shaderCode, "PS", "ps_" + SHADER_VERSION, configuration) : nullptr;
-        ID3DBlob* csBlob = shader.CreationFlags & SCF_CS ? ReadBlobFromFile(shader.Path, shaderCode, "CS", "cs_" + SHADER_VERSION, configuration) : nullptr;
-        free(configuration);
-
-        ID3D11Device* device = Device::Get()->GetHandle();
-
-        ID3D11VertexShader* vs = nullptr;
-        ID3D11PixelShader* ps = nullptr;
-        ID3D11ComputeShader* cs = nullptr;
-
-        bool success = vsBlob || psBlob || csBlob;
-        if (vsBlob) success = success && SUCCEEDED(device->CreateVertexShader(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), nullptr, &vs));
-        if (psBlob) success = success && SUCCEEDED(device->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, &ps));
-        if (csBlob) success = success && SUCCEEDED(device->CreateComputeShader(csBlob->GetBufferPointer(), csBlob->GetBufferSize(), nullptr, &cs));
-
-        if (success)
-        {
-            shader.VS = vs;
-            shader.PS = ps;
-            shader.CS = cs;
-
-            if (vsBlob)
-            {
-                shader.IL.Reset();
-                shader.MIL.Reset();
-                shader.IL = CreateInputLayout(vsBlob, false);
-                shader.MIL = CreateInputLayout(vsBlob, true);
-            }
-        }
-        else
-        {
-            SAFE_RELEASE(vs);
-            SAFE_RELEASE(ps);
-            SAFE_RELEASE(cs);
-        }
-
-        SAFE_RELEASE(vsBlob);
-        SAFE_RELEASE(psBlob);
-        SAFE_RELEASE(csBlob);
-
-        return success;
-    }
+	
 }

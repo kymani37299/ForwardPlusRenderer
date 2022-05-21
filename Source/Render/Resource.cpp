@@ -134,7 +134,7 @@ namespace GFX
 			{
 				if (ShaderStorage[i].CreationFlags != 0)
 				{
-					ReloadShader({ i });
+					ShaderStorage[i].Implementations.clear();
 				}
 			}
 			ShaderStorage.Unlock();
