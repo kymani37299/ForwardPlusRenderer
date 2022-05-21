@@ -157,6 +157,7 @@ void Camera::UpdateBufferForTransform(ID3D11DeviceContext* context, CameraTransf
 	{
 		XMFLOAT4X4 WorldToView;
 		XMFLOAT4X4 ViewToClip;
+		XMFLOAT4X4 ClipToWorld;
 		XMFLOAT3A Position;
 		XMFLOAT2A Jitter;
 	};
@@ -164,14 +165,17 @@ void Camera::UpdateBufferForTransform(ID3D11DeviceContext* context, CameraTransf
 	AspectRatio = (float) AppConfig.WindowWidth / AppConfig.WindowHeight;
 	RotToAxis(transform);
 
-	XMMATRIX matView = XMMatrixLookAtLH(transform.Position.ToXM(), (transform.Position + transform.Forward).ToXM(), transform.Up.ToXM());
-	XMMATRIX matProj = XMMatrixPerspectiveFovLH(DegreesToRadians(FOV), AspectRatio, ZNear, ZFar);
-	
-	WorldToView = XMMatrixTranspose(matView);
+	XMMATRIX worldToView = XMMatrixLookAtLH(transform.Position.ToXM(), (transform.Position + transform.Forward).ToXM(), transform.Up.ToXM());
+	XMMATRIX viewToClip = XMMatrixPerspectiveFovLH(DegreesToRadians(FOV), AspectRatio, ZNear, ZFar);
+	XMMATRIX worldToClip = XMMatrixMultiply(worldToView, viewToClip);
+	XMMATRIX clipToWorld = XMMatrixInverse(nullptr, worldToClip);
+
+	WorldToView = XMMatrixTranspose(worldToView);
 
 	CameraCB cameraCB{};
-	cameraCB.WorldToView = XMUtility::ToHLSLFloat4x4(matView);
-	cameraCB.ViewToClip = XMUtility::ToHLSLFloat4x4(matProj);
+	cameraCB.WorldToView = XMUtility::ToHLSLFloat4x4(worldToView);
+	cameraCB.ViewToClip = XMUtility::ToHLSLFloat4x4(viewToClip);
+	cameraCB.ClipToWorld = XMUtility::ToHLSLFloat4x4(clipToWorld);
 	cameraCB.Position = transform.Position.ToXMFA();
 	cameraCB.Jitter = UseJitter ? Jitter[JitterIndex].ToXMFA() : Float2(0.0f, 0.0f).ToXMFA();
 

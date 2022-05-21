@@ -11,6 +11,7 @@ struct Camera
 {
 	float4x4 WorldToView;
 	float4x4 ViewToClip;
+	float4x4 ClipToWorld;
 	float3 Position;
 	float2 Jitter;
 };
