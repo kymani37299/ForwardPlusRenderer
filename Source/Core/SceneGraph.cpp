@@ -254,7 +254,7 @@ SceneGraph::SceneGraph() :
 
 void SceneGraph::InitRenderData(ID3D11DeviceContext* context)
 {
-	for (uint32_t i = 0; i < RenderGroupType::Count; i++)
+	for (uint32_t i = 0; i < EnumToInt(RenderGroupType::Count); i++)
 	{
 		RenderGroups[i].Initialize(context);
 	}

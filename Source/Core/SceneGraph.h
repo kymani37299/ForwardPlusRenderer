@@ -298,7 +298,7 @@ struct RenderGroup
 	BitField VisibilityMask;
 };
 
-enum RenderGroupType : uint8_t
+enum class RenderGroupType : uint8_t
 {
 	Opaque = 0,
 	AlphaDiscard = 1,
@@ -325,7 +325,7 @@ struct SceneGraph
 	Camera MainCamera{ {0.0f, 2.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, 75.0f };
 
 	ElementBuffer<Entity> Entities;
-	RenderGroup RenderGroups[RenderGroupType::Count];
+	RenderGroup RenderGroups[EnumToInt(RenderGroupType::Count)];
 	ElementBuffer<Light> Lights;
 
 	BufferID SceneInfoBuffer;

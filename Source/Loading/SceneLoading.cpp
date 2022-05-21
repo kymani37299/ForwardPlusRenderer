@@ -225,7 +225,7 @@ namespace SceneLoading
 			RenderGroupType rgType = RenderGroupType::Opaque;
 			if (material.UseBlend) rgType = RenderGroupType::Transparent;
 			else if (material.UseAlphaDiscard) rgType = RenderGroupType::AlphaDiscard;
-			context.LoadingRG = &context.LoadingScene->RenderGroups[rgType];
+			context.LoadingRG = &context.LoadingScene->RenderGroups[EnumToInt(rgType)];
 
 			material.Albedo = LoadTexture(context, mat.base_color_texture.texture);
 			material.MetallicRoughness = LoadTexture(context, mat.metallic_roughness_texture.texture);

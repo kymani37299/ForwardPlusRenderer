@@ -382,7 +382,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 
 	if (!DebugToolsConfig.FreezeGeometryCulling)
 	{
-		for (uint32_t i = 0; i < RenderGroupType::Count; i++)
+		for (uint32_t i = 0; i < EnumToInt(RenderGroupType::Count); i++)
 		{
 			RenderGroup& rg = MainSceneGraph.RenderGroups[i];
 			if (DebugToolsConfig.DisableGeometryCulling)
@@ -398,7 +398,8 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		}
 	}
 
-	GFX::Cmd::ClearRenderTarget(context, m_FinalRT, m_FinalRT_Depth);
+	GFX::Cmd::ClearRenderTarget(context, m_FinalRT);
+	GFX::Cmd::ClearDepthStencil(context, m_FinalRT_Depth);
 	GFX::Cmd::BindRenderTarget(context, m_FinalRT, m_FinalRT_Depth);
 	
 	// Depth prepass
@@ -407,15 +408,14 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		PipelineState pso = GFX::DefaultPipelineState();
 		pso.DS.DepthEnable = true;
 
-		RenderGroup& renderGroup = MainSceneGraph.RenderGroups[RenderGroupType::Opaque];
+		RenderGroup& renderGroup = MainSceneGraph.RenderGroups[EnumToInt(RenderGroupType::Opaque)];
 		const MeshStorage& meshStorage = renderGroup.MeshData;
 		const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, renderGroup);
 
 		GFX::Cmd::BindRenderTarget(context, m_MotionVectorRT, m_FinalRT_Depth);
 		GFX::Cmd::SetPipelineState(context, pso);
 		GFX::Cmd::BindShader(context, m_DepthPrepassShader, {}, true);
-		GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
-		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
+		GFX::Cmd::BindCBV<VS|PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 		GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.LastFrameCameraBuffer, 1);
 		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.SceneInfoBuffer, 2);
 		GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Entities.GetBuffer(), 0);
@@ -461,15 +461,14 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 
 		GFX::Cmd::BindRenderTarget(context, m_FinalRT, m_FinalRT_Depth);
 		GFX::Cmd::SetupStaticSamplers<PS>(context);
-		GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
-		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
+		GFX::Cmd::BindCBV<VS|PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.SceneInfoBuffer, 1);
 		GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Lights.GetBuffer(), 3);
 		GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Entities.GetBuffer(), 5);
 		GFX::Cmd::BindSRV<PS>(context, m_VisibleLightsBuffer, 8);
 		GFX::Cmd::BindIndexBuffer(context, m_IndexBuffer);
 
-		for (uint32_t i = 0; i < RenderGroupType::Count; i++)
+		for (uint32_t i = 0; i < EnumToInt(RenderGroupType::Count); i++)
 		{
 			RenderGroupType rgType = (RenderGroupType) i;
 			RenderGroup& renderGroup = MainSceneGraph.RenderGroups[i];
@@ -485,8 +484,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			GFX::Cmd::BindShader(context, m_GeometryShader, configuration, true);
 			GFX::Cmd::BindSRV<PS>(context, renderGroup.TextureData, 0);
 			GFX::Cmd::BindSRV<PS>(context, renderGroup.Materials.GetBuffer(), 6);
-			GFX::Cmd::BindSRV<VS>(context, renderGroup.Drawables.GetBuffer(), 7);
-			GFX::Cmd::BindSRV<PS>(context, renderGroup.Drawables.GetBuffer(), 7);
+			GFX::Cmd::BindSRV<VS|PS>(context, renderGroup.Drawables.GetBuffer(), 7);
 			GFX::Cmd::BindVertexBuffers(context, { meshStorage.GetPositions(), meshStorage.GetTexcoords(), meshStorage.GetNormals(), meshStorage.GetTangents(), meshStorage.GetDrawableIndexes() });
 			context->DrawIndexed(indexCount, 0, 0);
 		}
@@ -551,7 +549,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 	// Debug geometries
 	if(DebugToolsConfig.DrawBoundingBoxes)
 	{
-		for (uint32_t rgType = 0; rgType < RenderGroupType::Count; rgType++)
+		for (uint32_t rgType = 0; rgType < EnumToInt(RenderGroupType::Count); rgType++)
 		{
 			RenderGroup& rg = MainSceneGraph.RenderGroups[rgType];
 			const uint32_t numDrawables = rg.Drawables.GetSize();
@@ -693,7 +691,7 @@ void ForwardPlus::UpdateStats(ID3D11DeviceContext* context)
 	// Drawable stats
 	RenderStats.TotalDrawables = 0;
 	RenderStats.VisibleDrawables = 0;
-	for (uint32_t i = 0; i < RenderGroupType::Count; i++)
+	for (uint32_t i = 0; i < EnumToInt(RenderGroupType::Count); i++)
 	{
 		RenderGroup& rg = MainSceneGraph.RenderGroups[i];
 		RenderStats.TotalDrawables += rg.Drawables.GetSize();
@@ -810,8 +808,7 @@ void ForwardPlus::DrawDebugGeometries(ID3D11DeviceContext* context)
 		// Draw
 		{
 			GFX::Cmd::BindVertexBuffer(context, vertexBuffer);
-			GFX::Cmd::BindCBV<VS>(context, m_DebugGeometryBuffer, 0);
-			GFX::Cmd::BindCBV<PS>(context, m_DebugGeometryBuffer, 0);
+			GFX::Cmd::BindCBV<VS|PS>(context, m_DebugGeometryBuffer, 0);
 			context->Draw(GFX::GetNumElements(vertexBuffer), 0);
 		}
 	}

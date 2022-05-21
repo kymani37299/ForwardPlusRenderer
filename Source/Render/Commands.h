@@ -8,11 +8,11 @@
 #include "Render/Texture.h"
 #include "Render/PipelineState.h"
 
-enum ShaderStage
+enum ShaderStage : uint32_t
 {
-	VS,
-	PS,
-	CS
+	VS = 1,
+	PS = 2,
+	CS = 4
 };
 
 namespace GFX
@@ -36,47 +36,45 @@ namespace GFX
 		void SetPipelineState(ID3D11DeviceContext* context, const PipelineState& pipelineState);
 		void SetPipelineState(ID3D11DeviceContext* context, const CompiledPipelineState& pipelineState);
 
-		void ClearRenderTarget(ID3D11DeviceContext* context, TextureID colorID, TextureID depthID = TextureID{});
+		void ClearRenderTarget(ID3D11DeviceContext* context, TextureID id, Float4 clearColor = { 0.0f, 0.0f, 0.0f, 0.0f });
+		void ClearDepthStencil(ID3D11DeviceContext* context, TextureID id, float depthValue = 1.0f, uint32_t stencilValue = 0);
 		void UploadToBuffer(ID3D11DeviceContext* context, BufferID bufferID, uint32_t dstOffset, const void* data, uint32_t srcOffset, size_t dataSize);
 		void UploadToTexture(ID3D11DeviceContext* context, void* data, TextureID textureID, uint32_t mipIndex = 0);
 		void CopyToTexture(ID3D11DeviceContext* context, TextureID srcTexture, TextureID dstTexture, uint32_t mipIndex = 0);
 		void CopyToBuffer(ID3D11DeviceContext* context, BufferID srcBuffer, uint32_t srcOffset, BufferID dstBuffer, uint32_t dstOffset, uint32_t size);
 
-		template<ShaderStage stage>
+		template<uint32_t stage>
 		void SetupStaticSamplers(ID3D11DeviceContext* context)
 		{
-			if constexpr (stage == VS) context->VSSetSamplers(0, GFX::GetStaticSamplersNum(), GFX::GetStaticSamplers());
-			else if constexpr (stage == PS) context->PSSetSamplers(0, GFX::GetStaticSamplersNum(), GFX::GetStaticSamplers());
-			else if constexpr (stage == CS) context->CSSetSamplers(0, GFX::GetStaticSamplersNum(), GFX::GetStaticSamplers());
-			else NOT_IMPLEMENTED;
+			if (stage & VS) context->VSSetSamplers(0, GFX::GetStaticSamplersNum(), GFX::GetStaticSamplers());
+			if (stage & PS) context->PSSetSamplers(0, GFX::GetStaticSamplersNum(), GFX::GetStaticSamplers());
+			if (stage & CS) context->CSSetSamplers(0, GFX::GetStaticSamplersNum(), GFX::GetStaticSamplers());
 		}
 
-		template<ShaderStage stage>
+		template<uint32_t stage>
 		void BindCBV(ID3D11DeviceContext* context, ID3D11Buffer* cbv, uint32_t slot)
 		{
-			if constexpr (stage == VS) context->VSSetConstantBuffers(slot, 1, &cbv);
-			else if constexpr (stage == PS) context->PSSetConstantBuffers(slot, 1, &cbv);
-			else if constexpr (stage == CS) context->CSSetConstantBuffers(slot, 1, &cbv);
-			else NOT_IMPLEMENTED;
+			if (stage & VS) context->VSSetConstantBuffers(slot, 1, &cbv);
+			if (stage & PS) context->PSSetConstantBuffers(slot, 1, &cbv);
+			if (stage & CS) context->CSSetConstantBuffers(slot, 1, &cbv);
 		}
 
-		template<ShaderStage stage>
+		template<uint32_t stage>
 		void BindSRV(ID3D11DeviceContext* context, ID3D11ShaderResourceView* srv, uint32_t slot)
 		{
-			if constexpr (stage == VS) context->VSSetShaderResources(slot, 1, &srv);
-			else if constexpr (stage == PS) context->PSSetShaderResources(slot, 1, &srv);
-			else if constexpr (stage == CS) context->CSSetShaderResources(slot, 1, &srv);
-			else NOT_IMPLEMENTED;
+			if (stage & VS) context->VSSetShaderResources(slot, 1, &srv);
+			if (stage & PS) context->PSSetShaderResources(slot, 1, &srv);
+			if (stage & CS) context->CSSetShaderResources(slot, 1, &srv);
 		}
 
-		template<ShaderStage stage>
+		template<uint32_t stage>
 		void BindUAV(ID3D11DeviceContext* context, ID3D11UnorderedAccessView* uav, uint32_t slot)
 		{
-			if constexpr (stage == CS) context->CSSetUnorderedAccessViews(slot, 1, &uav, nullptr);
-			else NOT_IMPLEMENTED;
+			ASSERT(stage & CS, "UAV are not supported by other stages except CS");
+;			context->CSSetUnorderedAccessViews(slot, 1, &uav, nullptr);
 		}
 
-		template<ShaderStage stage>
+		template<uint32_t stage>
 		void BindCBV(ID3D11DeviceContext* context, BufferID bufferID, uint32_t slot)
 		{
 			const Buffer& buffer = GFX::Storage::GetBuffer(bufferID);
@@ -85,7 +83,7 @@ namespace GFX
 			BindCBV<stage>(context, cbv, slot);
 		}
 
-		template<ShaderStage stage>
+		template<uint32_t stage>
 		void BindSRV(ID3D11DeviceContext* context, TextureID textureID, uint32_t slot)
 		{
 			const Texture& texture = GFX::Storage::GetTexture(textureID);
@@ -94,7 +92,7 @@ namespace GFX
 			BindSRV<stage>(context, srv, slot);
 		}
 
-		template<ShaderStage stage>
+		template<uint32_t stage>
 		void BindSRV(ID3D11DeviceContext* context, BufferID bufferID, uint32_t slot)
 		{
 			const Buffer& buffer = GFX::Storage::GetBuffer(bufferID);
@@ -103,7 +101,7 @@ namespace GFX
 			BindSRV<stage>(context, srv, slot);
 		}
 
-		template<ShaderStage stage>
+		template<uint32_t stage>
 		void BindUAV(ID3D11DeviceContext* context, BufferID bufferID, uint32_t slot)
 		{
 			const Buffer& buffer = GFX::Storage::GetBuffer(bufferID);
@@ -112,7 +110,7 @@ namespace GFX
 			BindUAV<stage>(context, uav, slot);
 		}
 
-		template<ShaderStage stage>
+		template<uint32_t stage>
 		void BindUAV(ID3D11DeviceContext* context, TextureID textureID, uint32_t slot)
 		{
 			const Texture& texture = GFX::Storage::GetTexture(textureID);
@@ -120,7 +118,5 @@ namespace GFX
 			ASSERT(uav, "BindUAV : Missing UAV");
 			BindUAV<stage>(context, uav, slot);
 		}
-
-
 	}
 }
