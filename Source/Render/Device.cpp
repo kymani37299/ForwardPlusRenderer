@@ -158,7 +158,7 @@ void Device::EndFrame(TextureID finalImage)
     // Present
     {
         GFX::Cmd::MarkerBegin(m_Context.Get(), "Present");
-        GFX::Cmd::BindShader(m_Context.Get(), m_CopyShader);
+        GFX::Cmd::BindShader<VS|PS>(m_Context.Get(), m_CopyShader);
         GFX::Cmd::SetupStaticSamplers<PS>(m_Context.Get());
         m_Context->OMSetRenderTargets(1, m_SwapchainView.GetAddressOf(), nullptr);
         GFX::Cmd::BindVertexBuffer(m_Context.Get(), m_QuadBuffer);

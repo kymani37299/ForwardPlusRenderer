@@ -96,7 +96,6 @@ struct ShaderImplementation
 struct Shader
 {
 	std::string Path;
-	uint32_t CreationFlags;
 	std::unordered_map<uint32_t, ShaderImplementation> Implementations;
 };
 

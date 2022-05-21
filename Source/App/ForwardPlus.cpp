@@ -45,7 +45,7 @@ namespace ForwardPlusPrivate
 		GFX::Cmd::MarkerBegin(context, "PanoramaToCubemap");
 
 		GFX::Cmd::BindVertexBuffer(context, CubeVB);
-		GFX::Cmd::BindShader(context, shader);
+		GFX::Cmd::BindShader<VS|PS>(context, shader);
 		GFX::Cmd::BindCBV<VS>(context, cameraCB, 0);
 		GFX::Cmd::BindSRV<PS>(context, panoramaTexture, 0);
 		GFX::Cmd::SetupStaticSamplers<PS>(context);
@@ -294,7 +294,7 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 	m_SkyboxShader = GFX::CreateShader("Source/Shaders/skybox.hlsl");
 	m_DepthPrepassShader = GFX::CreateShader("Source/Shaders/depth.hlsl");
 	m_GeometryShader = GFX::CreateShader("Source/Shaders/geometry.hlsl");
-	m_LightCullingShader = GFX::CreateShader("Source/Shaders/light_culling.hlsl", SCF_CS);
+	m_LightCullingShader = GFX::CreateShader("Source/Shaders/light_culling.hlsl");
 	m_DebugGeometryShader = GFX::CreateShader("Source/Shaders/debug_geometry.hlsl");
 	m_LightHeatmapShader = GFX::CreateShader("Source/Shaders/light_heatmap.hlsl");
 	m_TAA = GFX::CreateShader("Source/Shaders/taa.hlsl");
@@ -307,7 +307,7 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 
 	if constexpr (ENABLE_STATS)
 	{
-		m_LightStatsShader = GFX::CreateShader("Source/Shaders/light_stats.hlsl", SCF_CS);
+		m_LightStatsShader = GFX::CreateShader("Source/Shaders/light_stats.hlsl");
 		m_LightStatsBuffer = GFX::CreateBuffer(sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_SB | RCF_Bind_UAV | RCF_CPU_Read);
 	}
 }
@@ -414,7 +414,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 
 		GFX::Cmd::BindRenderTarget(context, m_MotionVectorRT, m_FinalRT_Depth);
 		GFX::Cmd::SetPipelineState(context, pso);
-		GFX::Cmd::BindShader(context, m_DepthPrepassShader, {}, true);
+		GFX::Cmd::BindShader<VS|PS>(context, m_DepthPrepassShader, {}, true);
 		GFX::Cmd::BindCBV<VS|PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 		GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.LastFrameCameraBuffer, 1);
 		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.SceneInfoBuffer, 2);
@@ -431,7 +431,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 	{
 		context->OMSetRenderTargets(0, nullptr, nullptr);
 		GFX::Cmd::MarkerBegin(context, "Light Culling");
-		GFX::Cmd::BindShader(context, m_LightCullingShader, { "USE_BARRIERS" });
+		GFX::Cmd::BindShader<CS>(context, m_LightCullingShader, { "USE_BARRIERS" });
 		GFX::Cmd::BindCBV<CS>(context, MainSceneGraph.SceneInfoBuffer, 0);
 		GFX::Cmd::BindCBV<CS>(context, MainSceneGraph.MainCamera.CameraBuffer, 2);
 		GFX::Cmd::BindSRV<CS>(context, MainSceneGraph.Lights.GetBuffer(), 0);
@@ -481,7 +481,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			if (rgType == RenderGroupType::AlphaDiscard) configuration.push_back("ALPHA_DISCARD");
 			if (DebugToolsConfig.DisableLightCulling) configuration.push_back("DISABLE_LIGHT_CULLING");
 
-			GFX::Cmd::BindShader(context, m_GeometryShader, configuration, true);
+			GFX::Cmd::BindShader<VS|PS>(context, m_GeometryShader, configuration, true);
 			GFX::Cmd::BindSRV<PS>(context, renderGroup.TextureData, 0);
 			GFX::Cmd::BindSRV<PS>(context, renderGroup.Materials.GetBuffer(), 6);
 			GFX::Cmd::BindSRV<VS|PS>(context, renderGroup.Drawables.GetBuffer(), 7);
@@ -510,7 +510,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			GFX::Cmd::CopyToTexture(context, m_FinalRT, m_FinalRTSRV);
 
 			GFX::Cmd::BindRenderTarget(context, m_FinalRT);
-			GFX::Cmd::BindShader(context, m_TAA);
+			GFX::Cmd::BindShader<VS|PS>(context, m_TAA);
 			GFX::Cmd::SetupStaticSamplers<PS>(context);
 			GFX::Cmd::BindSRV<PS>(context, m_FinalRTSRV, 0);
 			GFX::Cmd::BindSRV<PS>(context, m_FinalRTHistory[0], 1);
@@ -537,7 +537,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		GFX::Cmd::MarkerBegin(context, "Skybox");
 		GFX::Cmd::SetPipelineState(context, pso);
 		GFX::Cmd::BindRenderTarget(context, m_FinalRT, m_FinalRT_Depth);
-		GFX::Cmd::BindShader(context, m_SkyboxShader);
+		GFX::Cmd::BindShader<VS|PS>(context, m_SkyboxShader);
 		GFX::Cmd::BindVertexBuffer(context, CubeVB);
 		GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 		GFX::Cmd::BindSRV<PS>(context, m_SkyboxCubemap, 0);
@@ -590,7 +590,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		pso.BS.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
 		GFX::Cmd::SetPipelineState(context, pso);
 
-		GFX::Cmd::BindShader(context, m_LightHeatmapShader);
+		GFX::Cmd::BindShader<VS|PS>(context, m_LightHeatmapShader);
 		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.SceneInfoBuffer, 0);
 		GFX::Cmd::BindSRV<PS>(context, m_VisibleLightsBuffer, 0);
 		GFX::Cmd::BindVertexBuffer(context, Device::Get()->GetQuadBuffer());
@@ -760,7 +760,7 @@ void ForwardPlus::DrawDebugGeometries(ID3D11DeviceContext* context)
 	pso.BS.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
 	GFX::Cmd::SetPipelineState(context, pso);
 	GFX::Cmd::BindRenderTarget(context, m_FinalRT, m_FinalRT_Depth);
-	GFX::Cmd::BindShader(context, m_DebugGeometryShader);
+	GFX::Cmd::BindShader<PS|VS>(context, m_DebugGeometryShader);
 	GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 1);
 
 	for (const DebugGeometry& dg : m_DebugGeometries)

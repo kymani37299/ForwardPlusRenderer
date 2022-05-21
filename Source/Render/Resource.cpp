@@ -132,10 +132,7 @@ namespace GFX
 			ShaderStorage.Lock();
 			for (uint32_t i = 0; i < ShaderStorage.Size(); i++)
 			{
-				if (ShaderStorage[i].CreationFlags != 0)
-				{
-					ShaderStorage[i].Implementations.clear();
-				}
+				ShaderStorage[i].Implementations.clear();
 			}
 			ShaderStorage.Unlock();
 		}

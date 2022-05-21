@@ -16,6 +16,13 @@ struct TextureID
 	bool Valid() const { return ID != InvalidID; }
 };
 
+enum ShaderStage : uint32_t
+{
+	VS = 1,
+	PS = 2,
+	CS = 4
+};
+
 struct ShaderID
 {
 	static constexpr uint32_t InvalidID = static_cast<uint32_t>(-1);
@@ -47,14 +54,5 @@ enum ResourceCreationFlags : uint64_t
 	RCF_GenerateMips = RCF_Staging << 1,
 	RCF_CopyDest = RCF_GenerateMips << 1,
 	RCF_Cubemap = RCF_CopyDest << 1
-};
-
-enum ShaderCreationFlags : uint32_t
-{
-	SCF_None = 0,
-
-	SCF_VS = 1 << 0,
-	SCF_PS = SCF_VS << 1,
-	SCF_CS = SCF_PS << 1,
 };
 

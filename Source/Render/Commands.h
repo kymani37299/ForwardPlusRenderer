@@ -6,14 +6,8 @@
 #include "Render/ResourceID.h"
 #include "Render/Resource.h"
 #include "Render/Texture.h"
+#include "Render/Shader.h"
 #include "Render/PipelineState.h"
-
-enum ShaderStage : uint32_t
-{
-	VS = 1,
-	PS = 2,
-	CS = 4
-};
 
 namespace GFX
 {
@@ -25,7 +19,6 @@ namespace GFX
 		ID3D11DeviceContext* CreateDeferredContext();
 		void SubmitDeferredContext(ID3D11DeviceContext* context);
 
-		void BindShader(ID3D11DeviceContext* context, ShaderID shaderID, std::vector<std::string> configuration = {}, bool multiInput = false);
 		void BindVertexBuffer(ID3D11DeviceContext* context, BufferID bufferID);
 		void BindVertexBuffers(ID3D11DeviceContext* context, std::vector<BufferID> buffers);
 		void BindIndexBuffer(ID3D11DeviceContext* context, BufferID bufferID);
@@ -49,6 +42,21 @@ namespace GFX
 			if (stage & VS) context->VSSetSamplers(0, GFX::GetStaticSamplersNum(), GFX::GetStaticSamplers());
 			if (stage & PS) context->PSSetSamplers(0, GFX::GetStaticSamplersNum(), GFX::GetStaticSamplers());
 			if (stage & CS) context->CSSetSamplers(0, GFX::GetStaticSamplersNum(), GFX::GetStaticSamplers());
+		}
+
+		template<uint32_t stage>
+		void BindShader(ID3D11DeviceContext* context, ShaderID shaderID, std::vector<std::string> configuration = {}, bool multiInput = false)
+		{
+			const ShaderImplementation& impl = GFX::GetShaderImplementation(shaderID, configuration, stage);
+
+			context->VSSetShader(impl.VS.Get(), nullptr, 0);
+			context->PSSetShader(impl.PS.Get(), nullptr, 0);
+			context->CSSetShader(impl.CS.Get(), nullptr, 0);
+
+			if (multiInput)
+				context->IASetInputLayout(impl.MIL.Get());
+			else
+				context->IASetInputLayout(impl.IL.Get());
 		}
 
 		template<uint32_t stage>

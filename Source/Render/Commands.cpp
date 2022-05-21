@@ -69,20 +69,6 @@ namespace GFX
 			Device::Get()->SubmitDeferredContext(context);
 		}
 
-		void BindShader(ID3D11DeviceContext* context, ShaderID shaderID, std::vector<std::string> configuration, bool multiInput)
-		{
-			const ShaderImplementation& impl = GetShaderImplementation(shaderID, configuration);
-
-			context->VSSetShader(impl.VS.Get(), nullptr, 0);
-			context->PSSetShader(impl.PS.Get(), nullptr, 0);
-			context->CSSetShader(impl.CS.Get(), nullptr, 0);
-
-			if (multiInput)
-				context->IASetInputLayout(impl.MIL.Get());
-			else
-				context->IASetInputLayout(impl.IL.Get());
-		}
-
 		void BindVertexBuffer(ID3D11DeviceContext* context, BufferID bufferID)
 		{
 			BindVertexBuffers(context, { bufferID });

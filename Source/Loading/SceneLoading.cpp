@@ -158,7 +158,7 @@ namespace SceneLoading
 
 			GFX::Cmd::MarkerBegin(c, "CopyTexture");
 			GFX::Cmd::SetupStaticSamplers<PS>(c);
-			GFX::Cmd::BindShader(c, Device::Get()->GetCopyShader());
+			GFX::Cmd::BindShader<VS|PS>(c, Device::Get()->GetCopyShader());
 			c->OMSetRenderTargets(1, stagingTex.RTV.GetAddressOf(), nullptr);
 			GFX::Cmd::SetViewport(c, { (float) RenderGroup::TEXTURE_SIZE, (float) RenderGroup::TEXTURE_SIZE });
 			GFX::Cmd::BindVertexBuffer(c, Device::Get()->GetQuadBuffer());

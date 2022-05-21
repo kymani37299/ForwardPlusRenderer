@@ -221,9 +221,9 @@ namespace GFX
 			ReadShaderFile(path, shaderCode);
 
 			D3D_SHADER_MACRO* configuration = CompileConfiguration(defines);
-			ID3DBlob* vsBlob = creationFlags & SCF_VS ? ReadBlobFromFile(path, shaderCode, "VS", "vs_" + SHADER_VERSION, configuration) : nullptr;
-			ID3DBlob* psBlob = creationFlags & SCF_PS ? ReadBlobFromFile(path, shaderCode, "PS", "ps_" + SHADER_VERSION, configuration) : nullptr;
-			ID3DBlob* csBlob = creationFlags & SCF_CS ? ReadBlobFromFile(path, shaderCode, "CS", "cs_" + SHADER_VERSION, configuration) : nullptr;
+			ID3DBlob* vsBlob = creationFlags & VS ? ReadBlobFromFile(path, shaderCode, "VS", "vs_" + SHADER_VERSION, configuration) : nullptr;
+			ID3DBlob* psBlob = creationFlags & PS ? ReadBlobFromFile(path, shaderCode, "PS", "ps_" + SHADER_VERSION, configuration) : nullptr;
+			ID3DBlob* csBlob = creationFlags & CS ? ReadBlobFromFile(path, shaderCode, "CS", "cs_" + SHADER_VERSION, configuration) : nullptr;
 			free(configuration);
 
 			ID3D11Device* device = Device::Get()->GetHandle();
@@ -266,26 +266,33 @@ namespace GFX
 		}
     }
     
-	ShaderID CreateShader(const std::string& path, uint32_t creationFlags)
+	ShaderID CreateShader(const std::string& path)
 	{
 		ShaderID id;
 		Shader& shader = Storage::CreateShader(id);
         shader.Path = path;
-        shader.CreationFlags = creationFlags;
         return id;
 	}
 
-	const ShaderImplementation& GetShaderImplementation(ShaderID shaderID, const std::vector<std::string>& defines)
-	{
-		// TODO: Sort defines so we don't make duplicates
-		std::string defAll = " "; for (const std::string& def : defines) defAll += def;
-		const uint32_t implHash = Hash::Crc32(defAll);
+    static uint32_t GetImlementationHash(const std::vector<std::string>& defines, uint32_t shaderStages)
+    {
+        // TODO: Sort defines so we don't make duplicates
+		std::string defAll = " "; 
+        for (const std::string& def : defines) defAll += def;
+        if (shaderStages & VS) defAll += "VS";
+        if (shaderStages & PS) defAll += "PS";
+        if (shaderStages & CS) defAll += "CS";
+		return Hash::Crc32(defAll);
+    }
 
+	const ShaderImplementation& GetShaderImplementation(ShaderID shaderID, const std::vector<std::string>& defines, uint32_t shaderStages)
+	{
+        const uint32_t implHash = GetImlementationHash(defines, shaderStages);
         const Shader& shader = Storage::GetShader(shaderID);
 		if (!shader.Implementations.contains(implHash))
 		{
 			Shader& modShader = const_cast<Shader&>(shader);
-			bool success = CompileShader(modShader.Path, modShader.CreationFlags, defines, modShader.Implementations[implHash]);
+			bool success = CompileShader(modShader.Path, shaderStages, defines, modShader.Implementations[implHash]);
 			ASSERT(success, "Shader compilation failed!");
 		}
 		return shader.Implementations.at(implHash);
