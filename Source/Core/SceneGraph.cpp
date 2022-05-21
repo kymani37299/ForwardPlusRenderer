@@ -102,9 +102,9 @@ void Entity::UpdateBuffer(ID3D11DeviceContext* context)
 {
 	using namespace DirectX;
 	
-	XMMATRIX modelToWorld = XMMatrixTranspose(XMMatrixAffineTransformation(Scale.ToXM(), Float3(0.0f, 0.0f, 0.0f).ToXM(), Float4(0.0f, 0.0f, 0.0f, 0.0f).ToXM(), Position.ToXM()));
+	XMMATRIX modelToWorld = XMMatrixAffineTransformation(Scale.ToXM(), Float3(0.0f, 0.0f, 0.0f).ToXM(), Float4(0.0f, 0.0f, 0.0f, 0.0f).ToXM(), Position.ToXM());
 	EntitySB entitySB{};
-	entitySB.ModelToWorld = XMUtility::ToXMFloat4x4(modelToWorld);
+	entitySB.ModelToWorld = XMUtility::ToHLSLFloat4x4(modelToWorld);
 	GFX::Cmd::UploadToBuffer(context, MainSceneGraph.Entities.GetBuffer(), sizeof(EntitySB) * EntityIndex, &entitySB, 0, sizeof(EntitySB));
 }
 
@@ -164,14 +164,14 @@ void Camera::UpdateBufferForTransform(ID3D11DeviceContext* context, CameraTransf
 	AspectRatio = (float) AppConfig.WindowWidth / AppConfig.WindowHeight;
 	RotToAxis(transform);
 
-	XMMATRIX matView = XMMatrixTranspose(XMMatrixLookAtLH(transform.Position.ToXM(), (transform.Position + transform.Forward).ToXM(), transform.Up.ToXM()));
-	XMMATRIX matProj = XMMatrixTranspose(XMMatrixPerspectiveFovLH(DegreesToRadians(FOV), AspectRatio, ZNear, ZFar));
+	XMMATRIX matView = XMMatrixLookAtLH(transform.Position.ToXM(), (transform.Position + transform.Forward).ToXM(), transform.Up.ToXM());
+	XMMATRIX matProj = XMMatrixPerspectiveFovLH(DegreesToRadians(FOV), AspectRatio, ZNear, ZFar);
 	
-	WorldToView = matView;
+	WorldToView = XMMatrixTranspose(matView);
 
 	CameraCB cameraCB{};
-	cameraCB.WorldToView = XMUtility::ToXMFloat4x4(matView);
-	cameraCB.ViewToClip = XMUtility::ToXMFloat4x4(matProj);
+	cameraCB.WorldToView = XMUtility::ToHLSLFloat4x4(matView);
+	cameraCB.ViewToClip = XMUtility::ToHLSLFloat4x4(matProj);
 	cameraCB.Position = transform.Position.ToXMFA();
 	cameraCB.Jitter = UseJitter ? Jitter[JitterIndex].ToXMFA() : Float2(0.0f, 0.0f).ToXMFA();
 

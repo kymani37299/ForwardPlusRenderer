@@ -34,10 +34,7 @@ namespace ForwardPlusPrivate
 			XMMATRIX viewMat = XMMatrixLookAtLH(Float3(0.0f, 0.0f, 0.0f).ToXM(), forwards[faceIndex].ToXM(), ups[faceIndex].ToXM());
 			XMMATRIX projMat = XMMatrixOrthographicLH(2.0f, 2.0f, 0.1f, 10.0f);
 			XMMATRIX viewProj = XMMatrixMultiply(viewMat, projMat);
-			viewProj = XMMatrixTranspose(viewProj);
-			XMFLOAT4X4 ret;
-			XMStoreFloat4x4(&ret, viewProj);
-			return ret;
+			return XMUtility::ToHLSLFloat4x4(viewProj);
 		};
 
 		TextureID cubemapTex = GFX::CreateTextureArray(cubemapSize, cubemapSize, 6, RCF_Bind_SRV | RCF_Bind_RTV | RCF_Cubemap);
@@ -805,7 +802,7 @@ void ForwardPlus::DrawDebugGeometries(ID3D11DeviceContext* context)
 			}
 			
 			DebugGeometryDataCB debugGeometryDataCB{};
-			debugGeometryDataCB.ModelToWorld = XMUtility::ToXMFloat4x4(XMMatrixTranspose(modelToWorld));
+			debugGeometryDataCB.ModelToWorld = XMUtility::ToHLSLFloat4x4(modelToWorld);
 			debugGeometryDataCB.Color = dg.Color.ToXMF();
 			GFX::Cmd::UploadToBuffer(context, m_DebugGeometryBuffer, 0, &debugGeometryDataCB, 0, sizeof(DebugGeometryDataCB));
 		}

@@ -198,6 +198,13 @@ namespace XMUtility
 		XMStoreFloat4x4(&value, xm);
 		return value;
 	}
+
+	inline DirectX::XMFLOAT4X4 ToHLSLFloat4x4(DirectX::XMMATRIX matrix)
+	{
+		using namespace DirectX;
+		matrix = XMMatrixTranspose(matrix);
+		return ToXMFloat4x4(matrix);
+	}
 }
 
 class BitField
