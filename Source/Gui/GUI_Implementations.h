@@ -56,10 +56,12 @@ struct DebugToolsConfiguration
 {
 	bool DisableGeometryCulling = false;
 	bool FreezeGeometryCulling = false;
-	bool FreezeLightCulling = false;
+	bool DrawBoundingSpheres = false;
+
 	bool DisableLightCulling = true;
-	bool DrawBoundingBoxes = false;
+	bool FreezeLightCulling = false;
 	bool LightHeatmap = false;
+	bool DrawLightSpheres = false;
 };
 
 struct PostprocessingSettings

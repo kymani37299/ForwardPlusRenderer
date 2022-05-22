@@ -547,38 +547,55 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 	}
 
 	// Debug geometries
-	if(DebugToolsConfig.DrawBoundingBoxes)
 	{
-		for (uint32_t rgType = 0; rgType < EnumToInt(RenderGroupType::Count); rgType++)
+		if (DebugToolsConfig.DrawBoundingSpheres)
 		{
-			RenderGroup& rg = MainSceneGraph.RenderGroups[rgType];
-			const uint32_t numDrawables = rg.Drawables.GetSize();
-			for (uint32_t i = 0; i < numDrawables; i++)
+			for (uint32_t rgType = 0; rgType < EnumToInt(RenderGroupType::Count); rgType++)
 			{
-				if (!rg.VisibilityMask.Get(i)) continue;
+				RenderGroup& rg = MainSceneGraph.RenderGroups[rgType];
+				const uint32_t numDrawables = rg.Drawables.GetSize();
+				for (uint32_t i = 0; i < numDrawables; i++)
+				{
+					if (!rg.VisibilityMask.Get(i)) continue;
 
-				const Drawable& d = rg.Drawables[i];
-				const Entity& e = MainSceneGraph.Entities[d.EntityIndex];
-				const float maxScale = MAX(MAX(e.Scale.x, e.Scale.y), e.Scale.z);
+					const Drawable& d = rg.Drawables[i];
+					const Entity& e = MainSceneGraph.Entities[d.EntityIndex];
+					const float maxScale = MAX(MAX(e.Scale.x, e.Scale.y), e.Scale.z);
 
-				BoundingSphere bs;
-				bs.Center = e.Position + e.Scale * d.BoundingVolume.Center;
-				bs.Radius = d.BoundingVolume.Radius * maxScale;
+					BoundingSphere bs;
+					bs.Center = e.Position + e.Scale * d.BoundingVolume.Center;
+					bs.Radius = d.BoundingVolume.Radius * maxScale;
+
+					DebugGeometry dg{};
+					dg.Type = DebugGeometryType::SPHERE;
+					dg.Color = Float4(Random::UNorm(i), Random::UNorm(i + 1), Random::UNorm(i + 2), 0.2f);
+					dg.Position = bs.Center;
+					dg.Scale = { bs.Radius, bs.Radius, bs.Radius };
+					m_DebugGeometries.push_back(dg);
+				}
+			}
+		}
+
+		if (DebugToolsConfig.DrawLightSpheres)
+		{
+			const uint32_t numLights = MainSceneGraph.Lights.GetSize();
+			for (uint32_t i = 0; i < numLights; i++)
+			{
+				const Light& l = MainSceneGraph.Lights[i];
 
 				DebugGeometry dg{};
 				dg.Type = DebugGeometryType::SPHERE;
-				dg.Color = Float4(Random::UNorm(i), Random::UNorm(i + 1), Random::UNorm(i + 2), 0.2f);
-				dg.Position = bs.Center;
-				dg.Scale = { bs.Radius, bs.Radius, bs.Radius };
+				dg.Color = Float4(l.Strength.x, l.Strength.y, l.Strength.z, 0.2f);
+				dg.Position = l.Position;
+				dg.Scale = { l.Falloff.y, l.Falloff.y, l.Falloff.y };
 				m_DebugGeometries.push_back(dg);
 			}
 		}
-		
 	}
-
+	
 	DrawDebugGeometries(context);
 
-	if(DebugToolsConfig.LightHeatmap)
+	if(DebugToolsConfig.LightHeatmap && !DebugToolsConfig.DisableLightCulling && !DebugToolsConfig.FreezeGeometryCulling)
 	{
 		PipelineState pso = GFX::DefaultPipelineState();
 		pso.BS.RenderTarget[0].BlendEnable = true;
