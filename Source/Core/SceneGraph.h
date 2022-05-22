@@ -309,7 +309,7 @@ enum class RenderGroupType : uint8_t
 struct SceneGraph
 {
 	static constexpr uint32_t MAX_ENTITIES = 100;
-	static constexpr uint32_t MAX_LIGHTS = 10000;
+	static constexpr uint32_t MAX_LIGHTS = 10500;
 
 	SceneGraph();
 	void InitRenderData(ID3D11DeviceContext* context);

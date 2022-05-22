@@ -58,7 +58,7 @@ struct DebugToolsConfiguration
 	bool FreezeGeometryCulling = false;
 	bool DrawBoundingSpheres = false;
 
-	bool DisableLightCulling = true;
+	bool DisableLightCulling = false;
 	bool FreezeLightCulling = false;
 	bool LightHeatmap = false;
 	bool DrawLightSpheres = false;

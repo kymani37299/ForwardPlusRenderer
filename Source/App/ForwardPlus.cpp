@@ -253,8 +253,8 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 	{
 		MainSceneGraph.CreateAmbientLight(context, Float3(0.1f, 0.1f, 0.15f));
 		MainSceneGraph.CreateDirectionalLight(context, Float3(-1.0f, -1.0f, -1.0f), Float3(0.2f, 0.2f, 0.23f));
-
-		constexpr uint32_t NUM_LIGHTS = 1024;
+		
+		constexpr uint32_t NUM_LIGHTS = 10000;
 		for (uint32_t i = 0; i < NUM_LIGHTS; i++)
 		{
 			Float3 position = Float3(200.0f, 100.0f, 200.0f) * Float3(Random::SNorm(), Random::SNorm(), Random::SNorm());
