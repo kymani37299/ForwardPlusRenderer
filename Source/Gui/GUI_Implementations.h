@@ -66,10 +66,10 @@ struct DebugToolsConfiguration
 
 struct PostprocessingSettings
 {
-	bool EnableTAA = false;
+	bool EnableTAA = true;
 
-	bool UseExposureTonemapping = false;
-	float Exposure = 1.0f;
+	bool UseExposureTonemapping = true;
+	float Exposure = 0.8f;
 };
 
 struct RenderStatistics

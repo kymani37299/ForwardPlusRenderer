@@ -498,6 +498,29 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		GFX::Cmd::MarkerEnd(context);
 	}
 
+	// Skybox
+	{
+		PipelineState pso = GFX::DefaultPipelineState();
+		pso.DS.StencilEnable = true;
+		pso.DS.StencilWriteMask = 0;
+		pso.DS.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+		pso.DS.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
+		pso.DS.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+		pso.DS.FrontFace.StencilFunc = D3D11_COMPARISON_NOT_EQUAL;
+		pso.DS.BackFace = pso.DS.FrontFace;
+
+		GFX::Cmd::MarkerBegin(context, "Skybox");
+		GFX::Cmd::SetPipelineState(context, pso);
+		GFX::Cmd::BindRenderTarget(context, m_MainRT_HDR, m_MainRT_Depth);
+		GFX::Cmd::BindShader<VS | PS>(context, m_SkyboxShader);
+		GFX::Cmd::BindVertexBuffer(context, CubeVB);
+		GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
+		GFX::Cmd::BindSRV<PS>(context, m_SkyboxCubemap, 0);
+		GFX::Cmd::SetupStaticSamplers<PS>(context);
+		context->Draw(GFX::GetNumElements(CubeVB), 0);
+		GFX::Cmd::MarkerEnd(context);
+	}
+
 	// Postprocessing
 	{
 		GFX::Cmd::MarkerBegin(context, "Postprocessing");
@@ -539,29 +562,6 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			GFX::Cmd::MarkerEnd(context);
 		}
 
-		GFX::Cmd::MarkerEnd(context);
-	}
-
-	// Skybox
-	{
-		PipelineState pso = GFX::DefaultPipelineState();
-		pso.DS.StencilEnable = true;
-		pso.DS.StencilWriteMask = 0;
-		pso.DS.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
-		pso.DS.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
-		pso.DS.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
-		pso.DS.FrontFace.StencilFunc = D3D11_COMPARISON_NOT_EQUAL;
-		pso.DS.BackFace = pso.DS.FrontFace;
-
-		GFX::Cmd::MarkerBegin(context, "Skybox");
-		GFX::Cmd::SetPipelineState(context, pso);
-		GFX::Cmd::BindRenderTarget(context, m_MainRT_LDR, m_MainRT_Depth);
-		GFX::Cmd::BindShader<VS|PS>(context, m_SkyboxShader);
-		GFX::Cmd::BindVertexBuffer(context, CubeVB);
-		GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
-		GFX::Cmd::BindSRV<PS>(context, m_SkyboxCubemap, 0);
-		GFX::Cmd::SetupStaticSamplers<PS>(context);
-		context->Draw(GFX::GetNumElements(CubeVB), 0);
 		GFX::Cmd::MarkerEnd(context);
 	}
 

@@ -36,7 +36,7 @@ float4 PS(VertexOut IN) : SV_Target
 	const float2 motionVector = MotionVectors.Sample(s_PointWrap, IN.uv).xy;
 	const float3 currentColor = CurrentFrame.Sample(s_PointWrap, IN.uv).xyz;
 	const float3 lastColor = LastFrame.Sample(s_LinearWrap, IN.uv + motionVector).xyz;
-	const float modulationFactor = 0.8;
+	const float modulationFactor = 0.5f;
 	const float3 finalColor = lerp(currentColor, lastColor, modulationFactor);
 	return float4(finalColor, 1.0f);
 }

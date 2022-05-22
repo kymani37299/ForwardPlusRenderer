@@ -35,7 +35,7 @@ VertexOut VS(float3 Position : SV_POSITION, uint DrawableIndex : DRAWABLE_INDEX)
 
 	VertexOut OUT;
 	OUT.Position = GetClipPosWithJitter(Position, modelToWorld, CamData);
-	OUT.CurrentFramePosition = OUT.Position;
+	OUT.CurrentFramePosition = GetClipPos(Position, modelToWorld, CamData);
 	OUT.LastFramePosition = GetClipPos(Position, modelToWorld, CamDataLastFrame);
 	return OUT;
 }

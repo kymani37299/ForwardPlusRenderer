@@ -47,7 +47,4 @@ Currently we are having 3 render groups for the Opaque, AlphaDiscard and Transpa
 This implementation is using camera jittering and motion vectors. </br> <br>
 This is sill in progress there are 2 problems left to be solved:
 - <b> Rendering dynamic geometries </b> - For this we need to store somewhere the ModelToWorld transformation from the last frame so we can correctly generate motion vectors. In case of the static geometries where ModelToWorld is always the same as last frame we don't have this problem.
-- <b> Jittering pixels </b> - Due to camera jittering we are having mild jittering on screen, currently have no idea how to solve this problem need to research more.
-</br>
-The TAA is not enabled by default, you can enable it in imgui menu (Tools > Postprocessing)
 
