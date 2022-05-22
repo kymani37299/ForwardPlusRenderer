@@ -90,6 +90,9 @@
     <ClCompile Include="Source\App\ForwardPlus\SkyboxRenderer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Source\App\ForwardPlus\PostprocessingRenderer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\Common.h">
@@ -210,6 +213,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Source\App\ForwardPlus\SkyboxRenderer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\App\ForwardPlus\PostprocessingRenderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

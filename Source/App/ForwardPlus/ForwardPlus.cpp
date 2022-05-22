@@ -135,11 +135,11 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 
 	m_SkyboxRenderer.Init(context);
 	m_DebugRenderer.Init(context);
+	m_PostprocessingRenderer.Init(context);
 	
 	m_DepthPrepassShader = GFX::CreateShader("Source/Shaders/depth.hlsl");
 	m_GeometryShader = GFX::CreateShader("Source/Shaders/geometry.hlsl");
 	m_LightCullingShader = GFX::CreateShader("Source/Shaders/light_culling.hlsl");
-	m_PostprocessShader = GFX::CreateShader("Source/Shaders/postprocessing.hlsl");
 
 	m_IndexBuffer = GFX::CreateBuffer(sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_IB | RCF_CopyDest);
 
@@ -216,7 +216,6 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 
 	MainSceneGraph.MainCamera.UseJitter = PostprocessSettings.EnableTAA;
 	MainSceneGraph.FrameUpdate(context);
-	UpdatePostprocessingSettings(context);
 
 	// Geometry culling
 	if (!DebugToolsConfig.FreezeGeometryCulling)
@@ -240,7 +239,6 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 	// Prepare render targets
 	{
 		GFX::Cmd::ClearRenderTarget(context, m_MainRT_HDR);
-		GFX::Cmd::ClearRenderTarget(context, m_MainRT_LDR);
 		GFX::Cmd::ClearRenderTarget(context, m_MotionVectorRT);
 		GFX::Cmd::ClearDepthStencil(context, m_MainRT_Depth);
 	}
@@ -340,52 +338,12 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 	m_SkyboxRenderer.Draw(context);
 
 	// Postprocessing
-	{
-		GFX::Cmd::MarkerBegin(context, "Postprocessing");
+	TextureID ppResult = m_PostprocessingRenderer.Process(context, m_MainRT_HDR, m_MotionVectorRT);
 
-		// Tonemapping
-		{
-			std::vector<std::string> config{};
-			config.push_back("TONEMAPPING");
-			if (PostprocessSettings.UseExposureTonemapping) config.push_back("EXPOSURE");
-			else config.push_back("REINHARD");
+	// Debug
+	m_DebugRenderer.Draw(context, ppResult, m_MainRT_Depth, m_VisibleLightsBuffer);
 
-			GFX::Cmd::MarkerBegin(context, "Tonemapping");
-			GFX::Cmd::SetupStaticSamplers<PS>(context);
-			GFX::Cmd::BindRenderTarget(context, m_MainRT_LDR);
-			GFX::Cmd::BindShader<PS | VS>(context, m_PostprocessShader, config);
-			GFX::Cmd::BindCBV<PS>(context, m_PostprocessingSettingsBuffer, 0);
-			GFX::Cmd::BindSRV<PS>(context, m_MainRT_HDR, 0);
-			GFX::Cmd::BindVertexBuffer(context, Device::Get()->GetQuadBuffer());
-			context->Draw(6, 0);
-			GFX::Cmd::MarkerEnd(context);
-		}
-
-		// TAA
-		if (PostprocessSettings.EnableTAA)
-		{
-			// TAA History
-			GFX::Cmd::CopyToTexture(context, m_TAAHistory[0], m_TAAHistory[1]);
-			GFX::Cmd::CopyToTexture(context, m_MainRT_LDR, m_TAAHistory[0]);
-
-			GFX::Cmd::MarkerBegin(context, "TAA");
-			GFX::Cmd::BindRenderTarget(context, m_MainRT_LDR);
-			GFX::Cmd::BindShader<VS | PS>(context, m_PostprocessShader, { "TAA" });
-			GFX::Cmd::SetupStaticSamplers<PS>(context);
-			GFX::Cmd::BindSRV<PS>(context, m_TAAHistory[0], 0);
-			GFX::Cmd::BindSRV<PS>(context, m_TAAHistory[1], 1);
-			GFX::Cmd::BindSRV<PS>(context, m_MotionVectorRT, 2);
-			GFX::Cmd::BindVertexBuffer(context, Device::Get()->GetQuadBuffer());
-			context->Draw(6, 0);
-			GFX::Cmd::MarkerEnd(context);
-		}
-
-		GFX::Cmd::MarkerEnd(context);
-	}
-
-	m_DebugRenderer.Draw(context, m_MainRT_LDR, m_MainRT_Depth, m_VisibleLightsBuffer);
-
-	return m_MainRT_LDR;
+	return ppResult;
 }
 
 void ForwardPlus::OnUpdate(ID3D11DeviceContext* context, float dt)
@@ -410,44 +368,14 @@ void ForwardPlus::UpdatePresentResources(ID3D11DeviceContext* context)
 	if (m_MainRT_HDR.Valid())
 	{
 		GFX::Storage::Free(m_MainRT_HDR);
-		GFX::Storage::Free(m_MainRT_LDR);
 		GFX::Storage::Free(m_MainRT_Depth);
 		GFX::Storage::Free(m_MotionVectorRT);
-		GFX::Storage::Free(m_TAAHistory[0]);
-		GFX::Storage::Free(m_TAAHistory[1]);
 	}
-
 	const uint32_t size[2] = { AppConfig.WindowWidth, AppConfig.WindowHeight };
 	m_MainRT_HDR		= GFX::CreateTexture(size[0], size[1], RCF_Bind_RTV | RCF_Bind_SRV, 1, DXGI_FORMAT_R16G16B16A16_FLOAT);
-	m_MainRT_LDR		= GFX::CreateTexture(size[0], size[1], RCF_Bind_RTV | RCF_Bind_SRV);
 	m_MotionVectorRT	= GFX::CreateTexture(size[0], size[1], RCF_Bind_RTV | RCF_Bind_SRV, 1, DXGI_FORMAT_R16G16_UNORM);
-	m_MainRT_Depth		= GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_DSV | RCF_Bind_SRV);
-	m_TAAHistory[0]		= GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_SRV | RCF_CopyDest);
-	m_TAAHistory[1]		= GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_SRV | RCF_CopyDest);
-
-	// Halton sequence
-	const Float2 haltonSequence[16] = { {0.500000,0.333333},
-							{0.250000,0.666667},
-							{0.750000,0.111111},
-							{0.125000,0.444444},
-							{0.625000,0.777778},
-							{0.375000,0.222222},
-							{0.875000,0.555556},
-							{0.062500,0.888889},
-							{0.562500,0.037037},
-							{0.312500,0.370370},
-							{0.812500,0.703704},
-							{0.187500,0.148148},
-							{0.687500,0.481481},
-							{0.437500,0.814815},
-							{0.937500,0.259259},
-							{0.031250,0.592593} };
-
-	MainSceneGraph.MainCamera.UseJitter = true;
-	for (uint32_t i = 0; i < 16; i++)
-	{
-		MainSceneGraph.MainCamera.Jitter[i] = 2.0f * ((haltonSequence[i] - Float2{ 0.5f, 0.5f }) / Float2(AppConfig.WindowWidth, AppConfig.WindowHeight));
-	}
+	m_MainRT_Depth		= GFX::CreateTexture(size[0], size[1], RCF_Bind_DSV | RCF_Bind_SRV);
+	m_PostprocessingRenderer.ReloadTextureResources(context);
 }
 
 void ForwardPlus::UpdateCullingResources(ID3D11DeviceContext* context)
@@ -458,20 +386,4 @@ void ForwardPlus::UpdateCullingResources(ID3D11DeviceContext* context)
 	m_NumTilesX = MathUtility::CeilDiv(AppConfig.WindowWidth, TILE_SIZE);
 	m_NumTilesY = MathUtility::CeilDiv(AppConfig.WindowHeight, TILE_SIZE);
 	m_VisibleLightsBuffer = GFX::CreateBuffer(m_NumTilesX * m_NumTilesY * (MAX_LIGHTS_PER_TILE + 1) * sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_SB | RCF_Bind_UAV);
-}
-
-void ForwardPlus::UpdatePostprocessingSettings(ID3D11DeviceContext* context)
-{
-	struct PostprocessingSettngsCB
-	{
-		float Exposure;
-	};
-
-	if(!m_PostprocessingSettingsBuffer.Valid())
-		m_PostprocessingSettingsBuffer = GFX::CreateConstantBuffer<PostprocessingSettngsCB>();
-
-	PostprocessingSettngsCB cb{};
-	cb.Exposure = PostprocessSettings.Exposure;
-
-	GFX::Cmd::UploadToBuffer(context, m_PostprocessingSettingsBuffer, 0, &cb, 0, sizeof(PostprocessingSettngsCB));
 }

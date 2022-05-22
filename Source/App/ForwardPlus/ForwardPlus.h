@@ -3,6 +3,7 @@
 #include "App/Application.h"
 #include "App/ForwardPlus/DebugRenderer.h"
 #include "App/ForwardPlus/SkyboxRenderer.h"
+#include "App/ForwardPlus/PostprocessingRenderer.h"
 
 #include "Render/ResourceID.h"
 
@@ -24,7 +25,6 @@ public:
 private:
 	void UpdatePresentResources(ID3D11DeviceContext* context);
 	void UpdateCullingResources(ID3D11DeviceContext* context);
-	void UpdatePostprocessingSettings(ID3D11DeviceContext* context);
 
 private:
 	uint32_t m_NumTilesX = 0;
@@ -32,21 +32,17 @@ private:
 
 	DebugRenderer m_DebugRenderer;
 	SkyboxRenderer m_SkyboxRenderer{ "Resources/skybox_panorama.hdr" };
+	PostprocessingRenderer m_PostprocessingRenderer;
 
 	// GFX Resources
 	ShaderID m_DepthPrepassShader;
 	ShaderID m_GeometryShader;
 	ShaderID m_LightCullingShader;
-	ShaderID m_PostprocessShader;
-
-	TextureID m_TAAHistory[2]; // 0 - current frame, 1 - last frame
 
 	TextureID m_MainRT_HDR;
-	TextureID m_MainRT_LDR;
 	TextureID m_MainRT_Depth;
 	TextureID m_MotionVectorRT;
 
 	BufferID m_IndexBuffer;
 	BufferID m_VisibleLightsBuffer;
-	BufferID m_PostprocessingSettingsBuffer;
 };
