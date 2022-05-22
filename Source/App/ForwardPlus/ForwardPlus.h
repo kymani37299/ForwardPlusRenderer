@@ -2,6 +2,7 @@
 
 #include "App/Application.h"
 #include "App/ForwardPlus/DebugRenderer.h"
+#include "App/ForwardPlus/SkyboxRenderer.h"
 
 #include "Render/ResourceID.h"
 
@@ -30,16 +31,14 @@ private:
 	uint32_t m_NumTilesY = 0;
 
 	DebugRenderer m_DebugRenderer;
+	SkyboxRenderer m_SkyboxRenderer{ "Resources/skybox_panorama.hdr" };
 
 	// GFX Resources
-	ShaderID m_SkyboxShader;
-	ShaderID m_ShadowmapShader;
 	ShaderID m_DepthPrepassShader;
 	ShaderID m_GeometryShader;
 	ShaderID m_LightCullingShader;
 	ShaderID m_PostprocessShader;
 
-	TextureID m_SkyboxCubemap;
 	TextureID m_TAAHistory[2]; // 0 - current frame, 1 - last frame
 
 	TextureID m_MainRT_HDR;

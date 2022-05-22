@@ -19,81 +19,43 @@
 
 namespace ForwardPlusPrivate
 {
-	BufferID CubeVB;
-
-	BufferID GenerateCubeVB()
+	void PrepareScene(ID3D11DeviceContext* context)
 	{
-		static const float vbData[] = { -1.0f,-1.0f,-1.0f,-1.0f,-1.0f, 1.0f,-1.0f, 1.0f, 1.0f,1.0f, 1.0f,-1.0f,-1.0f,-1.0f,-1.0f,-1.0f, 1.0f,-1.0f,1.0f,-1.0f, 1.0f,-1.0f,-1.0f,-1.0f,1.0f,-1.0f,-1.0f,1.0f, 1.0f,-1.0f,1.0f,-1.0f,-1.0f,-1.0f,-1.0f,-1.0f,-1.0f,-1.0f,-1.0f,-1.0f, 1.0f, 1.0f,-1.0f, 1.0f,-1.0f,1.0f,-1.0f, 1.0f,-1.0f,-1.0f, 1.0f,-1.0f,-1.0f,-1.0f,-1.0f, 1.0f, 1.0f,-1.0f,-1.0f, 1.0f,1.0f,-1.0f, 1.0f,1.0f, 1.0f, 1.0f,1.0f,-1.0f,-1.0f,1.0f, 1.0f,-1.0f,1.0f,-1.0f,-1.0f,1.0f, 1.0f, 1.0f,1.0f,-1.0f, 1.0f,1.0f, 1.0f, 1.0f,1.0f, 1.0f,-1.0f,-1.0f, 1.0f,-1.0f,1.0f, 1.0f, 1.0f,-1.0f, 1.0f,-1.0f,-1.0f, 1.0f, 1.0f,1.0f, 1.0f, 1.0f,-1.0f, 1.0f, 1.0f,1.0f,-1.0f, 1.0f };
-		static uint32_t numVertices = STATIC_ARRAY_SIZE(vbData) / 3;
-		return GFX::CreateVertexBuffer<Float3>(numVertices, (Float3*)vbData);
-	}
+		MainSceneGraph.CreateAmbientLight(context, Float3(0.1f, 0.1f, 0.15f));
+		MainSceneGraph.CreateDirectionalLight(context, Float3(-1.0f, -1.0f, -1.0f), Float3(0.2f, 0.2f, 0.23f));
 
-	TextureID PanoramaToCubemap(ID3D11DeviceContext* context, TextureID panoramaTexture, uint32_t cubemapSize)
-	{
-		const auto getCameraForFace = [](uint32_t faceIndex)
+		constexpr uint32_t NUM_LIGHTS = 10000;
+		for (uint32_t i = 0; i < NUM_LIGHTS; i++)
 		{
-			using namespace DirectX;
-			static Float3 forwards[6] = { Float3(-1.0f,  0.0f,  0.0f), Float3(1.0f,  0.0f,  0.0f), Float3(0.0f,  -1.0f,  0.0f), Float3(0.0f, 1.0f,  0.0f), Float3(0.0f,  0.0f,  1.0f), Float3(0.0f,  0.0f, -1.0f) };
-			static Float3 ups[6] = { Float3(0.0f, -1.0f,  0.0f), Float3(0.0f, -1.0f,  0.0f), Float3(0.0f,  0.0f,  -1.0f), Float3(0.0f,  0.0f, 1.0f), Float3(0.0f, -1.0f,  0.0f), Float3(0.0f, -1.0f,  0.0f) };
-
-			XMMATRIX viewMat = XMMatrixLookAtLH(Float3(0.0f, 0.0f, 0.0f).ToXM(), forwards[faceIndex].ToXM(), ups[faceIndex].ToXM());
-			XMMATRIX projMat = XMMatrixOrthographicLH(2.0f, 2.0f, 0.1f, 10.0f);
-			XMMATRIX viewProj = XMMatrixMultiply(viewMat, projMat);
-			return XMUtility::ToHLSLFloat4x4(viewProj);
-		};
-
-		TextureID cubemapTex = GFX::CreateTextureArray(cubemapSize, cubemapSize, 6, RCF_Bind_SRV | RCF_Bind_RTV | RCF_Cubemap);
-		const Texture& cubemapTexHandle = GFX::Storage::GetTexture(cubemapTex);
-		BufferID cameraCB = GFX::CreateConstantBuffer<DirectX::XMFLOAT4X4>();
-		ShaderID shader = GFX::CreateShader("Source/Shaders/quadrilateral2cubemap.hlsl");
-
-		GFX::Cmd::MarkerBegin(context, "PanoramaToCubemap");
-
-		GFX::Cmd::BindVertexBuffer(context, CubeVB);
-		GFX::Cmd::BindShader<VS|PS>(context, shader);
-		GFX::Cmd::BindCBV<VS>(context, cameraCB, 0);
-		GFX::Cmd::BindSRV<PS>(context, panoramaTexture, 0);
-		GFX::Cmd::SetupStaticSamplers<PS>(context);
-		GFX::Cmd::SetViewport(context, { (float)cubemapSize, (float)cubemapSize });
-
-		for (uint32_t i = 0; i < 6; i++)
-		{
-			// Create RTV
-			ID3D11RenderTargetView* rtv;
-			D3D11_RENDER_TARGET_VIEW_DESC rtvDesc{};
-			rtvDesc.Format = cubemapTexHandle.Format;
-			rtvDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2DARRAY;
-			rtvDesc.Texture2DArray.ArraySize = 1;
-			rtvDesc.Texture2DArray.FirstArraySlice = i;
-			rtvDesc.Texture2DArray.MipSlice = 0;
-			API_CALL(Device::Get()->GetHandle()->CreateRenderTargetView(cubemapTexHandle.Handle.Get(), &rtvDesc, &rtv));
-
-			DirectX::XMFLOAT4X4 worldToClip = getCameraForFace(i);
-			GFX::Cmd::UploadToBuffer(context, cameraCB, 0, &worldToClip, 0, sizeof(DirectX::XMFLOAT4X4));
-
-			context->OMSetRenderTargets(1, &rtv, nullptr);
-			context->Draw(GFX::GetNumElements(CubeVB), 0);
-
-			rtv->Release();
+			Float3 position = Float3(200.0f, 100.0f, 200.0f) * Float3(Random::SNorm(), Random::SNorm(), Random::SNorm());
+			Float3 color = Float3(Random::UNorm(), Random::UNorm(), Random::UNorm());
+			Float2 falloff = Float2(1.0f + 3.0f * Random::UNorm(), 5.0f + 10.0f * Random::UNorm());
+			MainSceneGraph.CreatePointLight(context, position, color, falloff);
 		}
 
-		GFX::Storage::Free(shader);
-		GFX::Storage::Free(cameraCB);
-
-		GFX::Cmd::MarkerEnd(context);
-
-		return cubemapTex;
-	}
-
-	void GenerateSkybox(ID3D11DeviceContext* context, TextureID& cubemap)
-	{
-		if (cubemap.Valid())
+		if (AppConfig.Settings.contains("SIMPLE_SCENE"))
 		{
-			GFX::Storage::Free(cubemap);
+			Entity& plane = MainSceneGraph.CreateEntity(context, { 0.0f, -10.0f, 0.0f }, { 10000.0f, 1.0f, 10000.0f });
+			SceneLoading::LoadEntity("Resources/cube/cube.gltf", plane);
+
+			constexpr uint32_t NUM_CUBES = 50;
+			for (uint32_t i = 0; i < NUM_CUBES; i++)
+			{
+				const Float3 position = Float3{ Random::SNorm(), Random::SNorm(), Random::SNorm() } *Float3{ 100.0f, 100.0f, 100.0f };
+				const Float3 scale = Float3{ Random::Float(0.1f, 10.0f), Random::Float(0.1f, 10.0f) , Random::Float(0.1f, 10.0f) };
+				Entity& cube = MainSceneGraph.CreateEntity(context, position, scale);
+				SceneLoading::LoadEntity("Resources/cube/cube.gltf", cube);
+			}
 		}
-		TextureID skyboxPanorama = GFX::LoadTextureHDR("Resources/skybox_panorama.hdr", RCF_Bind_SRV);
-		cubemap = PanoramaToCubemap(context, skyboxPanorama, 512);
-		GFX::Storage::Free(skyboxPanorama);
+		else
+		{
+			Entity& e1 = MainSceneGraph.CreateEntity(context, { 0.0f, 0.0f, 0.0f }, { 0.1f, 0.1f, 0.1f });
+			Entity& e2 = MainSceneGraph.CreateEntity(context);
+
+			SceneLoading::LoadEntityInBackground("Resources/sponza/sponza.gltf", e1);
+			SceneLoading::LoadEntity("Resources/cube/cube.gltf", e2);
+		}
+
 	}
 
 	void UpdateInput(float dt, Application* app)
@@ -170,59 +132,21 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 	}
 
 	MainSceneGraph.InitRenderData(context);
+
+	m_SkyboxRenderer.Init(context);
 	m_DebugRenderer.Init(context);
-
-	// Prepare scene
-	{
-		MainSceneGraph.CreateAmbientLight(context, Float3(0.1f, 0.1f, 0.15f));
-		MainSceneGraph.CreateDirectionalLight(context, Float3(-1.0f, -1.0f, -1.0f), Float3(0.2f, 0.2f, 0.23f));
-		
-		constexpr uint32_t NUM_LIGHTS = 10000;
-		for (uint32_t i = 0; i < NUM_LIGHTS; i++)
-		{
-			Float3 position = Float3(200.0f, 100.0f, 200.0f) * Float3(Random::SNorm(), Random::SNorm(), Random::SNorm());
-			Float3 color = Float3(Random::UNorm(), Random::UNorm(), Random::UNorm());
-			Float2 falloff = Float2(1.0f + 3.0f * Random::UNorm(), 5.0f + 10.0f * Random::UNorm());
-			MainSceneGraph.CreatePointLight(context, position, color, falloff);
-		}
-
-		if (AppConfig.Settings.contains("SIMPLE_SCENE"))
-		{
-			Entity& plane = MainSceneGraph.CreateEntity(context, { 0.0f, -10.0f, 0.0f }, { 10000.0f, 1.0f, 10000.0f });
-			SceneLoading::LoadEntity("Resources/cube/cube.gltf", plane);
-
-			constexpr uint32_t NUM_CUBES = 50;
-			for (uint32_t i = 0; i < NUM_CUBES; i++)
-			{
-				const Float3 position = Float3{ Random::SNorm(), Random::SNorm(), Random::SNorm() } * Float3{ 100.0f, 100.0f, 100.0f};
-				const Float3 scale = Float3{ Random::Float(0.1f, 10.0f), Random::Float(0.1f, 10.0f) , Random::Float(0.1f, 10.0f) };
-				Entity& cube = MainSceneGraph.CreateEntity(context, position, scale);
-				SceneLoading::LoadEntity("Resources/cube/cube.gltf", cube);
-			}
-		}
-		else
-		{
-			Entity& e1 = MainSceneGraph.CreateEntity(context, { 0.0f, 0.0f, 0.0f }, { 0.1f, 0.1f, 0.1f });
-			Entity& e2 = MainSceneGraph.CreateEntity(context);
-			
-			SceneLoading::LoadEntityInBackground("Resources/sponza/sponza.gltf", e1);
-			SceneLoading::LoadEntity("Resources/cube/cube.gltf", e2);
-		}
-
-		CubeVB = ForwardPlusPrivate::GenerateCubeVB();
-	}
-
-	m_SkyboxShader = GFX::CreateShader("Source/Shaders/skybox.hlsl");
+	
 	m_DepthPrepassShader = GFX::CreateShader("Source/Shaders/depth.hlsl");
 	m_GeometryShader = GFX::CreateShader("Source/Shaders/geometry.hlsl");
 	m_LightCullingShader = GFX::CreateShader("Source/Shaders/light_culling.hlsl");
 	m_PostprocessShader = GFX::CreateShader("Source/Shaders/postprocessing.hlsl");
 
-	GenerateSkybox(context, m_SkyboxCubemap);
 	m_IndexBuffer = GFX::CreateBuffer(sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_IB | RCF_CopyDest);
 
 	UpdatePresentResources(context);
 	UpdateCullingResources(context);
+
+	PrepareScene(context);
 }
 
 void ForwardPlus::OnDestroy(ID3D11DeviceContext* context)
@@ -410,29 +334,10 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 
 		GFX::Cmd::MarkerEnd(context);
 	}
-
+	
 	// Skybox
-	{
-		PipelineState pso = GFX::DefaultPipelineState();
-		pso.DS.StencilEnable = true;
-		pso.DS.StencilWriteMask = 0;
-		pso.DS.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
-		pso.DS.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_KEEP;
-		pso.DS.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
-		pso.DS.FrontFace.StencilFunc = D3D11_COMPARISON_NOT_EQUAL;
-		pso.DS.BackFace = pso.DS.FrontFace;
-
-		GFX::Cmd::MarkerBegin(context, "Skybox");
-		GFX::Cmd::SetPipelineState(context, pso);
-		GFX::Cmd::BindRenderTarget(context, m_MainRT_HDR, m_MainRT_Depth);
-		GFX::Cmd::BindShader<VS | PS>(context, m_SkyboxShader);
-		GFX::Cmd::BindVertexBuffer(context, CubeVB);
-		GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
-		GFX::Cmd::BindSRV<PS>(context, m_SkyboxCubemap, 0);
-		GFX::Cmd::SetupStaticSamplers<PS>(context);
-		context->Draw(GFX::GetNumElements(CubeVB), 0);
-		GFX::Cmd::MarkerEnd(context);
-	}
+	GFX::Cmd::BindRenderTarget(context, m_MainRT_HDR, m_MainRT_Depth);
+	m_SkyboxRenderer.Draw(context);
 
 	// Postprocessing
 	{
@@ -491,9 +396,7 @@ void ForwardPlus::OnUpdate(ID3D11DeviceContext* context, float dt)
 
 void ForwardPlus::OnShaderReload(ID3D11DeviceContext* context)
 {
-	using namespace ForwardPlusPrivate;
-
-	GenerateSkybox(context, m_SkyboxCubemap);
+	m_SkyboxRenderer.OnShaderReload(context);
 }
 
 void ForwardPlus::OnWindowResize(ID3D11DeviceContext* context)

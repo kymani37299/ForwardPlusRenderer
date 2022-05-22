@@ -165,6 +165,7 @@
   <ItemGroup>
     <ClCompile Include="Source\App\ForwardPlus\DebugRenderer.cpp" />
     <ClCompile Include="Source\App\ForwardPlus\ForwardPlus.cpp" />
+    <ClCompile Include="Source\App\ForwardPlus\SkyboxRenderer.cpp" />
     <ClCompile Include="Source\Core\Engine.cpp" />
     <ClCompile Include="Source\Core\SceneGraph.cpp" />
     <ClCompile Include="Source\Gui\GUI.cpp" />
@@ -192,6 +193,7 @@
     <ClInclude Include="Source\App\Application.h" />
     <ClInclude Include="Source\App\ForwardPlus\DebugRenderer.h" />
     <ClInclude Include="Source\App\ForwardPlus\ForwardPlus.h" />
+    <ClInclude Include="Source\App\ForwardPlus\SkyboxRenderer.h" />
     <ClInclude Include="Source\Common.h" />
     <ClInclude Include="Source\Core\Engine.h" />
     <ClInclude Include="Source\Core\SceneGraph.h" />
