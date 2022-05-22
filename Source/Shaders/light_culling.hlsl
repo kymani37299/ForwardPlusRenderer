@@ -75,9 +75,7 @@ void CS(uint3 threadID : SV_DispatchThreadID, uint3 groupID : SV_GroupID, uint3 
 		gsVisibleLightCount = 0;
 	}
 
-#ifdef USE_BARRIERS
 	AllMemoryBarrierWithGroupSync();
-#endif
 
 	// Step 2: Min and max Z
 
@@ -91,9 +89,7 @@ void CS(uint3 threadID : SV_DispatchThreadID, uint3 groupID : SV_GroupID, uint3 
 	InterlockedMin(gsMinZ, ZUint);
 	InterlockedMax(gsMaxZ, ZUint);
 
-#ifdef USE_BARRIERS
 	AllMemoryBarrierWithGroupSync();
-#endif
 
 	// Step 3: Calculate frutum planes
 
@@ -136,35 +132,31 @@ void CS(uint3 threadID : SV_DispatchThreadID, uint3 groupID : SV_GroupID, uint3 
 		gsTileFrustum = CreateViewFrustum(points_world);
 	}
 
-#ifdef USE_BARRIERS
 	AllMemoryBarrierWithGroupSync();
-#endif
 
 	// Step 4: Culling : Paralelizing against the lights
 
-	// TODO: Paralelize this against the lights
-	if (isMainThread)
+	// Ceil(SceneInfoData.NumLights / threadCount)
+	const uint numLightsPerThread = (SceneInfoData.NumLights + threadCount - 1) / threadCount;
+	const uint threadLightOffset = localIndex * numLightsPerThread;
+	for (uint i = 0; i < numLightsPerThread; i++)
 	{
-		for (uint i = 0; i < SceneInfoData.NumLights; i++)
+		const uint lightIndex = i + threadLightOffset;
+		if (lightIndex >= SceneInfoData.NumLights) break;
+		const Light l = Lights[lightIndex];
+
+		bool isVisible = CullLight(l, gsTileFrustum);
+		if (isVisible)
 		{
-			const uint lightIndex = i;
-			const Light l = Lights[lightIndex];
+			uint writeOffset;
+			InterlockedAdd(gsVisibleLightCount, 1, writeOffset);
 
-			bool isVisible = CullLight(l, gsTileFrustum);
-			if (isVisible)
-			{
-				uint writeOffset;
-				InterlockedAdd(gsVisibleLightCount, 1, writeOffset);
-
-				if (writeOffset < MAX_LIGHTS_PER_TILE)
-					gsVisibleLightIndexes[writeOffset] = lightIndex;
-			}
+			if (writeOffset < MAX_LIGHTS_PER_TILE)
+				gsVisibleLightIndexes[writeOffset] = lightIndex;
 		}
 	}
 
-#ifdef USE_BARRIERS
 	AllMemoryBarrierWithGroupSync();
-#endif
 
 	// Step 5: Write results
 

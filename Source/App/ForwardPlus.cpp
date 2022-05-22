@@ -431,7 +431,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 	{
 		context->OMSetRenderTargets(0, nullptr, nullptr);
 		GFX::Cmd::MarkerBegin(context, "Light Culling");
-		GFX::Cmd::BindShader<CS>(context, m_LightCullingShader, { "USE_BARRIERS" });
+		GFX::Cmd::BindShader<CS>(context, m_LightCullingShader);
 		GFX::Cmd::BindCBV<CS>(context, MainSceneGraph.SceneInfoBuffer, 0);
 		GFX::Cmd::BindCBV<CS>(context, MainSceneGraph.MainCamera.CameraBuffer, 2);
 		GFX::Cmd::BindSRV<CS>(context, MainSceneGraph.Lights.GetBuffer(), 0);
