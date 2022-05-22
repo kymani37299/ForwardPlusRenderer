@@ -1,7 +1,7 @@
 #include "light_culling.h"
 #include "scene.h"
 
-#define HIGH_LIGHT_COUNT 10
+#define HIGH_LIGHT_COUNT 30
 
 struct VertexInput
 {

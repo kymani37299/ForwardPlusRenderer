@@ -239,7 +239,7 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 		}
 
 		GUI::Get()->AddElement(new FPSCounterGUI());
-		GUI::Get()->AddElement(new DebugToolsGUI(true));
+		GUI::Get()->AddElement(new DebugToolsGUI());
 		GUI::Get()->AddElement(new PostprocessingGUI());
 		GUI::Get()->AddElement(new PositionInfoGUI());
 

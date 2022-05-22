@@ -21,8 +21,8 @@ void GUIElement::RenderElement(ID3D11DeviceContext* context)
 		if (ImGui::Begin(m_Name.c_str(), &m_Shown))
 		{
 			Render(context);
-			ImGui::End();
 		}
+		ImGui::End();
 	}
 	
 }
