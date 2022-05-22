@@ -12,10 +12,6 @@ struct VertexOut
 	float2 uv : TEXCOORD;
 };
 
-Texture2D CurrentFrame : register(t0);
-Texture2D LastFrame : register(t1);
-Texture2D MotionVectors : register(t2);
-
 VertexOut VS(VertexInput IN)
 {
 	VertexOut OUT;
@@ -23,6 +19,12 @@ VertexOut VS(VertexInput IN)
 	OUT.uv = IN.uv;
 	return OUT;
 }
+
+#ifdef TAA
+
+Texture2D CurrentFrame : register(t0);
+Texture2D LastFrame : register(t1);
+Texture2D MotionVectors : register(t2);
 
 float4 PS(VertexOut IN) : SV_Target
 {
@@ -33,3 +35,21 @@ float4 PS(VertexOut IN) : SV_Target
 	const float3 finalColor = lerp(currentColor, lastColor, modulationFactor);
 	return float4(finalColor, 1.0f);
 }
+
+#endif // TAA
+
+#ifdef TONEMAPPING
+
+Texture2D HDRTexture : register(t0);
+
+float4 PS(VertexOut IN) : SV_Target
+{
+	const float3 hdrColor = HDRTexture.Sample(s_LinearWrap, IN.uv).rgb;
+
+	// Reinhard tone mapping
+	float3 color = hdrColor / (hdrColor + float3(1.0f,1.0f,1.0f));
+
+	return float4(color, 1.0f);
+}
+
+#endif // TONEMAPPING

@@ -34,9 +34,9 @@ float3 BlinnPhong(float3 lightStrength, float3 lightVec, float3 normal, float3 t
 
 	float3 specAlbedo = fresnelFactor * roughnessFactor;
 
-	// Our spec formula goes outside [0,1] range, but we are 
-	// doing LDR rendering.  So scale it down a bit.
-	specAlbedo = specAlbedo / (specAlbedo + 1.0f);
+	// Our spec formula goes outside [0,1] range
+	// So if we are not using HDR and tonemapping enable this
+	// specAlbedo = specAlbedo / (specAlbedo + 1.0f);
 
 	return (mat.Albedo.rgb + specAlbedo) * lightStrength;
 }

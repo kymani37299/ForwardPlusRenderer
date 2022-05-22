@@ -63,14 +63,15 @@ private:
 	ShaderID m_LightStatsShader;
 	ShaderID m_DebugGeometryShader;
 	ShaderID m_LightHeatmapShader;
-	ShaderID m_TAA;
+	ShaderID m_PostprocessShader;
 
 	TextureID m_SkyboxCubemap;
-	TextureID m_FinalRT;
+	TextureID m_TAAHistory[2]; // 0 - current frame, 1 - last frame
+
+	TextureID m_MainRT_HDR;
+	TextureID m_MainRT_LDR;
+	TextureID m_MainRT_Depth;
 	TextureID m_MotionVectorRT;
-	TextureID m_FinalRTSRV;
-	TextureID m_FinalRTHistory[2];
-	TextureID m_FinalRT_Depth;
 
 	BufferID m_IndexBuffer;
 	BufferID m_VisibleLightsBuffer;
