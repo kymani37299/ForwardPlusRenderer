@@ -48,6 +48,7 @@ private:
 	void UpdateCullingResources(ID3D11DeviceContext* context);
 	void UpdateStats(ID3D11DeviceContext* context);
 	void DrawDebugGeometries(ID3D11DeviceContext* context);
+	void UpdatePostprocessingSettings(ID3D11DeviceContext* context);
 
 private:
 	uint32_t m_NumTilesX = 0;
@@ -77,4 +78,5 @@ private:
 	BufferID m_VisibleLightsBuffer;
 	BufferID m_LightStatsBuffer;
 	BufferID m_DebugGeometryBuffer;
+	BufferID m_PostprocessingSettingsBuffer;
 };

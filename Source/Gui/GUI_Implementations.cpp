@@ -49,6 +49,9 @@ void PositionInfoGUI::Render(ID3D11DeviceContext* context)
 void PostprocessingGUI::Render(ID3D11DeviceContext* context)
 {
 	ImGui::Checkbox("TAA", &PostprocessSettings.EnableTAA);
+	ImGui::Checkbox("Exposure tonemapping", &PostprocessSettings.UseExposureTonemapping);
+	if(PostprocessSettings.UseExposureTonemapping)
+		ImGui::SliderFloat("Exposure", &PostprocessSettings.Exposure, 0.01f, 10.0f);
 }
 
 // --------------------------------------------------

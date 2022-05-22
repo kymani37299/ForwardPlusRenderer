@@ -1,5 +1,10 @@
 #include "samplers.h"
 
+struct PostprocessingSettings
+{
+	float Exposure;
+};
+
 struct VertexInput
 {
 	float2 pos : SV_POSITION;
@@ -40,14 +45,25 @@ float4 PS(VertexOut IN) : SV_Target
 
 #ifdef TONEMAPPING
 
+cbuffer PPSettingsCB : register(b0)
+{
+	PostprocessingSettings PP_Settings;
+}
+
 Texture2D HDRTexture : register(t0);
 
 float4 PS(VertexOut IN) : SV_Target
 {
 	const float3 hdrColor = HDRTexture.Sample(s_LinearWrap, IN.uv).rgb;
+	
+#ifdef REINHARD
+	const float3 color = hdrColor / (hdrColor + float3(1.0f,1.0f,1.0f));
+#endif
 
-	// Reinhard tone mapping
-	float3 color = hdrColor / (hdrColor + float3(1.0f,1.0f,1.0f));
+#ifdef EXPOSURE
+	// vec3 mapped = vec3(1.0) - exp(-hdrColor * exposure);
+	const float3 color = float3(1.0f, 1.0f, 1.0f) - exp(-hdrColor * PP_Settings.Exposure);
+#endif 
 
 	return float4(color, 1.0f);
 }

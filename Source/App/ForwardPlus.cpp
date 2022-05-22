@@ -379,6 +379,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 
 	MainSceneGraph.MainCamera.UseJitter = PostprocessSettings.EnableTAA;
 	MainSceneGraph.FrameUpdate(context);
+	UpdatePostprocessingSettings(context);
 
 	// Geometry culling
 	if (!DebugToolsConfig.FreezeGeometryCulling)
@@ -503,10 +504,16 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 
 		// Tonemapping
 		{
+			std::vector<std::string> config{};
+			config.push_back("TONEMAPPING");
+			if (PostprocessSettings.UseExposureTonemapping) config.push_back("EXPOSURE");
+			else config.push_back("REINHARD");
+
 			GFX::Cmd::MarkerBegin(context, "Tonemapping");
-			GFX::Cmd::BindRenderTarget(context, m_MainRT_LDR);
-			GFX::Cmd::BindShader<PS | VS>(context, m_PostprocessShader, { "TONEMAPPING" });
 			GFX::Cmd::SetupStaticSamplers<PS>(context);
+			GFX::Cmd::BindRenderTarget(context, m_MainRT_LDR);
+			GFX::Cmd::BindShader<PS | VS>(context, m_PostprocessShader, config);
+			GFX::Cmd::BindCBV<PS>(context, m_PostprocessingSettingsBuffer, 0);
 			GFX::Cmd::BindSRV<PS>(context, m_MainRT_HDR, 0);
 			GFX::Cmd::BindVertexBuffer(context, Device::Get()->GetQuadBuffer());
 			context->Draw(6, 0);
@@ -849,4 +856,20 @@ void ForwardPlus::DrawDebugGeometries(ID3D11DeviceContext* context)
 	GFX::Cmd::MarkerEnd(context);
 
 	m_DebugGeometries.clear();
+}
+
+void ForwardPlus::UpdatePostprocessingSettings(ID3D11DeviceContext* context)
+{
+	struct PostprocessingSettngsCB
+	{
+		float Exposure;
+	};
+
+	if(!m_PostprocessingSettingsBuffer.Valid())
+		m_PostprocessingSettingsBuffer = GFX::CreateConstantBuffer<PostprocessingSettngsCB>();
+
+	PostprocessingSettngsCB cb{};
+	cb.Exposure = PostprocessSettings.Exposure;
+
+	GFX::Cmd::UploadToBuffer(context, m_PostprocessingSettingsBuffer, 0, &cb, 0, sizeof(PostprocessingSettngsCB));
 }
