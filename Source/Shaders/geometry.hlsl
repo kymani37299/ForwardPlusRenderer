@@ -64,12 +64,16 @@ float4 PS(VertexOut IN) : SV_TARGET
 		clip(-1.0f);
 #endif // ALPHA_DISCARD
 
+	float2 metallicRoughness = Textures.Sample(s_LinearWrap, float3(IN.UV, matParams.MetallicRoughness)).rg;
+
 	MaterialInput mat;
 	mat.Albedo = albedo;
 	mat.Albedo.rgb *= matParams.AlbedoFactor;
-	mat.FresnelR0 = matParams.FresnelR0;
-	mat.Roughness = Textures.Sample(s_LinearWrap, float3(IN.UV, matParams.MetallicRoughness)).g * matParams.RoughnessFactor;
+	mat.Metallic = metallicRoughness.r * matParams.MetallicFactor;
+	mat.Metallic = min(0.99f, mat.Metallic);
+	mat.Roughness = metallicRoughness.g * matParams.RoughnessFactor;
 	mat.Roughness = min(0.99f, mat.Roughness);
+	mat.F0 = lerp(matParams.FresnelR0, albedo.rgb, mat.Metallic);
 
 	const float3 normal = normalize(IN.Normal);
 	const float3 view = normalize(CamData.Position - IN.WorldPosition);

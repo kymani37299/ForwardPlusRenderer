@@ -27,9 +27,10 @@ namespace ForwardPlusPrivate
 		constexpr uint32_t NUM_LIGHTS = 10000;
 		for (uint32_t i = 0; i < NUM_LIGHTS; i++)
 		{
-			Float3 position = Float3(200.0f, 100.0f, 200.0f) * Float3(Random::SNorm(), Random::SNorm(), Random::SNorm());
-			Float3 color = Float3(Random::UNorm(), Random::UNorm(), Random::UNorm());
-			Float2 falloff = Float2(1.0f + 3.0f * Random::UNorm(), 5.0f + 10.0f * Random::UNorm());
+			const float strength = Random::Float(1.0f, 5.0f);
+			const Float3 position = Float3(200.0f, 100.0f, 200.0f) * Float3(Random::SNorm(), Random::SNorm(), Random::SNorm());
+			const Float3 color = strength * Float3(Random::UNorm(), Random::UNorm(), Random::UNorm());
+			const Float2 falloff = strength * Float2(0.5f + 2.0f * Random::UNorm(), 3.0f + 2.0f * Random::UNorm());
 			MainSceneGraph.CreatePointLight(context, position, color, falloff);
 		}
 
@@ -323,6 +324,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			std::vector<std::string> configuration;
 			if (rgType == RenderGroupType::AlphaDiscard) configuration.push_back("ALPHA_DISCARD");
 			if (DebugToolsConfig.DisableLightCulling) configuration.push_back("DISABLE_LIGHT_CULLING");
+			if (DebugToolsConfig.UsePBR) configuration.push_back("USE_PBR");
 
 			GFX::Cmd::BindShader<VS|PS>(context, m_GeometryShader, configuration, true);
 			GFX::Cmd::BindSRV<PS>(context, renderGroup.TextureData, 0);

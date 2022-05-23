@@ -21,6 +21,9 @@ void DebugToolsGUI::Render(ID3D11DeviceContext* context)
 	ImGui::Checkbox("Disable light culling", &DebugToolsConfig.DisableLightCulling);
 	ImGui::Checkbox("Light heatmap", &DebugToolsConfig.LightHeatmap);
 	ImGui::Checkbox("Draw light spheres", &DebugToolsConfig.DrawLightSpheres);
+	ImGui::Separator();
+	ImGui::Checkbox("Use PBR", &DebugToolsConfig.UsePBR);
+	
 }
 
 // --------------------------------------------------

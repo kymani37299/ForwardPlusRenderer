@@ -62,6 +62,8 @@ struct DebugToolsConfiguration
 	bool FreezeLightCulling = false;
 	bool LightHeatmap = false;
 	bool DrawLightSpheres = false;
+
+	bool UsePBR = true;
 };
 
 enum class AntiAliasingMode

@@ -127,7 +127,7 @@ void DebugRenderer::Draw(ID3D11DeviceContext* context, TextureID colorTarget, Te
 		for (uint32_t i = 0; i < numLights; i++)
 		{
 			const Light& l = MainSceneGraph.Lights[i];
-			DrawSphere(l.Position, Float4(l.Strength.x, l.Strength.y, l.Strength.z, 0.2f), { l.Falloff.y, l.Falloff.y, l.Falloff.y });
+			DrawSphere(l.Position, Float4(l.Radiance.x, l.Radiance.y, l.Radiance.z, 0.2f), { l.Falloff.y, l.Falloff.y, l.Falloff.y });
 		}
 	}
 

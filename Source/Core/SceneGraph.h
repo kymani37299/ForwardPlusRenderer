@@ -139,7 +139,7 @@ struct Light
 
 	LightType Type = LT_Invalid;
 	Float3 Position = { 0.0f, 0.0f, 0.0f };		// Point
-	Float3 Strength = { 0.0f, 0.0f, 0.0f };		// Dir/Spot/Point/Ambient
+	Float3 Radiance = { 0.0f, 0.0f, 0.0f };		// Dir/Spot/Point/Ambient
 	Float2 Falloff = { 0.0f, 0.0f };			// Point/Spot (Start, End)
 	Float3 Direction = { 0.0f, 0.0f, 0.0f };	// Dir/Spot
 	float SpotPower = 0.0f;						// Spot

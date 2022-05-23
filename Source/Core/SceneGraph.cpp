@@ -35,7 +35,7 @@ namespace
 	{
 		uint32_t LightType;
 		DirectX::XMFLOAT3 Position;
-		DirectX::XMFLOAT3 Strength;
+		DirectX::XMFLOAT3 Radiance;
 		DirectX::XMFLOAT2 Falloff;
 		DirectX::XMFLOAT3 Direction;
 		float SpotPower;
@@ -125,7 +125,7 @@ void Light::UpdateBuffer(ID3D11DeviceContext* context)
 	LightSB lightSB{};
 	lightSB.LightType = Type;
 	lightSB.Position = Position.ToXMF();
-	lightSB.Strength = Strength.ToXMF();
+	lightSB.Radiance = Radiance.ToXMF();
 	lightSB.Falloff = Falloff.ToXMF();
 	lightSB.Direction = Direction.ToXMF();
 	lightSB.SpotPower = SpotPower;
@@ -309,7 +309,7 @@ Light SceneGraph::CreateDirectionalLight(ID3D11DeviceContext* context, Float3 di
 	Light l{};
 	l.Type = LT_Directional;
 	l.Direction = direction;
-	l.Strength = color;
+	l.Radiance = color;
 
 	return CreateLight(context, l);
 }
@@ -318,7 +318,7 @@ Light SceneGraph::CreateAmbientLight(ID3D11DeviceContext* context, Float3 color)
 {
 	Light l{};
 	l.Type = LT_Ambient;
-	l.Strength = color;
+	l.Radiance = color;
 	return CreateLight(context, l);
 }
 
@@ -327,7 +327,7 @@ Light SceneGraph::CreatePointLight(ID3D11DeviceContext* context, Float3 position
 	Light l{};
 	l.Type = LT_Point;
 	l.Position = position;
-	l.Strength = color;
+	l.Radiance = color;
 	l.Falloff = falloff;
 	return CreateLight(context, l);
 }
