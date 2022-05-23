@@ -2,6 +2,7 @@
 
 #include "Core/SceneGraph.h"
 #include "Gui/Imgui/imgui.h"
+#include "System/ApplicationConfiguration.h"
 
 DebugToolsConfiguration DebugToolsConfig;
 PostprocessingSettings PostprocessSettings;
@@ -46,9 +47,39 @@ void PositionInfoGUI::Render(ID3D11DeviceContext* context)
 }
 
 // --------------------------------------------------
+std::string ToString(AntiAliasingMode aaMode)
+{
+	switch (aaMode)
+	{
+	case AntiAliasingMode::None: return "None";
+	case AntiAliasingMode::TAA: return "TAA";
+	case AntiAliasingMode::MSAA: return "MSAA";
+	default: NOT_IMPLEMENTED;
+	}
+	return "";
+}
+
 void PostprocessingGUI::Render(ID3D11DeviceContext* context)
 {
-	ImGui::Checkbox("TAA", &PostprocessSettings.EnableTAA);
+	if (ImGui::BeginCombo("Antialiasing mode", ToString(PostprocessSettings.AntialiasingMode).c_str()))
+	{
+		const uint32_t modeCount = EnumToInt(AntiAliasingMode::Count);
+		for (uint32_t i = 0; i < modeCount; i++)
+		{
+			bool isSelected = false;
+			AntiAliasingMode mode = IntToEnum<AntiAliasingMode>(i);
+			ImGui::Selectable(ToString(mode).c_str(), &isSelected);
+			if (isSelected)
+			{
+				AntiAliasingMode lastMode = PostprocessSettings.AntialiasingMode;
+				PostprocessSettings.AntialiasingMode = mode;
+				AppConfig.WindowSizeDirty = true; // Reload the render targets
+				ImGui::SetItemDefaultFocus();
+			}
+		}
+		ImGui::EndCombo();
+	}
+
 	ImGui::Checkbox("Exposure tonemapping", &PostprocessSettings.UseExposureTonemapping);
 	if(PostprocessSettings.UseExposureTonemapping)
 		ImGui::SliderFloat("Exposure", &PostprocessSettings.Exposure, 0.01f, 10.0f);

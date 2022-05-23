@@ -53,6 +53,12 @@ enum ResourceCreationFlags : uint64_t
 	RCF_Staging = RCF_CPU_Write_Persistent << 1,
 	RCF_GenerateMips = RCF_Staging << 1,
 	RCF_CopyDest = RCF_GenerateMips << 1,
-	RCF_Cubemap = RCF_CopyDest << 1
+	RCF_Cubemap = RCF_CopyDest << 1,
+
+	// MSAA
+	RCF_MSAA_X2 = RCF_Cubemap << 1,
+	RCF_MSAA_X4 = RCF_MSAA_X2 << 1,
+	RCF_MSAA_X8 = RCF_MSAA_X4 << 1,
+	RCF_MSAA_X16 = RCF_MSAA_X8 << 1,
 };
 

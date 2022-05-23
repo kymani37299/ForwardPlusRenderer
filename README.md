@@ -42,9 +42,10 @@ In the real case scenario it is not that simple to have just one batch draw for 
 
 Currently we are having 3 render groups for the Opaque, AlphaDiscard and Transparent geometry.
 
-### Temporal Anti-aliasing (TAA)
+### Anti-aliasing
 
-This implementation is using camera jittering and motion vectors. </br> <br>
-This is sill in progress there are 2 problems left to be solved:
-- <b> Rendering dynamic geometries </b> - For this we need to store somewhere the ModelToWorld transformation from the last frame so we can correctly generate motion vectors. In case of the static geometries where ModelToWorld is always the same as last frame we don't have this problem.
+There are serveral implementations of the antialiasing from which you can choose in imgui. (Tools > Postprocessing)
+
+- <b>Temporal Anti-aliasing(TAA)</b> - AA technique that is based on last frame data. It is implemented using motion vectors.
+- <b>Multisample Anti-alising(MSAA)</b> - Classic AA technique that relies on directX api
 

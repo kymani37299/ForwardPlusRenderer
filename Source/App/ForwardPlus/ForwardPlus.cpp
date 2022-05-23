@@ -214,7 +214,6 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 {
 	using namespace ForwardPlusPrivate;
 
-	MainSceneGraph.MainCamera.UseJitter = PostprocessSettings.EnableTAA;
 	MainSceneGraph.FrameUpdate(context);
 
 	// Geometry culling
@@ -270,9 +269,12 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 	// Light culling
 	if(!DebugToolsConfig.FreezeLightCulling && !DebugToolsConfig.DisableLightCulling)
 	{
+		std::vector<std::string> config{};
+		if (PostprocessSettings.AntialiasingMode == AntiAliasingMode::MSAA) config.push_back("MULTISAMPLE_DEPTH");
+
 		GFX::Cmd::BindRenderTarget(context, TextureID{}, TextureID{});
 		GFX::Cmd::MarkerBegin(context, "Light Culling");
-		GFX::Cmd::BindShader<CS>(context, m_LightCullingShader);
+		GFX::Cmd::BindShader<CS>(context, m_LightCullingShader, config);
 		GFX::Cmd::BindCBV<CS>(context, MainSceneGraph.SceneInfoBuffer, 0);
 		GFX::Cmd::BindCBV<CS>(context, MainSceneGraph.MainCamera.CameraBuffer, 2);
 		GFX::Cmd::BindSRV<CS>(context, MainSceneGraph.Lights.GetBuffer(), 0);
@@ -337,11 +339,11 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 	GFX::Cmd::BindRenderTarget(context, m_MainRT_HDR, m_MainRT_Depth);
 	m_SkyboxRenderer.Draw(context);
 
+	// Debug
+	m_DebugRenderer.Draw(context, m_MainRT_HDR, m_MainRT_Depth, m_VisibleLightsBuffer);
+
 	// Postprocessing
 	TextureID ppResult = m_PostprocessingRenderer.Process(context, m_MainRT_HDR, m_MotionVectorRT);
-
-	// Debug
-	m_DebugRenderer.Draw(context, ppResult, m_MainRT_Depth, m_VisibleLightsBuffer);
 
 	return ppResult;
 }
@@ -371,10 +373,13 @@ void ForwardPlus::UpdatePresentResources(ID3D11DeviceContext* context)
 		GFX::Storage::Free(m_MainRT_Depth);
 		GFX::Storage::Free(m_MotionVectorRT);
 	}
+
+	const uint32_t sampleFlags = PostprocessSettings.AntialiasingMode == AntiAliasingMode::MSAA ? RCF_MSAA_X8 : 0;
+	
 	const uint32_t size[2] = { AppConfig.WindowWidth, AppConfig.WindowHeight };
-	m_MainRT_HDR		= GFX::CreateTexture(size[0], size[1], RCF_Bind_RTV | RCF_Bind_SRV, 1, DXGI_FORMAT_R16G16B16A16_FLOAT);
-	m_MotionVectorRT	= GFX::CreateTexture(size[0], size[1], RCF_Bind_RTV | RCF_Bind_SRV, 1, DXGI_FORMAT_R16G16_UNORM);
-	m_MainRT_Depth		= GFX::CreateTexture(size[0], size[1], RCF_Bind_DSV | RCF_Bind_SRV);
+	m_MainRT_HDR		= GFX::CreateTexture(size[0], size[1], RCF_Bind_RTV | RCF_Bind_SRV | sampleFlags, 1, DXGI_FORMAT_R16G16B16A16_FLOAT);
+	m_MotionVectorRT	= GFX::CreateTexture(size[0], size[1], RCF_Bind_RTV | RCF_Bind_SRV | sampleFlags, 1, DXGI_FORMAT_R16G16_UNORM);
+	m_MainRT_Depth		= GFX::CreateTexture(size[0], size[1], RCF_Bind_DSV | RCF_Bind_SRV | sampleFlags);
 	m_PostprocessingRenderer.ReloadTextureResources(context);
 }
 

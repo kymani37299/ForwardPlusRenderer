@@ -50,6 +50,15 @@ inline uint32_t GetMiscFlags(uint64_t creationFlags)
 	return flags;
 }
 
+inline uint32_t GetSampleCount(uint32_t creationFlags)
+{
+	if (creationFlags & RCF_MSAA_X2) return 2;
+	if (creationFlags & RCF_MSAA_X4) return 4;
+	if (creationFlags & RCF_MSAA_X8) return 8;
+	if (creationFlags & RCF_MSAA_X16) return 16;
+	return 1;
+}
+
 struct Buffer
 {
 	// DX

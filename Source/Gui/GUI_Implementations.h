@@ -64,9 +64,17 @@ struct DebugToolsConfiguration
 	bool DrawLightSpheres = false;
 };
 
+enum class AntiAliasingMode
+{
+	None,
+	TAA,
+	MSAA,
+	Count,
+};
+
 struct PostprocessingSettings
 {
-	bool EnableTAA = true;
+	AntiAliasingMode AntialiasingMode = AntiAliasingMode::MSAA;
 
 	bool UseExposureTonemapping = true;
 	float Exposure = 0.8f;

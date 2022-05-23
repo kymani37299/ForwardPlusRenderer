@@ -234,5 +234,13 @@ namespace GFX
 			sourceRegion.back = 1;
 			context->CopySubresourceRegion(dstBuf.Handle.Get(), 0, dstOffset, 0, 0, srcBuf.Handle.Get(), 0, &sourceRegion);
 		}
+
+		void ResolveTexture(ID3D11DeviceContext* context, TextureID srcTexture, TextureID dstTexture)
+		{
+			const Texture& srcTex = GFX::Storage::GetTexture(srcTexture);
+			const Texture& dstTex = GFX::Storage::GetTexture(dstTexture);
+			ASSERT(srcTex.Format == dstTex.Format, "In order to resolve a texture source and destination need to be a same format");
+			context->ResolveSubresource(dstTex.Handle.Get(), 0, srcTex.Handle.Get(), 0, srcTex.Format);
+		}
 	}
 }

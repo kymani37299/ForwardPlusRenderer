@@ -9,7 +9,7 @@ namespace Random
 	float UNorm(float seed)
 	{
 		static float intPart;
-		return (modf(sin(seed * 321451.3124f), &intPart) * 43758.5453f);
+		return modf(sin(seed * 321451.3124f), &intPart);
 	}
 
 	// Random float [0,1]

@@ -132,7 +132,7 @@ namespace GFX
 		textureDesc.MipLevels = texture.NumMips;
 		textureDesc.ArraySize = texture.ArraySize;
 		textureDesc.Format = texture.Format;
-		textureDesc.SampleDesc.Count = 1;
+		textureDesc.SampleDesc.Count = GetSampleCount(creationFlags);
 		textureDesc.Usage = GetUsageFlags(creationFlags);
 		textureDesc.BindFlags = GetBindFlags(creationFlags);
 		textureDesc.MiscFlags = GetMiscFlags(creationFlags);
@@ -169,10 +169,15 @@ namespace GFX
 		API_CALL(Device::Get()->GetHandle()->CreateTexture2D(&textureDesc, initializationData, texture.Handle.GetAddressOf()));
 		SAFE_DELETE(initializationData);
 
+		const bool useMultisampling = GetSampleCount(creationFlags) != 1;
+
 		if (creationFlags & RCF_Bind_SRV)
 		{
 			D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc{};
 			srvDesc.Format = texture.Format;
+			srvDesc.ViewDimension = useMultisampling ? D3D11_SRV_DIMENSION_TEXTURE2DMS : D3D11_SRV_DIMENSION_TEXTURE2D;
+			srvDesc.Texture2D.MipLevels = texture.NumMips;
+			srvDesc.Texture2D.MostDetailedMip = 0;
 
 			// Hack
 			if (srvDesc.Format == DXGI_FORMAT_R24G8_TYPELESS)
@@ -180,9 +185,6 @@ namespace GFX
 				srvDesc.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
 			}
 
-			srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-			srvDesc.Texture2D.MipLevels = texture.NumMips;
-			srvDesc.Texture2D.MostDetailedMip = 0;
 			API_CALL(Device::Get()->GetHandle()->CreateShaderResourceView(texture.Handle.Get(), &srvDesc, texture.SRV.GetAddressOf()));
 		}
 		
@@ -192,6 +194,13 @@ namespace GFX
 			uavDesc.Format = texture.Format;
 			uavDesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
 			uavDesc.Texture2D.MipSlice = 0;
+
+			// Hack
+			if (uavDesc.Format == DXGI_FORMAT_R24G8_TYPELESS)
+			{
+				uavDesc.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+			}
+
 			API_CALL(Device::Get()->GetHandle()->CreateUnorderedAccessView(texture.Handle.Get(), &uavDesc, texture.UAV.GetAddressOf()));
 		}
 
@@ -199,8 +208,9 @@ namespace GFX
 		{
 			D3D11_RENDER_TARGET_VIEW_DESC rtvDesc{};
 			rtvDesc.Format = format;
-			rtvDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+			rtvDesc.ViewDimension = useMultisampling ? D3D11_RTV_DIMENSION_TEXTURE2DMS : D3D11_RTV_DIMENSION_TEXTURE2D;;
 			rtvDesc.Texture2D.MipSlice = 0;
+
 			API_CALL(Device::Get()->GetHandle()->CreateRenderTargetView(texture.Handle.Get(), &rtvDesc, texture.RTV.GetAddressOf()));
 		}
 
@@ -208,7 +218,7 @@ namespace GFX
 		{
 			D3D11_DEPTH_STENCIL_VIEW_DESC dsvDesc{};
 			dsvDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-			dsvDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+			dsvDesc.ViewDimension = useMultisampling ? D3D11_DSV_DIMENSION_TEXTURE2DMS : D3D11_DSV_DIMENSION_TEXTURE2D;
 			dsvDesc.Texture2D.MipSlice = 0;
 			API_CALL(Device::Get()->GetHandle()->CreateDepthStencilView(texture.Handle.Get(), &dsvDesc, texture.DSV.GetAddressOf()));
 		}
@@ -248,6 +258,8 @@ namespace GFX
 		API_CALL(Device::Get()->GetHandle()->CreateTexture2D(&textureDesc, initializationData, texture.Handle.GetAddressOf()));
 		if (initializationData != nullptr) delete[] initializationData;
 
+		const bool useMultisampling = GetSampleCount(creationFlags) != 1;
+
 		if (creationFlags & RCF_Bind_SRV)
 		{
 			if (creationFlags & RCF_Cubemap)
@@ -263,7 +275,7 @@ namespace GFX
 			{
 				D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc{};
 				srvDesc.Format = texture.Format;
-				srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DARRAY;
+				srvDesc.ViewDimension = useMultisampling ? D3D11_SRV_DIMENSION_TEXTURE2DMSARRAY : D3D11_SRV_DIMENSION_TEXTURE2DARRAY;
 				srvDesc.Texture2DArray.ArraySize = texture.ArraySize;
 				srvDesc.Texture2DArray.FirstArraySlice = 0;
 				srvDesc.Texture2DArray.MipLevels = texture.NumMips;

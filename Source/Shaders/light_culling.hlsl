@@ -14,7 +14,12 @@ cbuffer CameraCB : register(b2)
 }
 
 StructuredBuffer<Light> Lights : register(t0);
+
+#ifdef MULTISAMPLE_DEPTH
+Texture2DMS<float> DepthTexture : register(t1);
+#else
 Texture2D<float> DepthTexture : register(t1);
+#endif
 
 RWStructuredBuffer<uint> VisibleLights : register(u0);
 
@@ -79,13 +84,15 @@ void CS(uint3 threadID : SV_DispatchThreadID, uint3 groupID : SV_GroupID, uint3 
 
 	// Step 2: Min and max Z
 
-	float maxZ, minZ;
-
 	const uint3 readPixelCoord = uint3(min(pixelCoord.x, SceneInfoData.ScreenSize.x - 1), min(pixelCoord.y, SceneInfoData.ScreenSize.y - 1), 0);
-	float depth = DepthTexture.Load(readPixelCoord);
+
+#ifdef MULTISAMPLE_DEPTH
+	const float depth = DepthTexture.Load(readPixelCoord, 0);
+#else
+	const float depth = DepthTexture.Load(readPixelCoord);
+#endif
 	
 	const uint ZUint = asuint(depth);
-
 	InterlockedMin(gsMinZ, ZUint);
 	InterlockedMax(gsMaxZ, ZUint);
 
@@ -95,8 +102,8 @@ void CS(uint3 threadID : SV_DispatchThreadID, uint3 groupID : SV_GroupID, uint3 
 
 	if (isMainThread)
 	{
-		minZ = asfloat(gsMinZ);
-		maxZ = asfloat(gsMaxZ);
+		const float minZ = asfloat(gsMinZ);
+		const float maxZ = asfloat(gsMaxZ);
 
 		const float2 tileSizeNormalized = float2(TILE_SIZE, TILE_SIZE) / float2(SceneInfoData.ScreenSize);
 

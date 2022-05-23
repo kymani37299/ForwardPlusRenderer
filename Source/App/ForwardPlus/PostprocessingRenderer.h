@@ -16,6 +16,7 @@ private:
 
 	TextureID m_TAAHistory[2]; // 0 - current frame, 1 - last frame
 	TextureID m_PostprocessingResult;
+	TextureID m_ResolvedColor;
 
 	BufferID m_PostprocessingSettingsBuffer;
 };

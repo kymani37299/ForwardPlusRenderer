@@ -36,6 +36,8 @@ namespace GFX
 		void CopyToTexture(ID3D11DeviceContext* context, TextureID srcTexture, TextureID dstTexture, uint32_t mipIndex = 0);
 		void CopyToBuffer(ID3D11DeviceContext* context, BufferID srcBuffer, uint32_t srcOffset, BufferID dstBuffer, uint32_t dstOffset, uint32_t size);
 
+		void ResolveTexture(ID3D11DeviceContext* context, TextureID srcTexture, TextureID dstTexture);
+
 		template<uint32_t stage>
 		void SetupStaticSamplers(ID3D11DeviceContext* context)
 		{
