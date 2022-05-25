@@ -275,13 +275,33 @@ private:
 	std::vector<uint32_t> m_IndexBuffer;
 };
 
+class TextureStorage
+{
+public:
+	struct Allocation
+	{
+		uint32_t TextureIndex;
+	};
+
+	static constexpr uint32_t MAX_TEXTURES = 500;
+	static constexpr uint32_t TEXTURE_MIPS = 8;
+	static constexpr uint32_t TEXTURE_SIZE = 1024;
+
+	void Initialize();
+	Allocation AddTexture(ID3D11DeviceContext* context, TextureID texture);
+	TextureID GetBuffer() const { return m_Data; }
+
+private:
+	TextureID m_Data;
+	TextureID m_StagingTexture;
+	std::atomic<uint32_t> m_NextAllocation = 0;
+};
+
 // Group of data that can be rendered at once
 struct RenderGroup
 {
 	static constexpr uint32_t MAX_DRAWABLES = 100000;
-	static constexpr uint32_t MAX_TEXTURES = 500;
-	static constexpr uint32_t TEXTURE_MIPS = 8;
-	static constexpr uint32_t TEXTURE_SIZE = 1024;
+
 
 	RenderGroup();
 	void Initialize(ID3D11DeviceContext* context);
@@ -291,8 +311,7 @@ struct RenderGroup
 	ElementBuffer<Mesh> Meshes;
 	ElementBuffer<Drawable> Drawables;
 
-	std::atomic<uint32_t> NextTextureIndex = 0;
-	TextureID TextureData;
+	TextureStorage TextureData;
 	MeshStorage MeshData;
 
 	BitField VisibilityMask;

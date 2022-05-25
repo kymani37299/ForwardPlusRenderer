@@ -327,7 +327,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			if (DebugToolsConfig.UsePBR) configuration.push_back("USE_PBR");
 
 			GFX::Cmd::BindShader<VS|PS>(context, m_GeometryShader, configuration, true);
-			GFX::Cmd::BindSRV<PS>(context, renderGroup.TextureData, 0);
+			GFX::Cmd::BindSRV<PS>(context, renderGroup.TextureData.GetBuffer(), 0);
 			GFX::Cmd::BindSRV<PS>(context, renderGroup.Materials.GetBuffer(), 6);
 			GFX::Cmd::BindSRV<VS|PS>(context, renderGroup.Drawables.GetBuffer(), 7);
 			GFX::Cmd::BindVertexBuffers(context, { meshStorage.GetPositions(), meshStorage.GetTexcoords(), meshStorage.GetNormals(), meshStorage.GetTangents(), meshStorage.GetDrawableIndexes() });

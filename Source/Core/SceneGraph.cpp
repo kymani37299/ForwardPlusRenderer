@@ -208,12 +208,11 @@ RenderGroup::RenderGroup():
 
 void RenderGroup::Initialize(ID3D11DeviceContext* context)
 {
-
 	Materials.Initialize();
 	Meshes.Initialize();
 	Drawables.Initialize();
 	MeshData.Initialize();
-	TextureData = GFX::CreateTextureArray(TEXTURE_SIZE, TEXTURE_SIZE, MAX_TEXTURES, RCF_Bind_SRV | RCF_CopyDest, TEXTURE_MIPS);
+	TextureData.Initialize();
 }
 
 Drawable RenderGroup::CreateDrawable(ID3D11DeviceContext* context, Material& material, Mesh& mesh, BoundingSphere& boundingSphere, const Entity& entity)
@@ -381,4 +380,49 @@ MeshStorage::Allocation MeshStorage::Allocate(ID3D11DeviceContext* context, uint
 	m_IndexBuffer.resize((size_t) wantedIBSize * GetIndexBufferStride());
 
 	return alloc;
+}
+
+void TextureStorage::Initialize()
+{
+	m_Data = GFX::CreateTextureArray(TEXTURE_SIZE, TEXTURE_SIZE, MAX_TEXTURES, RCF_Bind_SRV | RCF_CopyDest, TEXTURE_MIPS);
+	m_StagingTexture = GFX::CreateTexture(TEXTURE_SIZE, TEXTURE_SIZE, RCF_Bind_RTV | RCF_GenerateMips | RCF_Bind_SRV, TEXTURE_MIPS);
+}
+
+TextureStorage::Allocation TextureStorage::AddTexture(ID3D11DeviceContext* context, TextureID texture)
+{
+	const uint32_t textureIndex = m_NextAllocation++;
+	ASSERT(textureIndex < MAX_TEXTURES, "textureIndex < SceneGraph::MAX_TEXTURES");
+
+	const Texture& stagingTex = GFX::Storage::GetTexture(m_StagingTexture);
+
+	// Resize texture and generate mips
+	ID3D11DeviceContext* c = context;
+
+	GFX::Cmd::MarkerBegin(c, "CopyTexture");
+	GFX::Cmd::SetupStaticSamplers<PS>(c);
+	GFX::Cmd::BindShader<VS | PS>(c, Device::Get()->GetCopyShader());
+	c->OMSetRenderTargets(1, stagingTex.RTV.GetAddressOf(), nullptr);
+	GFX::Cmd::SetViewport(c, { (float)TEXTURE_SIZE, (float)TEXTURE_SIZE });
+	GFX::Cmd::BindVertexBuffer(c, Device::Get()->GetQuadBuffer());
+	GFX::Cmd::BindSRV<PS>(c, texture, 0);
+	c->Draw(6, 0);
+	GFX::Cmd::MarkerEnd(c);
+
+	c->GenerateMips(stagingTex.SRV.Get());
+
+	GFX::Storage::Free(texture);
+
+	// Copy to the array
+	const Texture& dataTex = GFX::Storage::GetTexture(m_Data);
+
+	ASSERT(stagingTex.Format == dataTex.Format, "stagingTex.Format == tex.Format");
+
+	for (uint32_t mip = 0; mip < dataTex.NumMips; mip++)
+	{
+		uint32_t srcSubresource = D3D11CalcSubresource(mip, 0, stagingTex.NumMips);
+		uint32_t dstSubresource = D3D11CalcSubresource(mip, textureIndex, dataTex.NumMips);
+		c->CopySubresourceRegion(dataTex.Handle.Get(), dstSubresource, 0, 0, 0, stagingTex.Handle.Get(), srcSubresource, nullptr);
+	}
+
+	return { textureIndex };
 }

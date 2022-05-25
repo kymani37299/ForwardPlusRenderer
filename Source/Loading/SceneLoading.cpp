@@ -146,46 +146,6 @@ namespace SceneLoading
 			return bs;
 		}
 
-		uint32_t AddTexture(const LoadingContext& context, TextureID texture)
-		{
-			static TextureID stagingTexture;
-			if (!stagingTexture.Valid()) stagingTexture = GFX::CreateTexture(RenderGroup::TEXTURE_SIZE, RenderGroup::TEXTURE_SIZE, RCF_Bind_RTV | RCF_GenerateMips | RCF_Bind_SRV, RenderGroup::TEXTURE_MIPS);
-
-			const Texture& stagingTex = GFX::Storage::GetTexture(stagingTexture);
-			
-			// Resize texture and generate mips
-			ID3D11DeviceContext* c = context.GfxContext;
-
-			GFX::Cmd::MarkerBegin(c, "CopyTexture");
-			GFX::Cmd::SetupStaticSamplers<PS>(c);
-			GFX::Cmd::BindShader<VS|PS>(c, Device::Get()->GetCopyShader());
-			c->OMSetRenderTargets(1, stagingTex.RTV.GetAddressOf(), nullptr);
-			GFX::Cmd::SetViewport(c, { (float) RenderGroup::TEXTURE_SIZE, (float) RenderGroup::TEXTURE_SIZE });
-			GFX::Cmd::BindVertexBuffer(c, Device::Get()->GetQuadBuffer());
-			GFX::Cmd::BindSRV<PS>(c, texture, 0);
-			c->Draw(6, 0);
-			GFX::Cmd::MarkerEnd(c);
-			
-			c->GenerateMips(stagingTex.SRV.Get());
-
-			GFX::Storage::Free(texture);
-
-			// Copy to the array
-			const Texture& textureArray = GFX::Storage::GetTexture(context.LoadingRG->TextureData);
-			const uint32_t textureIndex = context.LoadingRG->NextTextureIndex++;
-			ASSERT(textureIndex < RenderGroup::MAX_TEXTURES, "textureIndex < SceneGraph::MAX_TEXTURES");
-			ASSERT(stagingTex.Format == textureArray.Format, "stagingTex.Format == tex.Format");
-
-			for (uint32_t mip = 0; mip < textureArray.NumMips; mip++)
-			{
-				uint32_t srcSubresource = D3D11CalcSubresource(mip, 0, stagingTex.NumMips);
-				uint32_t dstSubresource = D3D11CalcSubresource(mip, textureIndex, textureArray.NumMips);
-				c->CopySubresourceRegion(textureArray.Handle.Get(), dstSubresource, 0, 0, 0, stagingTex.Handle.Get(), srcSubresource, nullptr);
-			}
-
-			return textureIndex;
-		}
-
 		uint32_t LoadTexture(const LoadingContext& context, cgltf_texture* texture, ColorUNORM defaultColor = {1.0f, 1.0f, 1.0f, 1.0f})
 		{
 			TextureID tex;
@@ -200,7 +160,7 @@ namespace SceneLoading
 				tex = GFX::CreateTexture(1, 1, RCF_Bind_SRV, 1, DXGI_FORMAT_R8G8B8A8_UNORM, &defaultColor);
 			}
 			
-			return AddTexture(context, tex);
+			return context.LoadingRG->TextureData.AddTexture(context.GfxContext, tex).TextureIndex;
 		}
 
 		static Float3 ToFloat3(cgltf_float color[3])
