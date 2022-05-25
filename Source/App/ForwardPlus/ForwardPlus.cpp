@@ -249,21 +249,39 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		PipelineState pso = GFX::DefaultPipelineState();
 		pso.DS.DepthEnable = true;
 
-		RenderGroup& renderGroup = MainSceneGraph.RenderGroups[EnumToInt(RenderGroupType::Opaque)];
-		const MeshStorage& meshStorage = renderGroup.MeshData;
-		const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, renderGroup);
+		RenderGroupType prepassTypes[] = { RenderGroupType::Opaque, RenderGroupType::AlphaDiscard };
+		for (uint32_t i = 0; i < STATIC_ARRAY_SIZE(prepassTypes); i++)
+		{
+			RenderGroupType rgType = IntToEnum<RenderGroupType>(i);
+			RenderGroup& renderGroup = MainSceneGraph.RenderGroups[i];
+			const MeshStorage& meshStorage = renderGroup.MeshData;
+			const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, renderGroup);
 
-		GFX::Cmd::BindRenderTarget(context, m_MotionVectorRT, m_MainRT_Depth);
-		GFX::Cmd::SetPipelineState(context, pso);
-		GFX::Cmd::BindShader<VS|PS>(context, m_DepthPrepassShader, {}, true);
-		GFX::Cmd::BindCBV<VS|PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
-		GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.LastFrameCameraBuffer, 1);
-		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.SceneInfoBuffer, 2);
-		GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Entities.GetBuffer(), 0);
-		GFX::Cmd::BindSRV<VS>(context, renderGroup.Drawables.GetBuffer(), 1);
-		GFX::Cmd::BindVertexBuffers(context, { meshStorage.GetPositions(), meshStorage.GetDrawableIndexes() });
-		GFX::Cmd::BindIndexBuffer(context, m_IndexBuffer);
-		context->DrawIndexed(indexCount, 0, 0);
+			std::vector<std::string> config{};
+
+			GFX::Cmd::BindRenderTarget(context, m_MotionVectorRT, m_MainRT_Depth);
+			GFX::Cmd::SetPipelineState(context, pso);
+			GFX::Cmd::BindCBV<VS | PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
+			GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.LastFrameCameraBuffer, 1);
+			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.SceneInfoBuffer, 2);
+			GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Entities.GetBuffer(), 0);
+			GFX::Cmd::BindSRV<VS>(context, renderGroup.Drawables.GetBuffer(), 1);
+			if (rgType == RenderGroupType::AlphaDiscard)
+			{
+				config.push_back("ALPHA_DISCARD");
+				GFX::Cmd::SetupStaticSamplers<PS>(context);
+				GFX::Cmd::BindSRV<PS>(context, renderGroup.TextureData.GetBuffer(), 3);
+				GFX::Cmd::BindSRV<PS>(context, renderGroup.Materials.GetBuffer(), 4);
+				GFX::Cmd::BindVertexBuffers(context, { meshStorage.GetPositions(), meshStorage.GetDrawableIndexes(), meshStorage.GetTexcoords() });
+			}
+			else
+			{
+				GFX::Cmd::BindVertexBuffers(context, { meshStorage.GetPositions(), meshStorage.GetDrawableIndexes() });
+			}
+			GFX::Cmd::BindShader<VS | PS>(context, m_DepthPrepassShader, config, true);
+			GFX::Cmd::BindIndexBuffer(context, m_IndexBuffer);
+			context->DrawIndexed(indexCount, 0, 0);
+		}
 		GFX::Cmd::MarkerEnd(context);
 	}
 	
