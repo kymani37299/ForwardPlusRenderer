@@ -215,37 +215,62 @@ void RenderGroup::Initialize(ID3D11DeviceContext* context)
 	TextureData.Initialize();
 }
 
-Drawable RenderGroup::CreateDrawable(ID3D11DeviceContext* context, Material& material, Mesh& mesh, BoundingSphere& boundingSphere, const Entity& entity)
+uint32_t RenderGroup::AddMaterial(ID3D11DeviceContext* context, Material& material)
 {
-	const uint32_t dIndex = Drawables.Next();
-	const uint32_t matIndex = Materials.Next();
-	const uint32_t mIndex = Meshes.Next();
-
-	Drawable drawable;
-	drawable.DrawableIndex = dIndex;
-	drawable.MaterialIndex = matIndex;
-	drawable.MeshIndex = mIndex;
-	drawable.EntityIndex = entity.EntityIndex;
-	drawable.BoundingVolume = boundingSphere;
-
-	material.MaterialIndex = matIndex;
-	mesh.MeshIndex = mIndex;
-
-	Drawables[dIndex] = drawable;
-	Materials[matIndex] = material;
-	Meshes[mIndex] = mesh;
+	const uint32_t index = Materials.Next();
+	material.MaterialIndex = index;
+	Materials[index] = material;
 
 	if (Device::Get()->IsMainContext(context))
 	{
 		material.UpdateBuffer(context, *this);
-		drawable.UpdateBuffer(context, *this);
 	}
 	else
 	{
 		NOT_IMPLEMENTED;
 	}
+	return index;
+}
 
-	return drawable;
+uint32_t RenderGroup::AddMesh(ID3D11DeviceContext* context, Mesh& mesh)
+{
+	const uint32_t index = Meshes.Next();
+	mesh.MeshIndex = index;
+	Meshes[index] = mesh;
+	return index;
+}
+
+void RenderGroup::AddDraw(ID3D11DeviceContext* context, uint32_t materialIndex, uint32_t meshIndex, uint32_t entityIndex, const BoundingSphere& boundingSphere)
+{
+	const uint32_t index = Drawables.Next();
+	
+	Drawable drawable;
+	drawable.DrawableIndex = index;
+	drawable.MaterialIndex = materialIndex;
+	drawable.MeshIndex = meshIndex;
+	drawable.EntityIndex = entityIndex;
+	drawable.BoundingVolume = boundingSphere;
+	Drawables[index] = drawable;
+
+	if (Device::Get()->IsMainContext(context))
+	{
+		// TODO: find a way not to bind mesh to one drawable
+		drawable.UpdateBuffer(context, *this);
+
+		const uint32_t vertCount = Meshes[index].VertCount;
+		const uint32_t vertOffset = Meshes[index].VertOffset;
+		std::vector<uint32_t> drawIndexData;
+		drawIndexData.resize(vertCount);
+		for (uint32_t i = 0; i < vertCount; i++)
+		{
+			drawIndexData[i] = index;
+		}
+		GFX::Cmd::UploadToBuffer(context, MeshData.GetDrawableIndexes(), vertOffset * MeshStorage::GetDrawableIndexStride(), drawIndexData.data(), 0, drawIndexData.size() * MeshStorage::GetDrawableIndexStride());
+	}
+	else
+	{
+		NOT_IMPLEMENTED;
+	}
 }
 
 SceneGraph::SceneGraph() :
@@ -290,17 +315,22 @@ void SceneGraph::FrameUpdate(ID3D11DeviceContext* context)
 	}
 }
 
-Entity& SceneGraph::CreateEntity(ID3D11DeviceContext* context, Float3 position, Float3 scale)
+uint32_t SceneGraph::AddEntity(ID3D11DeviceContext* context, Entity entity)
 {
-	const uint32_t eIndex = Entities.Next();
+	const uint32_t index = Entities.Next();
+	entity.EntityIndex = index;
+	Entities[index] = entity;
+	
+	if (Device::Get()->IsMainContext(context))
+	{
+		entity.UpdateBuffer(context);
+	}
+	else
+	{
+		NOT_IMPLEMENTED;
+	}
 
-	Entity& e = Entities[eIndex];
-	e.EntityIndex = eIndex;
-	e.Position = position;
-	e.Scale = scale;
-	e.UpdateBuffer(context);
-
-	return Entities[eIndex];
+	return index;
 }
 
 Light SceneGraph::CreateDirectionalLight(ID3D11DeviceContext* context, Float3 direction, Float3 color)

@@ -36,25 +36,34 @@ namespace ForwardPlusPrivate
 
 		if (AppConfig.Settings.contains("SIMPLE_SCENE"))
 		{
-			Entity& plane = MainSceneGraph.CreateEntity(context, { 0.0f, -10.0f, 0.0f }, { 10000.0f, 1.0f, 10000.0f });
-			SceneLoading::LoadEntity("Resources/cube/cube.gltf", plane);
+			Entity plane{};
+			plane.Position = { 0.0f, -10.0f, 0.0f };
+			plane.Scale = { 10000.0f, 1.0f, 10000.0f };
+			uint32_t planeIndex = MainSceneGraph.AddEntity(context, plane);
+			SceneLoading::LoadedScene planeScene = SceneLoading::Load("Resources/cube/cube.gltf");
+			SceneLoading::AddDraws(planeScene, planeIndex);
 
 			constexpr uint32_t NUM_CUBES = 50;
 			for (uint32_t i = 0; i < NUM_CUBES; i++)
 			{
 				const Float3 position = Float3{ Random::SNorm(), Random::SNorm(), Random::SNorm() } *Float3{ 100.0f, 100.0f, 100.0f };
 				const Float3 scale = Float3{ Random::Float(0.1f, 10.0f), Random::Float(0.1f, 10.0f) , Random::Float(0.1f, 10.0f) };
-				Entity& cube = MainSceneGraph.CreateEntity(context, position, scale);
-				SceneLoading::LoadEntity("Resources/cube/cube.gltf", cube);
+				Entity cube{};
+				cube.Position = { 0.0f, -10.0f, 0.0f };
+				cube.Scale = { 10000.0f, 1.0f, 10000.0f };
+				uint32_t cubeIndex = MainSceneGraph.AddEntity(context, cube);
+				SceneLoading::LoadedScene cubeScene = SceneLoading::Load("Resources/cube/cube.gltf");
+				SceneLoading::AddDraws(cubeScene, cubeIndex);
 			}
 		}
 		else
 		{
-			Entity& e1 = MainSceneGraph.CreateEntity(context, { 0.0f, 0.0f, 0.0f }, { 0.1f, 0.1f, 0.1f });
-			Entity& e2 = MainSceneGraph.CreateEntity(context);
-
-			SceneLoading::LoadEntityInBackground("Resources/sponza/sponza.gltf", e1);
-			SceneLoading::LoadEntity("Resources/cube/cube.gltf", e2);
+			Entity e{};
+			e.Position = { 0.0f, 0.0f, 0.0f };
+			e.Scale = { 0.1f, 0.1f, 0.1f };
+			uint32_t eIndex = MainSceneGraph.AddEntity(context, e);
+			SceneLoading::LoadedScene scene = SceneLoading::Load("Resources/sponza/sponza.gltf");
+			SceneLoading::AddDraws(scene, eIndex);
 		}
 
 	}

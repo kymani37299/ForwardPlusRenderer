@@ -25,10 +25,15 @@ namespace SceneLoading
 		{
 			std::string RelativePath;
 			ID3D11DeviceContext* GfxContext;
-			Entity* LoadingEntity;
 			SceneGraph* LoadingScene;
 			RenderGroup* LoadingRG;
+			RenderGroupType RGType;
 		};
+
+		static Float3 ToFloat3(cgltf_float color[3])
+		{
+			return Float3{ color[0], color[1], color[2] };
+		}
 
 		void* GetBufferData(cgltf_accessor* accessor)
 		{
@@ -61,9 +66,11 @@ namespace SceneLoading
 			GFX::Cmd::UploadToBuffer(context.GfxContext, buffer, offset * sizeof(T), attributeData, 0, vertexAttribute->data->count * sizeof(T));
 		}
 
-		Mesh LoadMesh(const LoadingContext& context, MeshStorage& meshStorage, cgltf_primitive* meshData)
+		uint32_t LoadMesh(const LoadingContext& context, cgltf_primitive* meshData)
 		{
 			ASSERT(meshData->type == cgltf_primitive_type_triangles, "[SceneLoading] Scene contains quad meshes. We are supporting just triangle meshes.");
+
+			MeshStorage& meshStorage = context.LoadingRG->MeshData;
 
 			Mesh mesh;
 			mesh.VertCount = meshData->attributes[0].data->count;
@@ -98,7 +105,7 @@ namespace SceneLoading
 
 			UpdateIB(context, meshData->indices, meshStorage.GetIndexBuffer(), mesh);
 
-			return mesh;
+			return context.LoadingRG->AddMesh(context.GfxContext, mesh);
 		}
 
 		BoundingSphere CalculateBoundingSphere(cgltf_primitive* meshData)
@@ -163,12 +170,15 @@ namespace SceneLoading
 			return context.LoadingRG->TextureData.AddTexture(context.GfxContext, tex).TextureIndex;
 		}
 
-		static Float3 ToFloat3(cgltf_float color[3])
+		RenderGroupType GetRenderGroupType(const Material& material)
 		{
-			return Float3{ color[0], color[1], color[2] };
+			RenderGroupType rgType = RenderGroupType::Opaque;
+			if (material.UseBlend) rgType = RenderGroupType::Transparent;
+			else if (material.UseAlphaDiscard) rgType = RenderGroupType::AlphaDiscard;
+			return rgType;
 		}
 
-		Material LoadMaterial(LoadingContext& context, cgltf_material* materialData)
+		uint32_t LoadMaterial(LoadingContext& context, cgltf_material* materialData)
 		{
 			ASSERT(materialData->has_pbr_metallic_roughness, "[SceneLoading] Every material must have a base color texture!");
 
@@ -181,78 +191,32 @@ namespace SceneLoading
 			material.MetallicFactor = mat.metallic_factor;
 			material.RoughnessFactor = mat.roughness_factor;
 
-			// Load render group based on material
-			RenderGroupType rgType = RenderGroupType::Opaque;
-			if (material.UseBlend) rgType = RenderGroupType::Transparent;
-			else if (material.UseAlphaDiscard) rgType = RenderGroupType::AlphaDiscard;
-			context.LoadingRG = &context.LoadingScene->RenderGroups[EnumToInt(rgType)];
+			context.RGType = GetRenderGroupType(material);
+			context.LoadingRG = &context.LoadingScene->RenderGroups[EnumToInt(context.RGType)];
 
 			material.Albedo = LoadTexture(context, mat.base_color_texture.texture);
 			material.MetallicRoughness = LoadTexture(context, mat.metallic_roughness_texture.texture);
 			material.Normal = LoadTexture(context, materialData->normal_texture.texture, ColorUNORM(0.5f, 0.5f, 1.0f, 1.0f));
 
-			return material;
+			return context.LoadingRG->AddMaterial(context.GfxContext, material);
 		}
 
-		Drawable LoadDrawable(LoadingContext& context, cgltf_primitive* meshData)
+		LoadedObject LoadObject(LoadingContext& context, cgltf_primitive* objectData)
 		{
-			Material material = LoadMaterial(context, meshData->material);
-			MeshStorage& meshStorage = context.LoadingRG->MeshData;
-
-			Mesh mesh = LoadMesh(context, meshStorage, meshData);
-			BoundingSphere boundingSphere = CalculateBoundingSphere(meshData);
-			Drawable drawable = context.LoadingRG->CreateDrawable(context.GfxContext, material, mesh, boundingSphere, *context.LoadingEntity);
-
-			std::vector<uint32_t> drawIndexData;
-			uint32_t drawIndex = drawable.DrawableIndex;
-			drawIndexData.resize(mesh.VertCount);
-			for (uint32_t i = 0; i < mesh.VertCount; i++)
-			{
-				drawIndexData[i] = drawIndex;
-			}
-			GFX::Cmd::UploadToBuffer(context.GfxContext, meshStorage.GetDrawableIndexes(), mesh.VertOffset * MeshStorage::GetDrawableIndexStride(), drawIndexData.data(), 0, drawIndexData.size() * MeshStorage::GetDrawableIndexStride());
-			
-			return drawable;
+			LoadedObject object{};
+			object.MaterialIndex = LoadMaterial(context, objectData->material);
+			object.RenderGroup = context.RGType;
+			object.MeshIndex = LoadMesh(context, objectData);
+			object.BoundingVolume = CalculateBoundingSphere(objectData);
+			return object;
 		}
 	}
 	
-	void LoadEntity(const std::string& path, Entity& entityOut)
-	{
-		const std::string& ext = PathUtility::GetFileExtension(path);
-		if (ext != "gltf")
-		{
-			ASSERT(0, "[SceneLoading] For now we only support glTF 3D format.");
-			return;
-		}
-
-		LoadingContext context{};
-		context.RelativePath = PathUtility::GetPathWitoutFile(path);
-		context.GfxContext = Device::Get()->GetContext();
-		context.LoadingEntity = &entityOut;
-		context.LoadingScene = &MainSceneGraph;
-
-		cgltf_options options = {};
-		cgltf_data* data = NULL;
-		CGTF_CALL(cgltf_parse_file(&options, path.c_str(), &data));
-		CGTF_CALL(cgltf_load_buffers(&options, data, path.c_str()));
-
-		for (size_t i = 0; i < data->meshes_count; i++)
-		{
-			cgltf_mesh* meshData = (data->meshes + i);
-			for (size_t j = 0; j < meshData->primitives_count; j++)
-			{
-				LoadDrawable(context, meshData->primitives + j);
-			}
-		}
-		cgltf_free(data);
-	}
-
-	class EntityLoadingTask : public LoadingTask
+	class SceneLoadingTask : public LoadingTask
 	{
 	public:
-		EntityLoadingTask(const std::string& path, Entity& entity) :
-			m_Path(path),
-			m_Entity(entity) {}
+		SceneLoadingTask(const std::string& path) :
+			m_Path(path) {}
 
 
 		void Run(ID3D11DeviceContext* context) override
@@ -272,7 +236,6 @@ namespace SceneLoading
 			LoadingContext loadingContext{};
 			loadingContext.RelativePath = PathUtility::GetPathWitoutFile(m_Path);
 			loadingContext.GfxContext = context;
-			loadingContext.LoadingEntity = &m_Entity;
 			loadingContext.LoadingScene = &MainSceneGraph;
 
 			uint32_t pendingDrawables = 0;
@@ -283,7 +246,8 @@ namespace SceneLoading
 				{
 					if (ShouldStop()) break; // Something requested stop
 
-					LoadDrawable(loadingContext, meshData->primitives + j);
+					// TODO: Do something to add into drawables
+					LoadedObject object = LoadObject(loadingContext, meshData->primitives + j);
 					pendingDrawables++;
 
 					if (pendingDrawables >= BATCH_SIZE)
@@ -292,7 +256,7 @@ namespace SceneLoading
 						GFX::Cmd::ResetContext(context);
 						pendingDrawables = 0;
 					}
-					
+
 				}
 			}
 
@@ -304,28 +268,58 @@ namespace SceneLoading
 
 	private:
 		std::string m_Path;
-		Entity& m_Entity;
 
 		static constexpr uint32_t BATCH_SIZE = 4;
 	};
 
-	void LoadEntityInBackground(const std::string& path, Entity& entityOut)
+	LoadedScene Load(const std::string& path, bool inBackground)
 	{
+		LoadedScene scene;
+
 		static constexpr bool ENABLE_BG_LOADING = false;
-		if constexpr (ENABLE_BG_LOADING)
+		if (!inBackground || ENABLE_BG_LOADING || AppConfig.Settings.contains("NO_BG_LOADING"))
 		{
-			if (AppConfig.Settings.contains("NO_BG_LOADING"))
+			const std::string& ext = PathUtility::GetFileExtension(path);
+			if (ext != "gltf")
 			{
-				LoadEntity(path, entityOut);
+				ASSERT(0, "[SceneLoading] For now we only support glTF 3D format.");
+				return scene;
 			}
-			else
+
+			LoadingContext context{};
+			context.RelativePath = PathUtility::GetPathWitoutFile(path);
+			context.GfxContext = Device::Get()->GetContext();
+			context.LoadingScene = &MainSceneGraph;
+
+			cgltf_options options = {};
+			cgltf_data* data = NULL;
+			CGTF_CALL(cgltf_parse_file(&options, path.c_str(), &data));
+			CGTF_CALL(cgltf_load_buffers(&options, data, path.c_str()));
+
+			for (size_t i = 0; i < data->meshes_count; i++)
 			{
-				LoadingThread::Get()->Submit(new EntityLoadingTask(path, entityOut));
+				cgltf_mesh* meshData = (data->meshes + i);
+				for (size_t j = 0; j < meshData->primitives_count; j++)
+				{
+					scene.push_back(LoadObject(context, meshData->primitives + j));
+				}
 			}
+			cgltf_free(data);
 		}
 		else
 		{
-			LoadEntity(path, entityOut);
+			LoadingThread::Get()->Submit(new SceneLoadingTask(path));
+		}
+
+		return scene;
+	}
+
+	void AddDraws(LoadedScene scene, uint32_t entityIndex)
+	{
+		for (const LoadedObject& obj : scene)
+		{
+			RenderGroup& rg = MainSceneGraph.RenderGroups[EnumToInt(obj.RenderGroup)];
+			rg.AddDraw(Device::Get()->GetContext(), obj.MaterialIndex, obj.MeshIndex, entityIndex, obj.BoundingVolume);
 		}
 	}
 }

@@ -302,10 +302,11 @@ struct RenderGroup
 {
 	static constexpr uint32_t MAX_DRAWABLES = 100000;
 
-
 	RenderGroup();
 	void Initialize(ID3D11DeviceContext* context);
-	Drawable CreateDrawable(ID3D11DeviceContext* context, Material& material, Mesh& mesh, BoundingSphere& boundingSphere, const Entity& entity);
+	uint32_t AddMaterial(ID3D11DeviceContext* context, Material& material);
+	uint32_t AddMesh(ID3D11DeviceContext* context, Mesh& mesh);
+	void AddDraw(ID3D11DeviceContext* context, uint32_t materialIndex, uint32_t meshIndex, uint32_t entityIndex, const BoundingSphere& boundingSphere);
 
 	ElementBuffer<Material> Materials;
 	ElementBuffer<Mesh> Meshes;
@@ -334,7 +335,7 @@ struct SceneGraph
 	void InitRenderData(ID3D11DeviceContext* context);
 
 	void FrameUpdate(ID3D11DeviceContext* context);
-	Entity& CreateEntity(ID3D11DeviceContext* context, Float3 position = { 0.0f, 0.0f, 0.0f }, Float3 scale = { 1.0f, 1.0f, 1.0f });
+	uint32_t AddEntity(ID3D11DeviceContext* context, Entity entity);
 
 	Light CreateDirectionalLight(ID3D11DeviceContext* context, Float3 direction, Float3 color);
 	Light CreateAmbientLight(ID3D11DeviceContext* context, Float3 color);
