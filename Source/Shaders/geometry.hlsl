@@ -4,15 +4,6 @@
 #include "light_culling.h"
 #include "util.h"
 
-struct VertexInput
-{
-	float3 Position : SV_POSITION;
-	float2 UV : TEXCOORD;
-	float3 Normal : NORMAL;
-	float4 Tangent : TANGENT;
-	uint DrawableIndex : DRAWABLE_INDEX;
-};
-
 struct VertexOut
 {
 	float4 Position : SV_POSITION;
@@ -38,18 +29,26 @@ StructuredBuffer<Entity> Entities : register(t5);
 StructuredBuffer<Material> Materials : register(t6);
 StructuredBuffer<Drawable> Drawables : register(t7);
 StructuredBuffer<uint> VisibleLights : register(t8);
+StructuredBuffer<Mesh> Meshes : register(t9);
+StructuredBuffer<Vertex> Vertices : register(t10);
+StructuredBuffer<uint> Indices : register(t11);
 
-VertexOut VS(VertexInput IN)
+VertexOut VS(uint LocalOffset : LOCAL_OFFSET, uint MeshletInstance : I_MESHLET_INSTANCE, uint DrawableInstance : I_DRAWABLE_INSTANCE)
 {
-	Drawable d = Drawables[IN.DrawableIndex];
+    const Drawable d = Drawables[DrawableInstance];
+    const Mesh m = Meshes[d.MeshIndex];
+	
+    uint index = m.IndexOffset + LocalOffset + MeshletInstance * MESHLET_INDEX_COUNT;
+    const Vertex vert = Vertices[Indices[index]]; // TODO: Delete index buffer indirection
+	
 	const uint entityIndex = d.EntityIndex;
 	const float4x4 modelToWorld = Entities[entityIndex].ModelToWorld;
 
 	VertexOut OUT;
-	OUT.Position = GetClipPosWithJitter(IN.Position, modelToWorld, CamData);
-	OUT.WorldPosition = mul(float4(IN.Position, 1.0), modelToWorld);
-	OUT.Normal = mul(IN.Normal, (float3x3) modelToWorld); // Assumes nonuniform scaling; otherwise, need to use inverse-transpose of world matrix.
-	OUT.UV = IN.UV;
+    OUT.Position = GetClipPosWithJitter(vert.Position, modelToWorld, CamData);
+    OUT.WorldPosition = mul(float4(vert.Position, 1.0), modelToWorld);
+    OUT.Normal = mul(vert.Normal, (float3x3) modelToWorld); // Assumes nonuniform scaling; otherwise, need to use inverse-transpose of world matrix.
+    OUT.UV = vert.Texcoord;
 	OUT.MaterialIndex = d.MaterialIndex;
 	return OUT;
 }

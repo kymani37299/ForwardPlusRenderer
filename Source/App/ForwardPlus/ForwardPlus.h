@@ -43,6 +43,8 @@ private:
 	TextureID m_MainRT_Depth;
 	TextureID m_MotionVectorRT;
 
-	BufferID m_IndexBuffer;
+	BufferID m_MeshletIndexBuffer;
+	BufferID m_DrawableInstanceBuffer;
+	BufferID m_MeshletInstanceBuffer;
 	BufferID m_VisibleLightsBuffer;
 };

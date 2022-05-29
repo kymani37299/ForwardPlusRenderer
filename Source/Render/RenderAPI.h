@@ -14,6 +14,8 @@
 
 #define SAFE_RELEASE(X) { if(X) X->Release(); }
 
-#define MESHLET_INDEX_COUNT 384
+// Note: Duplicate definition (see scene.h)
+#define MESHLET_TRIANGLE_COUNT 128
+#define MESHLET_INDEX_COUNT (3 * MESHLET_TRIANGLE_COUNT)
 
 using Microsoft::WRL::ComPtr;

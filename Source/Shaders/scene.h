@@ -20,12 +20,30 @@ struct Drawable
 {
 	uint EntityIndex;
 	uint MaterialIndex;
+	uint MeshIndex;
 };
 
 struct Entity
 {
 	float4x4 ModelToWorld;
 };
+
+struct Mesh
+{
+	uint VertexOffset;
+	uint IndexOffset;
+};
+
+struct Vertex
+{
+	float3 Position;
+	float2 Texcoord;
+	float3 Normal;
+	float4 Tangent;
+};
+
+#define MESHLET_TRIANGLE_COUNT 128
+#define MESHLET_INDEX_COUNT (3 * MESHLET_TRIANGLE_COUNT)
 
 struct Material
 {

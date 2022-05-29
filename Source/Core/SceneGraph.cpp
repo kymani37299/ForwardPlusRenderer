@@ -24,11 +24,18 @@ namespace
 		uint32_t MetallicRoughness;
 		uint32_t Normal;
 	};
+	
+	struct MeshSB
+	{
+		uint32_t VertexOffset;
+		uint32_t IndexOffset;
+	};
 
 	struct DrawableSB
 	{
 		uint32_t EntityIndex;
 		uint32_t MaterialIndex;
+		uint32_t MeshIndex;
 	};
 
 	struct LightSB
@@ -98,6 +105,16 @@ void Material::UpdateBuffer(ID3D11DeviceContext* context, RenderGroup& renderGro
 	GFX::Cmd::UploadToBuffer(context, renderGroup.Materials.GetBuffer(), MaterialIndex * sizeof(MaterialSB), &matSB, 0, sizeof(MaterialSB));
 }
 
+void Mesh::UpdateBuffer(ID3D11DeviceContext* context, RenderGroup& renderGroup)
+{
+	using namespace DirectX;
+
+	MeshSB meshSB{};
+	meshSB.VertexOffset = VertOffset;
+	meshSB.IndexOffset = IndexOffset;
+	GFX::Cmd::UploadToBuffer(context, renderGroup.Meshes.GetBuffer(), sizeof(MeshSB) * MeshIndex, &meshSB, 0, sizeof(MeshSB));
+}
+
 void Entity::UpdateBuffer(ID3D11DeviceContext* context)
 {
 	using namespace DirectX;
@@ -115,6 +132,7 @@ void Drawable::UpdateBuffer(ID3D11DeviceContext* context, RenderGroup& renderGro
 	DrawableSB drawableSB{};
 	drawableSB.EntityIndex = EntityIndex;
 	drawableSB.MaterialIndex = MaterialIndex;
+	drawableSB.MeshIndex = MeshIndex;
 	GFX::Cmd::UploadToBuffer(context, renderGroup.Drawables.GetBuffer(), sizeof(DrawableSB) * DrawableIndex, &drawableSB, 0, sizeof(DrawableSB));
 }
 
@@ -200,7 +218,7 @@ void Camera::FrameUpdate(ID3D11DeviceContext* context)
 
 RenderGroup::RenderGroup():
 	Materials(MAX_DRAWABLES, sizeof(MaterialSB)),
-	Meshes(MAX_DRAWABLES, 0),
+	Meshes(MAX_DRAWABLES, sizeof(MeshSB)),
 	Drawables(MAX_DRAWABLES, sizeof(DrawableSB))
 {
 
@@ -237,6 +255,16 @@ uint32_t RenderGroup::AddMesh(ID3D11DeviceContext* context, Mesh& mesh)
 	const uint32_t index = Meshes.Next();
 	mesh.MeshIndex = index;
 	Meshes[index] = mesh;
+
+	if (Device::Get()->IsMainContext(context))
+	{
+		mesh.UpdateBuffer(context, *this);
+	}
+	else
+	{
+		NOT_IMPLEMENTED;
+	}
+
 	return index;
 }
 
@@ -254,18 +282,7 @@ void RenderGroup::AddDraw(ID3D11DeviceContext* context, uint32_t materialIndex, 
 
 	if (Device::Get()->IsMainContext(context))
 	{
-		// TODO: find a way not to bind mesh to one drawable
 		drawable.UpdateBuffer(context, *this);
-
-		const uint32_t vertCount = Meshes[index].VertCount;
-		const uint32_t vertOffset = Meshes[index].VertOffset;
-		std::vector<uint32_t> drawIndexData;
-		drawIndexData.resize(vertCount);
-		for (uint32_t i = 0; i < vertCount; i++)
-		{
-			drawIndexData[i] = index;
-		}
-		GFX::Cmd::UploadToBuffer(context, MeshData.GetDrawableIndexes(), vertOffset * MeshStorage::GetDrawableIndexStride(), drawIndexData.data(), 0, drawIndexData.size() * MeshStorage::GetDrawableIndexStride());
 	}
 	else
 	{
@@ -387,11 +404,8 @@ namespace ElementBufferHelp
 
 void MeshStorage::Initialize()
 {
-	m_PositionBuffer = GFX::CreateBuffer(GetPositionStride(), GetPositionStride(), RCF_Bind_VB | RCF_CopyDest);
-	m_TexcoordBuffer = GFX::CreateBuffer(GetTexroordStride(), GetTexroordStride(), RCF_Bind_VB | RCF_CopyDest);
-	m_NormalBuffer = GFX::CreateBuffer(GetNormalStride(), GetNormalStride(), RCF_Bind_VB | RCF_CopyDest);
-	m_TangentBuffer = GFX::CreateBuffer(GetTangentStride(), GetTangentStride(), RCF_Bind_VB | RCF_CopyDest);
-	m_DrawableIndexBuffer = GFX::CreateBuffer(GetDrawableIndexStride(), GetDrawableIndexStride(), RCF_Bind_VB | RCF_CopyDest);
+	m_VertexBuffer = GFX::CreateBuffer(GetVertexBufferStride(), GetVertexBufferStride(), RCF_Bind_SB | RCF_CopyDest);
+	m_IndexBuffer = GFX::CreateBuffer(GetIndexBufferStride(), GetIndexBufferStride(), RCF_Bind_SB | RCF_CopyDest);
 }
 
 MeshStorage::Allocation MeshStorage::Allocate(ID3D11DeviceContext* context, uint32_t vertexCount, uint32_t indexCount)
@@ -402,12 +416,9 @@ MeshStorage::Allocation MeshStorage::Allocate(ID3D11DeviceContext* context, uint
 
 	const uint32_t wantedVBSize = vertexCount + alloc.VertexOffset;
 	const uint32_t wantedIBSize = indexCount + alloc.IndexOffset;
-	GFX::ExpandBuffer(context, m_PositionBuffer, wantedVBSize * GetPositionStride());
-	GFX::ExpandBuffer(context, m_TexcoordBuffer, wantedVBSize * GetTexroordStride());
-	GFX::ExpandBuffer(context, m_NormalBuffer, wantedVBSize * GetNormalStride());
-	GFX::ExpandBuffer(context, m_TangentBuffer, wantedVBSize * GetTangentStride());
-	GFX::ExpandBuffer(context, m_DrawableIndexBuffer, wantedVBSize * GetDrawableIndexStride());
-	m_IndexBuffer.resize((size_t) wantedIBSize * GetIndexBufferStride());
+
+	GFX::ExpandBuffer(context, m_VertexBuffer, wantedVBSize * GetVertexBufferStride());
+	GFX::ExpandBuffer(context, m_IndexBuffer, wantedIBSize * GetIndexBufferStride());
 
 	return alloc;
 }

@@ -97,6 +97,8 @@ struct Mesh
 
 	uint32_t VertOffset;
 	uint32_t IndexOffset;
+	
+	void UpdateBuffer(ID3D11DeviceContext* context, RenderGroup& renderGroup);
 };
 
 struct Drawable
@@ -235,6 +237,14 @@ private:
 class MeshStorage
 {
 public:
+	struct Vertex
+	{
+		Float3 Position;
+		Float2 Texcoord;
+		Float3 Normal;
+		Float4 Tangent;
+	};
+
 	struct Allocation
 	{
 		uint32_t VertexOffset;
@@ -243,36 +253,23 @@ public:
 
 	void Initialize();
 
-	MeshStorage::Allocation Allocate(ID3D11DeviceContext* context, uint32_t vertexCount, uint32_t indexCount);
+	Allocation Allocate(ID3D11DeviceContext* context, uint32_t vertexCount, uint32_t indexCount);
 
-	BufferID GetPositions() const { return m_PositionBuffer; }
-	BufferID GetTexcoords() const { return m_TexcoordBuffer; }
-	BufferID GetNormals() const { return m_NormalBuffer; }
-	BufferID GetTangents() const { return m_TangentBuffer; }
-	BufferID GetDrawableIndexes() const { return m_DrawableIndexBuffer; }
-	std::vector<uint32_t>& GetIndexBuffer() { return m_IndexBuffer; }
+	BufferID GetVertexBuffer() const { return m_VertexBuffer; }
+	BufferID GetIndexBuffer() const { return m_IndexBuffer; }
 
 	uint32_t GetVertexCount() const { return m_VertexCount; }
 	uint32_t GetIndexCount() const { return m_IndexCount; }
 
-	static constexpr uint8_t GetPositionStride()		{ return sizeof(Float3); }
-	static constexpr uint8_t GetTexroordStride()		{ return sizeof(Float2); }
-	static constexpr uint8_t GetNormalStride()			{ return sizeof(Float3); }
-	static constexpr uint8_t GetTangentStride()			{ return sizeof(Float4); }
-	static constexpr uint8_t GetDrawableIndexStride()	{ return sizeof(uint32_t); }
+	static constexpr uint8_t GetVertexBufferStride()	{ return sizeof(Vertex); }
 	static constexpr uint8_t GetIndexBufferStride()		{ return sizeof(uint32_t); }
 
 private:
 	std::atomic<uint32_t> m_VertexCount = 0;
 	std::atomic<uint32_t> m_IndexCount = 0;
 
-	BufferID m_PositionBuffer;		// Float3
-	BufferID m_TexcoordBuffer;		// Float2
-	BufferID m_NormalBuffer;		// Float3
-	BufferID m_TangentBuffer;		// Float4
-	BufferID m_DrawableIndexBuffer;	// uint32_t
-
-	std::vector<uint32_t> m_IndexBuffer;
+	BufferID m_VertexBuffer;
+	BufferID m_IndexBuffer;
 };
 
 class TextureStorage

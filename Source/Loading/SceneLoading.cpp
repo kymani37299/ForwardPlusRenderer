@@ -49,7 +49,7 @@ namespace SceneLoading
 			std::vector<uint8_t> uniqueVertexIB;
 			std::vector<DirectX::MeshletTriangle> triangles;
 			
-			API_CALL(DirectX::ComputeMeshlets(inBuffer.data(), inBuffer.size() / 3, (DirectX::XMFLOAT3*) positons, numPositions, nullptr, meshlets, uniqueVertexIB, triangles));
+			API_CALL(DirectX::ComputeMeshlets(inBuffer.data(), inBuffer.size() / 3, (DirectX::XMFLOAT3*) positons, numPositions, nullptr, meshlets, uniqueVertexIB, triangles, 128, MESHLET_TRIANGLE_COUNT));
 			
 			uint32_t* vertexIBRaw = (uint32_t*) uniqueVertexIB.data();
 			outBuffer.reserve(meshlets.size() * MESHLET_INDEX_COUNT);
@@ -62,6 +62,12 @@ namespace SceneLoading
 					outBuffer.push_back(vertexIBRaw[meshlet.VertOffset + t.i0]);
 					outBuffer.push_back(vertexIBRaw[meshlet.VertOffset + t.i1]);
 					outBuffer.push_back(vertexIBRaw[meshlet.VertOffset + t.i2]);
+				}
+				for (uint32_t i = meshlet.PrimCount; i < MESHLET_TRIANGLE_COUNT; i++)
+				{
+					outBuffer.push_back(0);
+					outBuffer.push_back(0);
+					outBuffer.push_back(0);
 				}
 			}
 		}
@@ -127,10 +133,22 @@ namespace SceneLoading
 			
 			MeshStorage& meshStorage = context.LoadingRG->MeshData;
 
+			// Indices
 			std::vector<uint32_t> loadedIndices;
 			std::vector<uint32_t> finalIndices;
 			LoadIB(context, meshData->indices, loadedIndices);
 			PrepareIB(context, positionData, vertCount, loadedIndices, finalIndices);
+
+			// Vertices
+			std::vector<MeshStorage::Vertex> vertices;
+			vertices.resize(vertCount);
+			for (uint32_t i = 0; i < vertCount; i++)
+			{
+				vertices[i].Position = positionData[i];
+				vertices[i].Texcoord = uvData[i];
+				vertices[i].Normal = normalData[i];
+				vertices[i].Tangent = tangentData ? tangentData[i] : Float4(0,0,0,0);
+			}
 
 			MeshStorage::Allocation alloc = meshStorage.Allocate(context.GfxContext, vertCount, finalIndices.size());
 
@@ -147,17 +165,8 @@ namespace SceneLoading
 			}
 
 			// Upload
-			GFX::Cmd::UploadToBuffer(context.GfxContext, meshStorage.GetPositions(), mesh.VertOffset * sizeof(Float3), positionData, 0, mesh.VertCount * sizeof(Float3));
-			GFX::Cmd::UploadToBuffer(context.GfxContext, meshStorage.GetTexcoords(), mesh.VertOffset * sizeof(Float2), uvData, 0, mesh.VertCount * sizeof(Float2));
-			GFX::Cmd::UploadToBuffer(context.GfxContext, meshStorage.GetNormals(), mesh.VertOffset * sizeof(Float3), normalData, 0, mesh.VertCount * sizeof(Float3));
-			
-			if(tangentData)
-				GFX::Cmd::UploadToBuffer(context.GfxContext, meshStorage.GetTangents(), mesh.VertOffset * sizeof(Float4), tangentData, 0, mesh.VertCount * sizeof(Float4));
-			
-			for (uint32_t i = 0; i < finalIndices.size(); i++)
-			{
-				meshStorage.GetIndexBuffer()[mesh.IndexOffset + i] = finalIndices[i];
-			}
+			GFX::Cmd::UploadToBuffer(context.GfxContext, meshStorage.GetVertexBuffer(), mesh.VertOffset * MeshStorage::GetVertexBufferStride(), vertices.data(), 0, mesh.VertCount * MeshStorage::GetVertexBufferStride());
+			GFX::Cmd::UploadToBuffer(context.GfxContext, meshStorage.GetIndexBuffer(), mesh.IndexOffset * MeshStorage::GetIndexBufferStride(), finalIndices.data(), 0, mesh.IndexCount * MeshStorage::GetIndexBufferStride());
 
 			return context.LoadingRG->AddMesh(context.GfxContext, mesh);
 		}

@@ -167,7 +167,13 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 	m_GeometryShader = GFX::CreateShader("Source/Shaders/geometry.hlsl");
 	m_LightCullingShader = GFX::CreateShader("Source/Shaders/light_culling.hlsl");
 
-	m_IndexBuffer = GFX::CreateBuffer(sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_IB | RCF_CopyDest);
+	m_DrawableInstanceBuffer = GFX::CreateVertexBuffer<uint32_t>(1, nullptr);
+	m_MeshletInstanceBuffer = GFX::CreateVertexBuffer<uint32_t>(1, nullptr);
+
+	std::vector<uint32_t> indices{};
+	indices.resize(MESHLET_INDEX_COUNT);
+	for (uint32_t i = 0; i < MESHLET_INDEX_COUNT; i++) indices[i] = i;
+	m_MeshletIndexBuffer = GFX::CreateBuffer(MESHLET_INDEX_COUNT * sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_VB, indices.data());
 
 	UpdatePresentResources(context);
 	UpdateCullingResources(context);
@@ -208,32 +214,35 @@ void CullRenderGroup(RenderGroup& rg)
 	}
 }
 
-uint32_t PrepareIndexBuffer(ID3D11DeviceContext* context, BufferID indexBuffer, RenderGroup& rg)
+uint32_t PrepareInstanceBuffer(ID3D11DeviceContext* context, BufferID meshletInstanceBuffer, BufferID drawableInstanceBuffer, RenderGroup& rg)
 {
-	std::vector<uint32_t> indices;
-	indices.resize(rg.MeshData.GetIndexCount());
+	using namespace ForwardPlusPrivate;
 
-	uint32_t indexCount = 0;
+	// Prepare
+	std::vector<uint32_t> meshlets;
+	std::vector<uint32_t> drawables;
 	for (uint32_t i = 0; i < rg.Drawables.GetSize(); i++)
 	{
 		if (rg.VisibilityMask.Get(i))
 		{
-			const Mesh& mesh = rg.Meshes[rg.Drawables[i].MeshIndex];
-			
-			uint8_t* copySrc = reinterpret_cast<uint8_t*>(rg.MeshData.GetIndexBuffer().data());
-			copySrc += (uint64_t) mesh.IndexOffset * MeshStorage::GetIndexBufferStride();
-
-			uint8_t* copyDst = reinterpret_cast<uint8_t*>(indices.data());
-			copyDst += indexCount * sizeof(uint32_t);
-
-			memcpy(copyDst, copySrc, mesh.IndexCount * sizeof(uint32_t));
-			indexCount += mesh.IndexCount;
+			Drawable d = rg.Drawables[i];
+			Mesh m = rg.Meshes[d.MeshIndex];
+			uint32_t meshletCount = m.IndexCount / MESHLET_INDEX_COUNT;
+			for (uint32_t j = 0; j < meshletCount; j++)
+			{
+				drawables.push_back(i);
+				meshlets.push_back(j);
+			}
 		}
 	}
 
-	GFX::ExpandBuffer(context, indexBuffer, indexCount * sizeof(uint32_t));
-	GFX::Cmd::UploadToBuffer(context, indexBuffer, 0, indices.data(), 0, indexCount * sizeof(uint32_t));
-	return indexCount;
+	// Upload
+	GFX::ExpandBuffer(context, meshletInstanceBuffer, meshlets.size() * sizeof(uint32_t));
+	GFX::ExpandBuffer(context, drawableInstanceBuffer, drawables.size() * sizeof(uint32_t));
+	GFX::Cmd::UploadToBuffer(context, meshletInstanceBuffer, 0, meshlets.data(), 0, meshlets.size() * sizeof(uint32_t));
+	GFX::Cmd::UploadToBuffer(context, drawableInstanceBuffer, 0, drawables.data(), 0, drawables.size() * sizeof(uint32_t));
+
+	return meshlets.size();
 }
 
 TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
@@ -269,46 +278,44 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 	}
 
 	// Depth prepass
-	{
-		GFX::Cmd::MarkerBegin(context, "Depth Prepass");
-		PipelineState pso = GFX::DefaultPipelineState();
-		pso.DS.DepthEnable = true;
-
-		RenderGroupType prepassTypes[] = { RenderGroupType::Opaque, RenderGroupType::AlphaDiscard };
-		for (uint32_t i = 0; i < STATIC_ARRAY_SIZE(prepassTypes); i++)
-		{
-			RenderGroupType rgType = IntToEnum<RenderGroupType>(i);
-			RenderGroup& renderGroup = MainSceneGraph.RenderGroups[i];
-			const MeshStorage& meshStorage = renderGroup.MeshData;
-			const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, renderGroup);
-
-			std::vector<std::string> config{};
-
-			GFX::Cmd::BindRenderTarget(context, m_MotionVectorRT, m_MainRT_Depth);
-			GFX::Cmd::SetPipelineState(context, pso);
-			GFX::Cmd::BindCBV<VS | PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
-			GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.LastFrameCameraBuffer, 1);
-			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.SceneInfoBuffer, 2);
-			GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Entities.GetBuffer(), 0);
-			GFX::Cmd::BindSRV<VS>(context, renderGroup.Drawables.GetBuffer(), 1);
-			if (rgType == RenderGroupType::AlphaDiscard)
-			{
-				config.push_back("ALPHA_DISCARD");
-				GFX::Cmd::SetupStaticSamplers<PS>(context);
-				GFX::Cmd::BindSRV<PS>(context, renderGroup.TextureData.GetBuffer(), 3);
-				GFX::Cmd::BindSRV<PS>(context, renderGroup.Materials.GetBuffer(), 4);
-				GFX::Cmd::BindVertexBuffers(context, { meshStorage.GetPositions(), meshStorage.GetDrawableIndexes(), meshStorage.GetTexcoords() });
-			}
-			else
-			{
-				GFX::Cmd::BindVertexBuffers(context, { meshStorage.GetPositions(), meshStorage.GetDrawableIndexes() });
-			}
-			GFX::Cmd::BindShader<VS | PS>(context, m_DepthPrepassShader, config, true);
-			GFX::Cmd::BindIndexBuffer(context, m_IndexBuffer);
-			context->DrawIndexed(indexCount, 0, 0);
-		}
-		GFX::Cmd::MarkerEnd(context);
-	}
+	 {
+	 	GFX::Cmd::MarkerBegin(context, "Depth Prepass");
+	 	PipelineState pso = GFX::DefaultPipelineState();
+	 	pso.DS.DepthEnable = true;
+	 
+	 	RenderGroupType prepassTypes[] = { RenderGroupType::Opaque, RenderGroupType::AlphaDiscard };
+	 	for (uint32_t i = 0; i < STATIC_ARRAY_SIZE(prepassTypes); i++)
+	 	{
+	 		RenderGroupType rgType = IntToEnum<RenderGroupType>(i);
+	 		RenderGroup& renderGroup = MainSceneGraph.RenderGroups[i];
+	 		const MeshStorage& meshStorage = renderGroup.MeshData;
+			const uint32_t instanceCount = PrepareInstanceBuffer(context, m_MeshletInstanceBuffer, m_DrawableInstanceBuffer, renderGroup);
+	 
+	 		std::vector<std::string> config{};
+	 
+	 		GFX::Cmd::BindRenderTarget(context, m_MotionVectorRT, m_MainRT_Depth);
+	 		GFX::Cmd::SetPipelineState(context, pso);
+	 		GFX::Cmd::BindCBV<VS | PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
+	 		GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.LastFrameCameraBuffer, 1);
+	 		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.SceneInfoBuffer, 2);
+	 		GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Entities.GetBuffer(), 0);
+	 		GFX::Cmd::BindSRV<VS>(context, renderGroup.Drawables.GetBuffer(), 1);
+	 		if (rgType == RenderGroupType::AlphaDiscard)
+	 		{
+	 			config.push_back("ALPHA_DISCARD");
+	 			GFX::Cmd::SetupStaticSamplers<PS>(context);
+	 			GFX::Cmd::BindSRV<PS>(context, renderGroup.TextureData.GetBuffer(), 3);
+	 			GFX::Cmd::BindSRV<PS>(context, renderGroup.Materials.GetBuffer(), 4);	
+	 		}
+			GFX::Cmd::BindSRV<VS>(context, renderGroup.Meshes.GetBuffer(), 5);
+			GFX::Cmd::BindSRV<VS>(context, renderGroup.MeshData.GetVertexBuffer(), 6);
+			GFX::Cmd::BindSRV<VS>(context, renderGroup.MeshData.GetIndexBuffer(), 7);
+			GFX::Cmd::BindVertexBuffers(context, { m_MeshletIndexBuffer, m_MeshletInstanceBuffer, m_DrawableInstanceBuffer });
+	 		GFX::Cmd::BindShader<VS | PS>(context, m_DepthPrepassShader, config, true);
+	 		context->DrawInstanced(MESHLET_INDEX_COUNT, instanceCount, 0, 0);
+	 	}
+	 	GFX::Cmd::MarkerEnd(context);
+	 }
 	
 	// Light culling
 	if(!DebugToolsConfig.FreezeLightCulling && !DebugToolsConfig.DisableLightCulling)
@@ -353,7 +360,6 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Lights.GetBuffer(), 3);
 		GFX::Cmd::BindSRV<VS>(context, MainSceneGraph.Entities.GetBuffer(), 5);
 		GFX::Cmd::BindSRV<PS>(context, m_VisibleLightsBuffer, 8);
-		GFX::Cmd::BindIndexBuffer(context, m_IndexBuffer);
 
 		for (uint32_t i = 0; i < EnumToInt(RenderGroupType::Count); i++)
 		{
@@ -362,7 +368,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			if (renderGroup.Drawables.GetSize() == 0) continue;
 
 			const MeshStorage& meshStorage = renderGroup.MeshData;
-			const uint32_t indexCount = PrepareIndexBuffer(context, m_IndexBuffer, renderGroup);
+			const uint32_t instanceCount = PrepareInstanceBuffer(context, m_MeshletInstanceBuffer, m_DrawableInstanceBuffer, renderGroup);
 
 			std::vector<std::string> configuration;
 			if (rgType == RenderGroupType::AlphaDiscard) configuration.push_back("ALPHA_DISCARD");
@@ -373,8 +379,11 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			GFX::Cmd::BindSRV<PS>(context, renderGroup.TextureData.GetBuffer(), 0);
 			GFX::Cmd::BindSRV<PS>(context, renderGroup.Materials.GetBuffer(), 6);
 			GFX::Cmd::BindSRV<VS|PS>(context, renderGroup.Drawables.GetBuffer(), 7);
-			GFX::Cmd::BindVertexBuffers(context, { meshStorage.GetPositions(), meshStorage.GetTexcoords(), meshStorage.GetNormals(), meshStorage.GetTangents(), meshStorage.GetDrawableIndexes() });
-			context->DrawIndexed(indexCount, 0, 0);
+			GFX::Cmd::BindSRV<VS>(context, renderGroup.Meshes.GetBuffer(), 9);
+			GFX::Cmd::BindSRV<VS>(context, renderGroup.MeshData.GetVertexBuffer(), 10);
+			GFX::Cmd::BindSRV<VS>(context, renderGroup.MeshData.GetIndexBuffer(), 11);
+			GFX::Cmd::BindVertexBuffers(context, { m_MeshletIndexBuffer, m_MeshletInstanceBuffer, m_DrawableInstanceBuffer });
+			context->DrawInstanced(MESHLET_INDEX_COUNT, instanceCount, 0, 0);
 		}
 
 		GFX::Cmd::MarkerEnd(context);
