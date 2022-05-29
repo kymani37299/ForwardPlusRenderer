@@ -35,51 +35,68 @@ namespace SceneLoading
 			return Float3{ color[0], color[1], color[2] };
 		}
 
-		void* GetBufferData(cgltf_accessor* accessor)
+		template<typename T>
+		T* GetBufferData(cgltf_accessor* accessor)
 		{
 			unsigned char* buffer = (unsigned char*)accessor->buffer_view->buffer->data + accessor->buffer_view->offset;
 			void* data = buffer + accessor->offset;
-			return data;
+			return static_cast<T*>(data);
 		}
 
-		void UpdateIB(const LoadingContext& context, cgltf_accessor* indexAccessor, std::vector<uint32_t>& buffer, const Mesh& mesh)
+		void PrepareIB(const LoadingContext& context, Float3* positons, uint32_t numPositions, std::vector<uint32_t>& inBuffer, std::vector<uint32_t>& outBuffer)
+		{
+			std::vector<DirectX::Meshlet> meshlets;
+			std::vector<uint8_t> uniqueVertexIB;
+			std::vector<DirectX::MeshletTriangle> triangles;
+			
+			API_CALL(DirectX::ComputeMeshlets(inBuffer.data(), inBuffer.size() / 3, (DirectX::XMFLOAT3*) positons, numPositions, nullptr, meshlets, uniqueVertexIB, triangles));
+			
+			uint32_t* vertexIBRaw = (uint32_t*) uniqueVertexIB.data();
+			outBuffer.reserve(meshlets.size() * MESHLET_INDEX_COUNT);
+
+			for (const DirectX::Meshlet& meshlet : meshlets)
+			{
+				for (uint32_t i = 0; i < meshlet.PrimCount; i++)
+				{
+					DirectX::MeshletTriangle t = triangles[meshlet.PrimOffset + i];
+					outBuffer.push_back(vertexIBRaw[meshlet.VertOffset + t.i0]);
+					outBuffer.push_back(vertexIBRaw[meshlet.VertOffset + t.i1]);
+					outBuffer.push_back(vertexIBRaw[meshlet.VertOffset + t.i2]);
+				}
+			}
+		}
+
+		void LoadIB(const LoadingContext& context, cgltf_accessor* indexAccessor, std::vector<uint32_t>& buffer)
 		{
 			ASSERT(indexAccessor, "[SceneLoading] Trying to read indices from empty accessor");
 			ASSERT(indexAccessor->type == cgltf_type_scalar, "[SceneLoading] Indices of a mesh arent scalar.");
 			ASSERT(indexAccessor->component_type == cgltf_component_type_r_16u, "[SceneLoading] Indices must be uint16.");
 			
-			uint16_t* indexData = (uint16_t*) GetBufferData(indexAccessor);
+			buffer.resize(indexAccessor->count);
+			uint16_t* indexData = GetBufferData<uint16_t>(indexAccessor);
 			for (size_t i = 0; i < indexAccessor->count; i++)
 			{
-				buffer[mesh.IndexOffset + i] = indexData[i] + mesh.VertOffset;
+				buffer[i] = indexData[i];
 			}
 		}
 
-		template<typename T, cgltf_type TYPE, cgltf_component_type COMPONENT_TYPE>
-		void UpdateVB(const LoadingContext& context, cgltf_attribute* vertexAttribute, BufferID buffer, uint32_t offset)
+		template<cgltf_type TYPE, cgltf_component_type COMPONENT_TYPE>
+		void ValidateVertexAttribute(cgltf_attribute* attribute)
 		{
-			ASSERT(vertexAttribute->data->type == TYPE, "[SceneLoading] ASSERT FAILED: attributeAccessor->type == TYPE");
-			ASSERT(vertexAttribute->data->component_type == COMPONENT_TYPE, "[SceneLoading] ASSERT FAILED: attributeAccessor->component_type == COMPONENT_TYPE");
-
-			T* attributeData = (T*)GetBufferData(vertexAttribute->data);
-
-			GFX::Cmd::UploadToBuffer(context.GfxContext, buffer, offset * sizeof(T), attributeData, 0, vertexAttribute->data->count * sizeof(T));
+			ASSERT(attribute->data->type == TYPE, "[SceneLoading] ASSERT FAILED: attributeAccessor->type == TYPE");
+			ASSERT(attribute->data->component_type == COMPONENT_TYPE, "[SceneLoading] ASSERT FAILED: attributeAccessor->component_type == COMPONENT_TYPE");
 		}
 
 		uint32_t LoadMesh(const LoadingContext& context, cgltf_primitive* meshData)
 		{
 			ASSERT(meshData->type == cgltf_primitive_type_triangles, "[SceneLoading] Scene contains quad meshes. We are supporting just triangle meshes.");
 
-			MeshStorage& meshStorage = context.LoadingRG->MeshData;
+			const uint32_t vertCount = meshData->attributes[0].data->count;
 
-			Mesh mesh;
-			mesh.VertCount = meshData->attributes[0].data->count;
-			mesh.IndexCount = meshData->indices->count;
-
-			MeshStorage::Allocation alloc = meshStorage.Allocate(context.GfxContext, mesh.VertCount, mesh.IndexCount);
-
-			mesh.VertOffset = alloc.VertexOffset;
-			mesh.IndexOffset = alloc.IndexOffset;
+			Float3* positionData = nullptr;
+			Float2* uvData = nullptr;
+			Float3* normalData = nullptr;
+			Float4* tangentData = nullptr;
 
 			for (size_t i = 0; i < meshData->attributes_count; i++)
 			{
@@ -87,23 +104,60 @@ namespace SceneLoading
 				switch (vertexAttribute->type)
 				{
 				case cgltf_attribute_type_position:
-					UpdateVB<Float3, cgltf_type_vec3, cgltf_component_type_r_32f>(context, vertexAttribute, meshStorage.GetPositions(), mesh.VertOffset);
+					ValidateVertexAttribute<cgltf_type_vec3, cgltf_component_type_r_32f>(vertexAttribute);
+					positionData = GetBufferData<Float3>(vertexAttribute->data);
 					break;
 				case cgltf_attribute_type_texcoord:
-					UpdateVB<Float2, cgltf_type_vec2, cgltf_component_type_r_32f>(context, vertexAttribute, meshStorage.GetTexcoords(), mesh.VertOffset);
+					ValidateVertexAttribute<cgltf_type_vec2, cgltf_component_type_r_32f>(vertexAttribute);
+					uvData = GetBufferData<Float2>(vertexAttribute->data);
 					break;
 				case cgltf_attribute_type_normal:
-					UpdateVB<Float3, cgltf_type_vec3, cgltf_component_type_r_32f>(context, vertexAttribute, meshStorage.GetNormals(), mesh.VertOffset);
+					ValidateVertexAttribute<cgltf_type_vec3, cgltf_component_type_r_32f>(vertexAttribute);
+					normalData = GetBufferData<Float3>(vertexAttribute->data);
 					break;
 				case cgltf_attribute_type_tangent:
-					UpdateVB<Float4, cgltf_type_vec4, cgltf_component_type_r_32f>(context, vertexAttribute, meshStorage.GetTangents(), mesh.VertOffset);
+					ValidateVertexAttribute<cgltf_type_vec4, cgltf_component_type_r_32f>(vertexAttribute);
+					tangentData = GetBufferData<Float4>(vertexAttribute->data);
 					break;
 				}
 			}
 
-			// TODO: memset 0 to missing attributes
+			// TODO: calculate missing attributes
+			ASSERT(positionData && uvData && normalData, "[SceneLoading::LoadMesh] Missing vertex data");
+			
+			MeshStorage& meshStorage = context.LoadingRG->MeshData;
 
-			UpdateIB(context, meshData->indices, meshStorage.GetIndexBuffer(), mesh);
+			std::vector<uint32_t> loadedIndices;
+			std::vector<uint32_t> finalIndices;
+			LoadIB(context, meshData->indices, loadedIndices);
+			PrepareIB(context, positionData, vertCount, loadedIndices, finalIndices);
+
+			MeshStorage::Allocation alloc = meshStorage.Allocate(context.GfxContext, vertCount, finalIndices.size());
+
+			Mesh mesh;
+			mesh.VertCount = vertCount;
+			mesh.IndexCount = finalIndices.size();
+			mesh.VertOffset = alloc.VertexOffset;
+			mesh.IndexOffset = alloc.IndexOffset;
+
+			// Offset indices
+			for (uint32_t i = 0; i < finalIndices.size(); i++)
+			{
+				finalIndices[i] += mesh.VertOffset;
+			}
+
+			// Upload
+			GFX::Cmd::UploadToBuffer(context.GfxContext, meshStorage.GetPositions(), mesh.VertOffset * sizeof(Float3), positionData, 0, mesh.VertCount * sizeof(Float3));
+			GFX::Cmd::UploadToBuffer(context.GfxContext, meshStorage.GetTexcoords(), mesh.VertOffset * sizeof(Float2), uvData, 0, mesh.VertCount * sizeof(Float2));
+			GFX::Cmd::UploadToBuffer(context.GfxContext, meshStorage.GetNormals(), mesh.VertOffset * sizeof(Float3), normalData, 0, mesh.VertCount * sizeof(Float3));
+			
+			if(tangentData)
+				GFX::Cmd::UploadToBuffer(context.GfxContext, meshStorage.GetTangents(), mesh.VertOffset * sizeof(Float4), tangentData, 0, mesh.VertCount * sizeof(Float4));
+			
+			for (uint32_t i = 0; i < finalIndices.size(); i++)
+			{
+				meshStorage.GetIndexBuffer()[mesh.IndexOffset + i] = finalIndices[i];
+			}
 
 			return context.LoadingRG->AddMesh(context.GfxContext, mesh);
 		}
@@ -119,9 +173,8 @@ namespace SceneLoading
 				switch (vertexAttribute->type)
 				{
 				case cgltf_attribute_type_position:
-					ASSERT(vertexAttribute->data->type == cgltf_type_vec3, "[SceneLoading] ASSERT FAILED: attributeAccessor->type == TYPE");
-					ASSERT(vertexAttribute->data->component_type == cgltf_component_type_r_32f, "[SceneLoading] ASSERT FAILED: attributeAccessor->component_type == COMPONENT_TYPE");
-					vertexData = (Float3*) GetBufferData(vertexAttribute->data);
+					ValidateVertexAttribute<cgltf_type_vec3, cgltf_component_type_r_32f>(vertexAttribute); 
+					vertexData = GetBufferData<Float3>(vertexAttribute->data);
 					break;
 				}
 			}

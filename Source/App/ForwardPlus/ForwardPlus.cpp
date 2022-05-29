@@ -119,6 +119,22 @@ namespace ForwardPlusPrivate
 			cameraRot.x -= dtSec * mouse_speed * mouseDelta.y;
 			cameraRot.x = std::clamp(cameraRot.x, -1.5f, 1.5f);
 		}
+
+		char camera_inputs[] = { VK_UP, VK_DOWN, VK_LEFT, VK_RIGHT };
+		Float2 camera_effects[] = { {1.0f, 0.0f}, {-1.0f, 0.0f}, {0.0f, 1.0f}, {0.0f, -1.0f} };
+		static_assert(STATIC_ARRAY_SIZE(camera_inputs) == STATIC_ARRAY_SIZE(camera_effects));
+
+		Float2 cameraDir{ 0.0f, 0.0f };
+		for (uint16_t i = 0; i < STATIC_ARRAY_SIZE(camera_inputs); i++)
+		{
+			if (Input::IsKeyPressed(camera_inputs[i]))
+				cameraDir += dtSec * mouse_speed * camera_effects[i];
+		}
+
+		Float3& cameraRot = MainSceneGraph.MainCamera.NextTransform.Rotation;
+		cameraRot.y += dtSec * mouse_speed * 0.0001f * cameraDir.y;
+		cameraRot.x += dtSec * mouse_speed * 0.0001f * cameraDir.x;
+		cameraRot.x = std::clamp(cameraRot.x, -1.5f, 1.5f);
 	}
 
 }
