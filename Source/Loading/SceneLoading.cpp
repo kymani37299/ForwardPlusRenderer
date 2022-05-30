@@ -43,7 +43,7 @@ namespace SceneLoading
 			return static_cast<T*>(data);
 		}
 
-		void PrepareIB(const LoadingContext& context, Float3* positons, uint32_t numPositions, std::vector<uint32_t>& inBuffer, std::vector<uint32_t>& outBuffer)
+		void PrepareIB(const LoadingContext& context, Float3* positons, uint32_t numPositions, std::vector<uint32_t>& inBuffer, std::vector<uint32_t>& outBuffer, std::vector<DirectX::CullData>& outCullData)
 		{
 			std::vector<DirectX::Meshlet> meshlets;
 			std::vector<uint8_t> uniqueVertexIB;
@@ -51,7 +51,11 @@ namespace SceneLoading
 			
 			API_CALL(DirectX::ComputeMeshlets(inBuffer.data(), inBuffer.size() / 3, (DirectX::XMFLOAT3*) positons, numPositions, nullptr, meshlets, uniqueVertexIB, triangles, 128, MESHLET_TRIANGLE_COUNT));
 			
+			outCullData.resize(meshlets.size());
 			uint32_t* vertexIBRaw = (uint32_t*) uniqueVertexIB.data();
+
+			API_CALL(DirectX::ComputeCullData((DirectX::XMFLOAT3*)positons, numPositions, meshlets.data(), meshlets.size(), vertexIBRaw, uniqueVertexIB.size() / 4, triangles.data(), triangles.size(), outCullData.data()));
+
 			outBuffer.reserve(meshlets.size() * MESHLET_INDEX_COUNT);
 
 			for (const DirectX::Meshlet& meshlet : meshlets)
@@ -136,8 +140,9 @@ namespace SceneLoading
 			// Indices
 			std::vector<uint32_t> loadedIndices;
 			std::vector<uint32_t> finalIndices;
+			std::vector<DirectX::CullData> cullData;
 			LoadIB(context, meshData->indices, loadedIndices);
-			PrepareIB(context, positionData, vertCount, loadedIndices, finalIndices);
+			PrepareIB(context, positionData, vertCount, loadedIndices, finalIndices, cullData);
 
 			// Vertices
 			std::vector<MeshStorage::Vertex> vertices;
@@ -157,6 +162,7 @@ namespace SceneLoading
 			mesh.IndexCount = finalIndices.size();
 			mesh.VertOffset = alloc.VertexOffset;
 			mesh.IndexOffset = alloc.IndexOffset;
+			mesh.MeshletCullData = cullData;
 
 			// Offset indices
 			for (uint32_t i = 0; i < finalIndices.size(); i++)

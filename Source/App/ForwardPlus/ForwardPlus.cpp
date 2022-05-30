@@ -40,8 +40,8 @@ namespace ForwardPlusPrivate
 			plane.Position = { 0.0f, -10.0f, 0.0f };
 			plane.Scale = { 10000.0f, 1.0f, 10000.0f };
 			uint32_t planeIndex = MainSceneGraph.AddEntity(context, plane);
-			SceneLoading::LoadedScene planeScene = SceneLoading::Load("Resources/cube/cube.gltf");
-			SceneLoading::AddDraws(planeScene, planeIndex);
+			SceneLoading::LoadedScene cubeScene = SceneLoading::Load("Resources/cube/cube.gltf");
+			SceneLoading::AddDraws(cubeScene, planeIndex);
 
 			constexpr uint32_t NUM_CUBES = 50;
 			for (uint32_t i = 0; i < NUM_CUBES; i++)
@@ -52,7 +52,6 @@ namespace ForwardPlusPrivate
 				cube.Position = { 0.0f, -10.0f, 0.0f };
 				cube.Scale = { 10000.0f, 1.0f, 10000.0f };
 				uint32_t cubeIndex = MainSceneGraph.AddEntity(context, cube);
-				SceneLoading::LoadedScene cubeScene = SceneLoading::Load("Resources/cube/cube.gltf");
 				SceneLoading::AddDraws(cubeScene, cubeIndex);
 			}
 		}
@@ -214,6 +213,25 @@ void CullRenderGroup(RenderGroup& rg)
 	}
 }
 
+bool IsMeshletVisible(const Drawable& drawable, uint32_t meshletIndex, RenderGroup& rg)
+{
+	static ViewFrustum vf;
+
+	const Mesh& m = rg.Meshes[drawable.MeshIndex];
+	const Entity& e = MainSceneGraph.Entities[drawable.EntityIndex];
+
+	if(!DebugToolsConfig.FreezeGeometryCulling)
+		vf = MainSceneGraph.MainCamera.CameraFrustum;
+
+	const float maxScale = MAX(MAX(e.Scale.x, e.Scale.y), e.Scale.z);
+
+	BoundingSphere bv;
+	bv.Center = e.Position + e.Scale * m.MeshletCullData[meshletIndex].BoundingSphere.Center;
+	bv.Radius = m.MeshletCullData[meshletIndex].BoundingSphere.Radius * maxScale;
+
+	return vf.IsInFrustum(bv);
+}
+
 uint32_t PrepareInstanceBuffer(ID3D11DeviceContext* context, BufferID meshletInstanceBuffer, BufferID drawableInstanceBuffer, RenderGroup& rg)
 {
 	using namespace ForwardPlusPrivate;
@@ -226,12 +244,15 @@ uint32_t PrepareInstanceBuffer(ID3D11DeviceContext* context, BufferID meshletIns
 		if (rg.VisibilityMask.Get(i))
 		{
 			Drawable d = rg.Drawables[i];
-			Mesh m = rg.Meshes[d.MeshIndex];
+			const Mesh& m = rg.Meshes[d.MeshIndex];
 			uint32_t meshletCount = m.IndexCount / MESHLET_INDEX_COUNT;
 			for (uint32_t j = 0; j < meshletCount; j++)
 			{
-				drawables.push_back(i);
-				meshlets.push_back(j);
+				if (IsMeshletVisible(d, j, rg))
+				{
+					drawables.push_back(i);
+					meshlets.push_back(j);
+				}
 			}
 		}
 	}

@@ -8,6 +8,11 @@
 
 struct ID3D11DeviceContext;
 
+namespace DirectX
+{
+	struct CullData;
+};
+
 struct BoundingSphere
 {
 	Float3 Center{ 0.0f, 0.0f, 0.0f };
@@ -98,6 +103,8 @@ struct Mesh
 	uint32_t VertOffset;
 	uint32_t IndexOffset;
 	
+	std::vector<DirectX::CullData> MeshletCullData;
+
 	void UpdateBuffer(ID3D11DeviceContext* context, RenderGroup& renderGroup);
 };
 
