@@ -1,5 +1,6 @@
 #include "scene.h"
 #include "util.h"
+#include "pipeline.h"
 
 #ifdef ALPHA_DISCARD
 #include "samplers.h"
@@ -32,32 +33,15 @@ cbuffer SceneInfoCB : register(b1)
 	SceneInfo SceneInfoData;
 }
 
-StructuredBuffer<Entity> Entities : register(t0);
-StructuredBuffer<Drawable> Drawables : register(t1);
-
-#ifdef ALPHA_DISCARD
-Texture2DArray Textures : register(t3);
-StructuredBuffer<Material> Materials : register(t4);
-#endif
-
-StructuredBuffer<Mesh> Meshes : register(t5);
-StructuredBuffer<Vertex> Vertices : register(t6);
-StructuredBuffer<uint> Indices : register(t7);
-
-VertexOut VS(uint LocalOffset : LOCAL_OFFSET, uint MeshletInstance : I_MESHLET_INSTANCE, uint DrawableInstance : I_DRAWABLE_INSTANCE)
+VertexOut VS(VertexPipelineInput IN)
 {
-    const Drawable d = Drawables[DrawableInstance];
-    const Mesh m = Meshes[d.MeshIndex];
+    const Drawable d = Drawables[IN.DrawableInstance];
+    const Vertex vert = GetWorldSpaceVertex(IN);
 	
-    uint index = m.IndexOffset + LocalOffset + MeshletInstance * MESHLET_INDEX_COUNT;
-    const Vertex vert = Vertices[Indices[index]]; // TODO: Delete index buffer indirection
-	// TODO: lastFrameModelToWorld - to use in last frame position
-	const float4x4 modelToWorld = Entities[d.EntityIndex].ModelToWorld;
-
 	VertexOut OUT;
-    OUT.Position = GetClipPosWithJitter(vert.Position, modelToWorld, CamData);
-    OUT.CurrentFramePosition = GetClipPos(vert.Position, modelToWorld, CamData);
-    OUT.LastFramePosition = GetClipPos(vert.Position, modelToWorld, CamDataLastFrame);
+    OUT.Position = GetClipPosWithJitter(vert.Position, CamData);
+    OUT.CurrentFramePosition = GetClipPos(vert.Position, CamData);
+    OUT.LastFramePosition = GetClipPos(vert.Position, CamDataLastFrame);
 
 #ifdef ALPHA_DISCARD
 	OUT.Texcoord = vert.Texcoord;

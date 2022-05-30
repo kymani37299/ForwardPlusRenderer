@@ -3,6 +3,7 @@
 #include "lighting.h"
 #include "light_culling.h"
 #include "util.h"
+#include "pipeline.h"
 
 struct VertexOut
 {
@@ -23,31 +24,18 @@ cbuffer SceneInfoCB : register(b1)
 	SceneInfo SceneInfoData;
 }
 
-Texture2DArray Textures : register(t0);
-StructuredBuffer<Light> Lights : register(t3);
-StructuredBuffer<Entity> Entities : register(t5);
-StructuredBuffer<Material> Materials : register(t6);
-StructuredBuffer<Drawable> Drawables : register(t7);
-StructuredBuffer<uint> VisibleLights : register(t8);
-StructuredBuffer<Mesh> Meshes : register(t9);
-StructuredBuffer<Vertex> Vertices : register(t10);
-StructuredBuffer<uint> Indices : register(t11);
+StructuredBuffer<Light> Lights : register(t0);
+StructuredBuffer<uint> VisibleLights : register(t1);
 
-VertexOut VS(uint LocalOffset : LOCAL_OFFSET, uint MeshletInstance : I_MESHLET_INSTANCE, uint DrawableInstance : I_DRAWABLE_INSTANCE)
+VertexOut VS(VertexPipelineInput IN)
 {
-    const Drawable d = Drawables[DrawableInstance];
-    const Mesh m = Meshes[d.MeshIndex];
+    const Drawable d = Drawables[IN.DrawableInstance];
+    const Vertex vert = GetWorldSpaceVertex(IN);
 	
-    uint index = m.IndexOffset + LocalOffset + MeshletInstance * MESHLET_INDEX_COUNT;
-    const Vertex vert = Vertices[Indices[index]]; // TODO: Delete index buffer indirection
-	
-	const uint entityIndex = d.EntityIndex;
-	const float4x4 modelToWorld = Entities[entityIndex].ModelToWorld;
-
 	VertexOut OUT;
-    OUT.Position = GetClipPosWithJitter(vert.Position, modelToWorld, CamData);
-    OUT.WorldPosition = mul(float4(vert.Position, 1.0), modelToWorld);
-    OUT.Normal = mul(vert.Normal, (float3x3) modelToWorld); // Assumes nonuniform scaling; otherwise, need to use inverse-transpose of world matrix.
+    OUT.Position = GetClipPosWithJitter(vert.Position, CamData);
+    OUT.WorldPosition = vert.Position;
+    OUT.Normal = vert.Normal;
     OUT.UV = vert.Texcoord;
 	OUT.MaterialIndex = d.MaterialIndex;
 	return OUT;

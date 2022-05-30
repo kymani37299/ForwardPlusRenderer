@@ -312,6 +312,8 @@ struct RenderGroup
 	uint32_t AddMesh(ID3D11DeviceContext* context, Mesh& mesh);
 	void AddDraw(ID3D11DeviceContext* context, uint32_t materialIndex, uint32_t meshIndex, uint32_t entityIndex, const BoundingSphere& boundingSphere);
 
+	void SetupPipelineInputs(ID3D11DeviceContext* context);
+
 	ElementBuffer<Material> Materials;
 	ElementBuffer<Mesh> Meshes;
 	ElementBuffer<Drawable> Drawables;

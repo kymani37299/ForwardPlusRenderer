@@ -290,6 +290,17 @@ void RenderGroup::AddDraw(ID3D11DeviceContext* context, uint32_t materialIndex, 
 	}
 }
 
+void RenderGroup::SetupPipelineInputs(ID3D11DeviceContext* context)
+{
+	GFX::Cmd::BindSRV<VS|PS>(context, TextureData.GetBuffer(), 120);
+	GFX::Cmd::BindSRV<VS|PS>(context, MeshData.GetVertexBuffer(), 121);
+	GFX::Cmd::BindSRV<VS|PS>(context, MeshData.GetIndexBuffer(), 122);
+	GFX::Cmd::BindSRV<VS|PS>(context, Meshes.GetBuffer(), 123);
+	GFX::Cmd::BindSRV<VS|PS>(context, MainSceneGraph.Entities.GetBuffer(), 124);
+	GFX::Cmd::BindSRV<VS|PS>(context, Materials.GetBuffer(), 125);
+	GFX::Cmd::BindSRV<VS|PS>(context, Drawables.GetBuffer(), 126);
+}
+
 SceneGraph::SceneGraph() :
 	Entities(MAX_ENTITIES, sizeof(EntitySB)),
 	Lights(MAX_LIGHTS, sizeof(LightSB))
