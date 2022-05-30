@@ -94,7 +94,7 @@ namespace GFX
 		{
 			TextureID stagingTexture = CreateTexture(width, height, RCF_Bind_SRV | RCF_Bind_RTV | RCF_GenerateMips, numMips, TEXTURE_FORMAT);
 			GFX::Cmd::UploadToTexture(context, texData, stagingTexture);
-			context->GenerateMips(DX_SRV(stagingTexture));
+			context->GenerateMips(GFX::Storage::GetTexture(stagingTexture).SRV.Get());
 
 			id = CreateTexture(width, height, creationFlags | RCF_CopyDest, numMips, TEXTURE_FORMAT);
 			for (uint32_t mip = 0; mip < GetNumMips(stagingTexture); mip++) GFX::Cmd::CopyToTexture(context, stagingTexture, id, mip);
@@ -302,18 +302,6 @@ namespace GFX
 	{
 		const Texture& texture = GFX::Storage::GetTexture(textureID);
 		return texture.NumMips;
-	}
-
-	ID3D11Texture2D* DX_Texture2D(TextureID textureID)
-	{
-		const Texture& texture = GFX::Storage::GetTexture(textureID);
-		return texture.Handle.Get();
-	}
-
-	ID3D11ShaderResourceView* DX_SRV(TextureID textureID)
-	{
-		const Texture& texture = GFX::Storage::GetTexture(textureID);
-		return texture.SRV.Get();
 	}
 
 	ID3D11SamplerState** GetStaticSamplers()

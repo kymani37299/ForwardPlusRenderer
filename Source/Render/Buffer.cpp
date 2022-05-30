@@ -87,20 +87,6 @@ namespace GFX
 		context->CopySubresourceRegion(buffer.Handle.Get(), 0, 0, 0, 0, oldResource.Get(), 0, &sourceRegion);
 	}
 
-	ID3D11Buffer* DX_Buffer(BufferID bufferID)
-	{
-		const Buffer& buffer = Storage::GetBuffer(bufferID);
-		ASSERT(buffer.Handle.Get(), "[DX_GetBuffer] Null resource");
-		return buffer.Handle.Get();
-	}
-
-	ID3D11ShaderResourceView* DX_SRV(BufferID bufferID)
-	{
-		const Buffer& buffer = Storage::GetBuffer(bufferID);
-		ASSERT(buffer.SRV.Get(), "[DX_GetBuffer] Null resource");
-		return buffer.SRV.Get();
-	}
-
 	uint32_t GetNumElements(BufferID bufferID)
 	{
 		const Buffer& buffer = Storage::GetBuffer(bufferID);

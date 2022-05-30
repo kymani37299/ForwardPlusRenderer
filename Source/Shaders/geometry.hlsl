@@ -10,6 +10,8 @@ struct VertexOut
 	float4 Position : SV_POSITION;
 	float3 WorldPosition : WORLD_POS;
 	float3 Normal : NORMAL;
+	float3 Tangent : TANGENT;
+	float3 Bitangent : BITANGENT;
 	float2 UV : TEXCOORD;
 	nointerpolation uint MaterialIndex : MAT_INDEX;
 };
@@ -36,6 +38,8 @@ VertexOut VS(VertexPipelineInput IN)
     OUT.Position = GetClipPosWithJitter(vert.Position, CamData);
     OUT.WorldPosition = vert.Position;
     OUT.Normal = vert.Normal;
+    OUT.Tangent = vert.Tangent.xyz; // TODO: What should I do with tangent.w ?
+    OUT.Bitangent = normalize(cross(vert.Normal, vert.Tangent.xyz));
     OUT.UV = vert.Texcoord;
 	OUT.MaterialIndex = d.MaterialIndex;
 	return OUT;
@@ -62,7 +66,10 @@ float4 PS(VertexOut IN) : SV_TARGET
 	mat.Roughness = min(0.99f, mat.Roughness);
 	mat.F0 = lerp(matParams.FresnelR0, albedo.rgb, mat.Metallic);
 
-	const float3 normal = normalize(IN.Normal);
+	const float3x3 TBN = float3x3(normalize(IN.Tangent), normalize(IN.Bitangent), normalize(IN.Normal));
+	const float3 normalValue = 2.0f * Textures.Sample(s_LinearWrap, float3(IN.UV, matParams.Normal)).rgb - 1.0f;
+
+	const float3 normal = normalize(mul(normalValue, TBN));
 	const float3 view = normalize(CamData.Position - IN.WorldPosition);
 
 	float4 litColor = float4(0.0f, 0.0f, 0.0f, 0.0f);

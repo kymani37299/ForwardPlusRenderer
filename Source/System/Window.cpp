@@ -15,15 +15,40 @@ namespace
     RECT GetClipRect()
     {
         RECT rc{};
-        ASSERT(GetWindowRect(Window::Get()->GetHandle(), &rc), "[WinApi] GetWindowRect failed!");
-        long width = rc.right - rc.left;
-        long height = rc.bottom - rc.top;
+        const bool success = GetWindowRect(Window::Get()->GetHandle(), &rc);
+        ASSERT(success, "[WinApi] GetWindowRect failed!");
+
+		const long width = rc.right - rc.left;
+		const long height = rc.bottom - rc.top;
         rc.left += width / 4;
         rc.right -= width / 4;
         rc.top += height / 4;
         rc.bottom -= height / 4;
+        
         return rc;
     }
+
+    Float2 GetNormalizedWndCoords(Float2 windowCoords)
+    {
+        RECT rc{};
+		const bool success = GetWindowRect(Window::Get()->GetHandle(), &rc);
+		ASSERT(success, "[WinApi] GetWindowRect failed!");
+
+		const Float2 normalizedPos = Float2(
+			((float)(windowCoords.x - rc.left) / AppConfig.WindowWidth),
+			((float)(windowCoords.y - rc.top) / AppConfig.WindowHeight));
+
+        return normalizedPos;
+    }
+
+	Float2 GetWndCoords(Float2 normalizedCoords)
+	{
+		RECT rc{};
+		const bool success = GetWindowRect(Window::Get()->GetHandle(), &rc);
+		ASSERT(success, "[WinApi] GetWindowRect failed!");
+
+        return { rc.left + normalizedCoords.x * AppConfig.WindowWidth, rc.top + normalizedCoords.y * AppConfig.WindowHeight };
+	}
 }
 
 namespace WindowInput
@@ -62,13 +87,14 @@ namespace WindowInput
         if (wnd->GetHandle() == GetActiveWindow())
         {
             POINT cursorPos{};
-            ASSERT(GetCursorPos(&cursorPos), "[WinApi] GetCursorPos failed!");
-            RECT wr{};
-            ASSERT(GetWindowRect(Window::Get()->GetHandle(), &wr), "[WinApi] GetWindowRect failed!");
 
-            const Float2 mousePosNormalized = Float2(
-                ((float)(cursorPos.x - wr.left) / AppConfig.WindowWidth),
-                ((float)(cursorPos.y - wr.top) / AppConfig.WindowHeight));
+            {
+				const bool success = GetCursorPos(&cursorPos);
+				ASSERT(success, "[WinApi] GetCursorPos failed!");
+            }
+
+
+            const Float2 mousePosNormalized = GetNormalizedWndCoords({ (float) cursorPos.x, (float) cursorPos.y });
             s_MouseDelta = mousePosNormalized - s_MousePos;
 
             if (wnd->IsCursorShown())
@@ -78,7 +104,9 @@ namespace WindowInput
             else
             {
                 s_MousePos = Float2(0.5f, 0.5f);
-                ASSERT(SetCursorPos(wr.left + AppConfig.WindowWidth / 2, wr.top + AppConfig.WindowHeight / 2), "[WinApi] SetCursorPos failed!");
+                const Float2 wndCoords = GetWndCoords(s_MousePos);
+                bool success = SetCursorPos(wndCoords.x, wndCoords.y);
+                ASSERT(success, "[WinApi] SetCursorPos failed!");
             }
         }
     }

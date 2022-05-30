@@ -43,8 +43,6 @@ namespace GFX
 	}
 
 	// Info
-	ID3D11Buffer* DX_Buffer(BufferID bufferID);
-	ID3D11ShaderResourceView* DX_SRV(BufferID bufferID);
 	uint32_t GetNumElements(BufferID bufferID);
 
 }

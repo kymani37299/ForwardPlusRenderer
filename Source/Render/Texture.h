@@ -20,8 +20,6 @@ namespace GFX
 
 	// Info
 	uint32_t GetNumMips(TextureID textureID);
-	ID3D11Texture2D* DX_Texture2D(TextureID textureID);
-	ID3D11ShaderResourceView* DX_SRV(TextureID textureID);
 
 	// Static samplers
 	ID3D11SamplerState** GetStaticSamplers();

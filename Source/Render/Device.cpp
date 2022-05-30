@@ -163,7 +163,7 @@ void Device::EndFrame(TextureID finalImage)
         m_Context->OMSetRenderTargets(1, m_SwapchainView.GetAddressOf(), nullptr);
         GFX::Cmd::BindVertexBuffer(m_Context.Get(), m_QuadBuffer);
 
-        ID3D11ShaderResourceView* srv = GFX::DX_SRV(finalImage);
+        ID3D11ShaderResourceView* srv = GFX::Storage::GetTexture(finalImage).SRV.Get();
         m_Context->PSSetShaderResources(0, 1, &srv);
         m_Context->Draw(6, 0);
 
