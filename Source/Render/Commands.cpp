@@ -48,9 +48,6 @@ namespace GFX
 		void ResetContext(ID3D11DeviceContext* context)
 		{
 			context->ClearState();
-
-			const D3D11_VIEWPORT viewport = { 0.0f, 0.0f, (float)AppConfig.WindowWidth, (float)AppConfig.WindowHeight, 0.0f, 1.0f };
-			context->RSSetViewports(1, &viewport);
 			context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 			PipelineState defaultState = GFX::DefaultPipelineState();
@@ -107,31 +104,38 @@ namespace GFX
 		{
 			ID3D11DepthStencilView* dsv = nullptr;
 			std::vector<ID3D11RenderTargetView*> rtvs;
-			rtvs.resize(colorID.size());
+
+			// Setup viewport
+			if ((colorID.size() > 0 && colorID[0].Valid()) || depthID.Valid())
+			{
+				const Texture& texture = depthID.Valid() ? GFX::Storage::GetTexture(depthID) : GFX::Storage::GetTexture(colorID[0]);
+				SetViewport(context, texture.Width, texture.Height);
+			}
+
+			// Get RTVs
 			for(uint32_t i=0;i<colorID.size();i++)
 			{
 				const TextureID texID = colorID[i];
 				if (texID.Valid())
 				{
 					const Texture& colorTexture = GFX::Storage::GetTexture(texID);
-					rtvs[i] = colorTexture.RTV.Get();
-				}
-				else
-				{
-					rtvs[i] = nullptr;
+					rtvs.push_back(colorTexture.RTV.Get());
 				}
 			}
+
+			// Get DSV
 			if (depthID.Valid())
 			{
 				const Texture& depthTexture = GFX::Storage::GetTexture(depthID);
 				dsv = depthTexture.DSV.Get();
 			}
+
 			context->OMSetRenderTargets(rtvs.size(), rtvs.size() == 0 ? nullptr : rtvs.data(), dsv);
 		}
 
-		void SetViewport(ID3D11DeviceContext* context, Float2 viewportSize)
+		void SetViewport(ID3D11DeviceContext* context, uint32_t width, uint32_t height)
 		{
-			const D3D11_VIEWPORT viewport = { 0.0f, 0.0f, (float)viewportSize.x, (float)viewportSize.y, 0.0f, 1.0f };
+			const D3D11_VIEWPORT viewport = { 0.0f, 0.0f, (float) width, (float) height, 0.0f, 1.0f };
 			context->RSSetViewports(1, &viewport);
 		}
 

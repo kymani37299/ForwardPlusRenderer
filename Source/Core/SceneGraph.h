@@ -158,27 +158,41 @@ struct Light
 
 struct Camera
 {
-	struct CameraTransform
+	enum class CameraType
 	{
-		Float3 Position;
-		Float3 Rotation; // (Pitch, Yaw, Roll)
-		Float3 Forward;
-		Float3 Up;
-		Float3 Right;
+		Ortho,
+		Perspective,
 	};
 
-	static void RotToAxis(CameraTransform& transform);
+	struct CameraTransform
+	{
+		Float3 Position{ 0.0f, 2.0f, 0.0f };
+		Float3 Rotation{ 0.0f, 0.0f, 0.0f }; // (Pitch, Yaw, Roll)
+		Float3 Forward{ 1.0f, 0.0f, 0.0f };
+		Float3 Up{ 0.0f, 1.0f, 0.0f };
+		Float3 Right{ 0.0f, 0.0f, 1.0f };
+	};
+	
+	static Camera CreatePerspective(float fov, float aspect, float znear, float zfar);
+	static Camera CreateOrtho(float rectWidth, float rectHeight, float znear, float zfar);
 
-	Camera(Float3 position, Float3 rotation, float fov);
 	void FrameUpdate(ID3D11DeviceContext* context);
 	void UpdateBuffers(ID3D11DeviceContext* context);
 	void UpdateBufferForTransform(ID3D11DeviceContext* context, CameraTransform& transform, BufferID& destBuffer);
 
-	float AspectRatio;
-	float FOV;
+	CameraType Type;
 	float ZFar;
 	float ZNear;
 
+	// Perspective data
+	float AspectRatio;
+	float FOV;
+
+	// Ortho data
+	float RectWidth;
+	float RectHeight;
+	
+	bool UseRotation = true; // Uses rotation (pitch,yaw,roll) for calculation forward vector
 	CameraTransform NextTransform;
 	CameraTransform CurrentTranform;
 	CameraTransform LastTransform;
@@ -187,7 +201,7 @@ struct Camera
 	uint8_t JitterIndex = 0;
 	Float2 Jitter[16];
 
-	DirectX::XMMATRIX WorldToView;
+	DirectX::XMMATRIX WorldToView = DirectX::XMMatrixIdentity();
 
 	BufferID CameraBuffer;
 	BufferID LastFrameCameraBuffer;
@@ -348,7 +362,8 @@ struct SceneGraph
 	Light CreatePointLight(ID3D11DeviceContext* context, Float3 position, Float3 color, Float2 falloff);
 	Light CreateLight(ID3D11DeviceContext* context, Light light);
 
-	Camera MainCamera{ {0.0f, 2.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, 75.0f };
+	Camera MainCamera;
+	Camera ShadowCamera;
 
 	ElementBuffer<Entity> Entities;
 	RenderGroup RenderGroups[EnumToInt(RenderGroupType::Count)];

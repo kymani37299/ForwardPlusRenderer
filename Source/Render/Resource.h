@@ -112,6 +112,10 @@ namespace GFX
 {
 	namespace Storage
 	{
+		static constexpr uint32_t TEXTURE_STORAGE_SIZE = 1024;
+		static constexpr uint32_t BUFFER_STORAGE_SIZE = 1024;
+		static constexpr uint32_t SHADER_STORAGE_SIZE = 1024;
+
 		const Buffer& GetBuffer(BufferID id);
 		const Texture& GetTexture(TextureID id);
 		const Shader& GetShader(ShaderID id);

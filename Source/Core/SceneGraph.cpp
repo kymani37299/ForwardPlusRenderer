@@ -150,23 +150,35 @@ void Light::UpdateBuffer(ID3D11DeviceContext* context)
 	GFX::Cmd::UploadToBuffer(context, MainSceneGraph.Lights.GetBuffer(), sizeof(LightSB) * LightIndex, &lightSB, 0, sizeof(LightSB));
 }
 
-void Camera::RotToAxis(CameraTransform& transform)
+Camera Camera::CreatePerspective(float fov, float aspect, float znear, float zfar)
 {
-	// TODO: Calculate up based on roll
-	transform.Up = Float3(0.0f, 1.0f, 0.0f);
-	transform.Forward = Float3((float)(std::cos(transform.Rotation.y) * std::cos(transform.Rotation.x)), (float)(std::sin(transform.Rotation.x)), (float)(std::sin(transform.Rotation.y) * std::cos(transform.Rotation.x))).Normalize();
-	transform.Right = transform.Forward.Cross(transform.Up).Normalize();
-	transform.Up = transform.Right.Cross(transform.Forward).Normalize();
+	Camera cam;
+	cam.Type = CameraType::Perspective;
+	cam.AspectRatio = aspect;
+	cam.FOV = fov;
+	cam.ZNear = znear;
+	cam.ZFar = zfar;
+	return cam;
 }
 
-Camera::Camera(Float3 position, Float3 rotation, float fov):
-	CurrentTranform({ position, rotation }),
-	LastTransform({ position, rotation }),
-	NextTransform({ position, rotation }),
-	FOV(fov),
-	ZFar(1000.0f),
-	ZNear(0.1f)
-{ }
+Camera Camera::CreateOrtho(float rectWidth, float rectHeight, float znear, float zfar)
+{
+	Camera cam;
+	cam.Type = CameraType::Ortho;
+	cam.RectWidth = rectWidth;
+	cam.RectHeight = rectHeight;
+	cam.ZNear = znear;
+	cam.ZFar;
+	return cam;
+}
+
+Float3 CalcForwardVector(float pitch, float yaw)
+{
+	const float x = std::cosf(yaw) * std::cosf(pitch);
+	const float y = std::sinf(pitch);
+	const float z = std::sinf(yaw) * std::cos(pitch);
+	return Float3{ x,y,z }.Normalize();
+}
 
 void Camera::UpdateBufferForTransform(ID3D11DeviceContext* context, CameraTransform& transform, BufferID& destBuffer)
 {
@@ -180,11 +192,22 @@ void Camera::UpdateBufferForTransform(ID3D11DeviceContext* context, CameraTransf
 		XMFLOAT2A Jitter;
 	};
 
-	AspectRatio = (float) AppConfig.WindowWidth / AppConfig.WindowHeight;
-	RotToAxis(transform);
+	if (UseRotation)
+	{
+		transform.Forward = CalcForwardVector(transform.Rotation.x, transform.Rotation.y);
+	}
+	
+	// TODO: Calc up based on roll
+	transform.Up = Float3(0.0f, 1.0f, 0.0f);
+	transform.Right = transform.Forward.Cross(transform.Up).Normalize();
+	transform.Up = transform.Right.Cross(transform.Forward).Normalize();
 
 	XMMATRIX worldToView = XMMatrixLookAtLH(transform.Position.ToXM(), (transform.Position + transform.Forward).ToXM(), transform.Up.ToXM());
-	XMMATRIX viewToClip = XMMatrixPerspectiveFovLH(DegreesToRadians(FOV), AspectRatio, ZNear, ZFar);
+	XMMATRIX viewToClip;
+
+	if (Type == CameraType::Perspective) viewToClip = XMMatrixPerspectiveFovLH(DegreesToRadians(FOV), AspectRatio, ZNear, ZFar);
+	else if (Type == CameraType::Ortho) viewToClip = XMMatrixOrthographicLH(RectWidth, RectHeight, ZNear, ZFar);
+
 	XMMATRIX worldToClip = XMMatrixMultiply(worldToView, viewToClip);
 	XMMATRIX clipToWorld = XMMatrixInverse(nullptr, worldToClip);
 
@@ -310,6 +333,10 @@ SceneGraph::SceneGraph() :
 
 void SceneGraph::InitRenderData(ID3D11DeviceContext* context)
 {
+	MainCamera = Camera::CreatePerspective(75.0f, (float) AppConfig.WindowWidth / AppConfig.WindowHeight, 0.1f, 1000.0f);
+	ShadowCamera = Camera::CreateOrtho(500.0f, 500.0f, -500.0f, 500.0f);
+	ShadowCamera.UseRotation = false;
+	
 	for (uint32_t i = 0; i < EnumToInt(RenderGroupType::Count); i++)
 	{
 		RenderGroups[i].Initialize(context);
@@ -321,6 +348,9 @@ void SceneGraph::InitRenderData(ID3D11DeviceContext* context)
 void SceneGraph::FrameUpdate(ID3D11DeviceContext* context)
 {
 	MainCamera.FrameUpdate(context);
+
+	ShadowCamera.NextTransform.Position = MainCamera.CurrentTranform.Position;
+	ShadowCamera.FrameUpdate(context);
 
 	// Scene info
 	{
@@ -454,7 +484,7 @@ TextureStorage::Allocation TextureStorage::AddTexture(ID3D11DeviceContext* conte
 	GFX::Cmd::SetupStaticSamplers<PS>(c);
 	GFX::Cmd::BindShader<VS | PS>(c, Device::Get()->GetCopyShader());
 	c->OMSetRenderTargets(1, stagingTex.RTV.GetAddressOf(), nullptr);
-	GFX::Cmd::SetViewport(c, { (float)TEXTURE_SIZE, (float)TEXTURE_SIZE });
+	GFX::Cmd::SetViewport(c, TEXTURE_SIZE, TEXTURE_SIZE);
 	GFX::Cmd::BindVertexBuffer(c, Device::Get()->GetQuadBuffer());
 	GFX::Cmd::BindSRV<PS>(c, texture, 0);
 	c->Draw(6, 0);

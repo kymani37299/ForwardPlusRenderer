@@ -77,9 +77,9 @@ namespace GFX
 			std::stack<uint32_t> m_AvailableElements;
 		};
 
-		ResourceStorage<Buffer, 1024> BufferStorage;
-		ResourceStorage<Texture, 1024> TextureStorage;
-		ResourceStorage<Shader, 1024> ShaderStorage;
+		ResourceStorage<Buffer, GFX::Storage::BUFFER_STORAGE_SIZE> BufferStorage;
+		ResourceStorage<Texture, GFX::Storage::TEXTURE_STORAGE_SIZE> TextureStorage;
+		ResourceStorage<Shader, GFX::Storage::SHADER_STORAGE_SIZE> ShaderStorage;
 	}
 
 	namespace Storage

@@ -38,9 +38,6 @@ public:
 
 	virtual void Update(float dt) {}
 	virtual void Render(ID3D11DeviceContext* context);
-
-private:
-	bool m_Shown = true;
 };
 
 class RenderStatsGUI : public GUIElement
@@ -50,6 +47,19 @@ public:
 
 	virtual void Update(float dt) {}
 	virtual void Render(ID3D11DeviceContext* context);
+};
+
+class TextureVisualizerGUI : public GUIElement
+{
+public:
+	TextureVisualizerGUI() : GUIElement("Texture visualizer", false) {}
+
+	virtual void Update(float dt) {}
+	virtual void Render(ID3D11DeviceContext* context);
+
+private:
+	uint32_t m_SelectedTexture = 0;
+	float m_ScaleFactor = 0.1f;
 };
 
 struct DebugToolsConfiguration

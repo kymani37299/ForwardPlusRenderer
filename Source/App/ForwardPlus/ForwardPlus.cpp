@@ -21,8 +21,13 @@ namespace ForwardPlusPrivate
 {
 	void PrepareScene(ID3D11DeviceContext* context)
 	{
+		const Float3 dirLight = Float3(-1.0f, -1.0f, -1.0f);
+
 		MainSceneGraph.CreateAmbientLight(context, Float3(0.1f, 0.1f, 0.15f));
-		MainSceneGraph.CreateDirectionalLight(context, Float3(-1.0f, -1.0f, -1.0f), Float3(0.2f, 0.2f, 0.23f));
+		MainSceneGraph.CreateDirectionalLight(context, dirLight, Float3(0.2f, 0.2f, 0.23f));
+
+		// TODO: Sync dir lights with camera automatically
+		MainSceneGraph.ShadowCamera.NextTransform.Forward = dirLight;
 
 		constexpr uint32_t NUM_LIGHTS = 10000;
 		for (uint32_t i = 0; i < NUM_LIGHTS; i++)
@@ -49,8 +54,8 @@ namespace ForwardPlusPrivate
 				const Float3 position = Float3{ Random::SNorm(), Random::SNorm(), Random::SNorm() } *Float3{ 100.0f, 100.0f, 100.0f };
 				const Float3 scale = Float3{ Random::Float(0.1f, 10.0f), Random::Float(0.1f, 10.0f) , Random::Float(0.1f, 10.0f) };
 				Entity cube{};
-				cube.Position = { 0.0f, -10.0f, 0.0f };
-				cube.Scale = { 10000.0f, 1.0f, 10000.0f };
+				cube.Position = position;
+				cube.Scale = scale;
 				uint32_t cubeIndex = MainSceneGraph.AddEntity(context, cube);
 				SceneLoading::AddDraws(cubeScene, cubeIndex);
 			}
@@ -154,29 +159,34 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 		GUI::Get()->AddElement(new PostprocessingGUI());
 		GUI::Get()->AddElement(new PositionInfoGUI());
 		GUI::Get()->AddElement(new RenderStatsGUI());
+		GUI::Get()->AddElement(new TextureVisualizerGUI());
 	}
 
-	MainSceneGraph.InitRenderData(context);
+	// Initialize GFX resources
+	{
+		MainSceneGraph.InitRenderData(context);
 
-	m_SkyboxRenderer.Init(context);
-	m_DebugRenderer.Init(context);
-	m_PostprocessingRenderer.Init(context);
+		m_SkyboxRenderer.Init(context);
+		m_DebugRenderer.Init(context);
+		m_PostprocessingRenderer.Init(context);
+
+		m_DepthPrepassShader = GFX::CreateShader("Source/Shaders/depth.hlsl");
+		m_GeometryShader = GFX::CreateShader("Source/Shaders/geometry.hlsl");
+		m_LightCullingShader = GFX::CreateShader("Source/Shaders/light_culling.hlsl");
+
+		m_ShadowmapRT_Depth = GFX::CreateTexture(1024, 1024, RCF_Bind_DSV | RCF_Bind_SRV);
+
+		std::vector<uint32_t> indices{};
+		indices.resize(MESHLET_INDEX_COUNT);
+		for (uint32_t i = 0; i < MESHLET_INDEX_COUNT; i++) indices[i] = i;
+		m_MeshletIndexBuffer = GFX::CreateBuffer(MESHLET_INDEX_COUNT * sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_VB, indices.data());
+		m_DrawableInstanceBuffer = GFX::CreateVertexBuffer<uint32_t>(1, nullptr);
+		m_MeshletInstanceBuffer = GFX::CreateVertexBuffer<uint32_t>(1, nullptr);
+
+		UpdatePresentResources(context);
+		UpdateCullingResources(context);
+	}
 	
-	m_DepthPrepassShader = GFX::CreateShader("Source/Shaders/depth.hlsl");
-	m_GeometryShader = GFX::CreateShader("Source/Shaders/geometry.hlsl");
-	m_LightCullingShader = GFX::CreateShader("Source/Shaders/light_culling.hlsl");
-
-	m_DrawableInstanceBuffer = GFX::CreateVertexBuffer<uint32_t>(1, nullptr);
-	m_MeshletInstanceBuffer = GFX::CreateVertexBuffer<uint32_t>(1, nullptr);
-
-	std::vector<uint32_t> indices{};
-	indices.resize(MESHLET_INDEX_COUNT);
-	for (uint32_t i = 0; i < MESHLET_INDEX_COUNT; i++) indices[i] = i;
-	m_MeshletIndexBuffer = GFX::CreateBuffer(MESHLET_INDEX_COUNT * sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_VB, indices.data());
-
-	UpdatePresentResources(context);
-	UpdateCullingResources(context);
-
 	PrepareScene(context);
 }
 
@@ -296,41 +306,76 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		GFX::Cmd::ClearRenderTarget(context, m_MainRT_HDR);
 		GFX::Cmd::ClearRenderTarget(context, m_MotionVectorRT);
 		GFX::Cmd::ClearDepthStencil(context, m_MainRT_Depth);
+		GFX::Cmd::ClearDepthStencil(context, m_ShadowmapRT_Depth);
 	}
 
 	// Depth prepass
-	 {
-	 	GFX::Cmd::MarkerBegin(context, "Depth Prepass");
-	 	PipelineState pso = GFX::DefaultPipelineState();
-	 	pso.DS.DepthEnable = true;
-	 
-	 	RenderGroupType prepassTypes[] = { RenderGroupType::Opaque, RenderGroupType::AlphaDiscard };
-	 	for (uint32_t i = 0; i < STATIC_ARRAY_SIZE(prepassTypes); i++)
-	 	{
-	 		RenderGroupType rgType = IntToEnum<RenderGroupType>(i);
-	 		RenderGroup& renderGroup = MainSceneGraph.RenderGroups[i];
+	{
+		const bool drawMotionVectors = PostprocessSettings.AntialiasingMode == AntiAliasingMode::TAA;
+
+		GFX::Cmd::MarkerBegin(context, "Depth Prepass");
+		PipelineState pso = GFX::DefaultPipelineState();
+		pso.DS.DepthEnable = true;
+
+		RenderGroupType prepassTypes[] = { RenderGroupType::Opaque, RenderGroupType::AlphaDiscard };
+		for (uint32_t i = 0; i < STATIC_ARRAY_SIZE(prepassTypes); i++)
+		{
+			RenderGroupType rgType = IntToEnum<RenderGroupType>(i);
+			RenderGroup& renderGroup = MainSceneGraph.RenderGroups[i];
 			const uint32_t instanceCount = PrepareInstanceBuffer(context, m_MeshletInstanceBuffer, m_DrawableInstanceBuffer, renderGroup);
-	 
-	 		std::vector<std::string> config{};
-	 
-	 		GFX::Cmd::BindRenderTarget(context, m_MotionVectorRT, m_MainRT_Depth);
-	 		GFX::Cmd::SetPipelineState(context, pso);
-	 		GFX::Cmd::BindCBV<VS | PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
-	 		GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.LastFrameCameraBuffer, 1);
-	 		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.SceneInfoBuffer, 2);
-	 		if (rgType == RenderGroupType::AlphaDiscard)
-	 		{
-	 			config.push_back("ALPHA_DISCARD");
-	 			GFX::Cmd::SetupStaticSamplers<PS>(context);
-	 		}
+
+			std::vector<std::string> config{};
+			if (drawMotionVectors) config.push_back("MOTION_VECTORS");
+
+			GFX::Cmd::BindRenderTarget(context, drawMotionVectors ? m_MotionVectorRT : TextureID{}, m_MainRT_Depth);
+			GFX::Cmd::SetPipelineState(context, pso);
+			GFX::Cmd::BindCBV<VS | PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
+			GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.LastFrameCameraBuffer, 1);
+			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.SceneInfoBuffer, 2);
+			if (rgType == RenderGroupType::AlphaDiscard)
+			{
+				config.push_back("ALPHA_DISCARD");
+				GFX::Cmd::SetupStaticSamplers<PS>(context);
+			}
 			renderGroup.SetupPipelineInputs(context);
 			GFX::Cmd::BindVertexBuffers(context, { m_MeshletIndexBuffer, m_MeshletInstanceBuffer, m_DrawableInstanceBuffer });
-	 		GFX::Cmd::BindShader<VS | PS>(context, m_DepthPrepassShader, config, true);
-	 		context->DrawInstanced(MESHLET_INDEX_COUNT, instanceCount, 0, 0);
-	 	}
-	 	GFX::Cmd::MarkerEnd(context);
-	 }
+			GFX::Cmd::BindShader<VS | PS>(context, m_DepthPrepassShader, config, true);
+			context->DrawInstanced(MESHLET_INDEX_COUNT, instanceCount, 0, 0);
+		}
+		GFX::Cmd::MarkerEnd(context);
+	}
 	
+	// Shadowmap
+	{
+		GFX::Cmd::MarkerBegin(context, "Shadowmap");
+		PipelineState pso = GFX::DefaultPipelineState();
+		pso.DS.DepthEnable = true;
+
+		RenderGroupType prepassTypes[] = { RenderGroupType::Opaque, RenderGroupType::AlphaDiscard };
+		for (uint32_t i = 0; i < STATIC_ARRAY_SIZE(prepassTypes); i++)
+		{
+			RenderGroupType rgType = IntToEnum<RenderGroupType>(i);
+			RenderGroup& renderGroup = MainSceneGraph.RenderGroups[i];
+			const uint32_t instanceCount = PrepareInstanceBuffer(context, m_MeshletInstanceBuffer, m_DrawableInstanceBuffer, renderGroup);
+
+			std::vector<std::string> config{};
+
+			GFX::Cmd::BindRenderTarget(context, TextureID{}, m_ShadowmapRT_Depth);
+			GFX::Cmd::SetPipelineState(context, pso);
+			GFX::Cmd::BindCBV<VS | PS>(context, MainSceneGraph.ShadowCamera.CameraBuffer, 0);
+			if (rgType == RenderGroupType::AlphaDiscard)
+			{
+				config.push_back("ALPHA_DISCARD");
+				GFX::Cmd::SetupStaticSamplers<PS>(context);
+			}
+			renderGroup.SetupPipelineInputs(context);
+			GFX::Cmd::BindVertexBuffers(context, { m_MeshletIndexBuffer, m_MeshletInstanceBuffer, m_DrawableInstanceBuffer });
+			GFX::Cmd::BindShader<VS | PS>(context, m_DepthPrepassShader, config, true);
+			context->DrawInstanced(MESHLET_INDEX_COUNT, instanceCount, 0, 0);
+		}
+		GFX::Cmd::MarkerEnd(context);
+	}
+
 	// Light culling
 	if(!DebugToolsConfig.FreezeLightCulling && !DebugToolsConfig.DisableLightCulling)
 	{
@@ -371,8 +416,10 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		GFX::Cmd::SetupStaticSamplers<PS>(context);
 		GFX::Cmd::BindCBV<VS|PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.SceneInfoBuffer, 1);
+		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.ShadowCamera.CameraBuffer, 2);
 		GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Lights.GetBuffer(), 0);
 		GFX::Cmd::BindSRV<PS>(context, m_VisibleLightsBuffer, 1);
+		GFX::Cmd::BindSRV<PS>(context, m_ShadowmapRT_Depth, 2);
 
 		for (uint32_t i = 0; i < EnumToInt(RenderGroupType::Count); i++)
 		{
@@ -443,6 +490,8 @@ void ForwardPlus::UpdatePresentResources(ID3D11DeviceContext* context)
 	m_MotionVectorRT	= GFX::CreateTexture(size[0], size[1], RCF_Bind_RTV | RCF_Bind_SRV | sampleFlags, 1, DXGI_FORMAT_R16G16_UNORM);
 	m_MainRT_Depth		= GFX::CreateTexture(size[0], size[1], RCF_Bind_DSV | RCF_Bind_SRV | sampleFlags);
 	m_PostprocessingRenderer.ReloadTextureResources(context);
+
+	MainSceneGraph.MainCamera.AspectRatio = (float)AppConfig.WindowWidth / AppConfig.WindowHeight;
 }
 
 void ForwardPlus::UpdateCullingResources(ID3D11DeviceContext* context)

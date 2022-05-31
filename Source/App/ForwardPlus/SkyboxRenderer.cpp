@@ -38,7 +38,7 @@ static TextureID PanoramaToCubemap(ID3D11DeviceContext* context, TextureID panor
 	GFX::Cmd::BindCBV<VS>(context, cameraCB, 0);
 	GFX::Cmd::BindSRV<PS>(context, panoramaTexture, 0);
 	GFX::Cmd::SetupStaticSamplers<PS>(context);
-	GFX::Cmd::SetViewport(context, { (float)cubemapSize, (float)cubemapSize });
+	GFX::Cmd::SetViewport(context, cubemapSize, cubemapSize);
 
 	for (uint32_t i = 0; i < 6; i++)
 	{

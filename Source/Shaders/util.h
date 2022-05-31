@@ -26,3 +26,11 @@ float3 GetWorldPositionFromDepth(float depth, float2 screenUV, Camera camera)
 
 	return worldPosition.xyz / worldPosition.w;
 }
+
+float2 GetUVFromClipPosition(float3 clipPosition)
+{
+	// [-1,1] -> [0,1]
+	float2 uv = clipPosition.xy * 0.5f + 0.5f;
+	uv.y = 1.0f - uv.y;
+	return uv;
+}

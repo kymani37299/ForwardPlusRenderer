@@ -42,6 +42,7 @@ private:
 	TextureID m_MainRT_HDR;
 	TextureID m_MainRT_Depth;
 	TextureID m_MotionVectorRT;
+	TextureID m_ShadowmapRT_Depth;
 
 	BufferID m_MeshletIndexBuffer;
 	BufferID m_DrawableInstanceBuffer;

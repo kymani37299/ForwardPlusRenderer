@@ -9,8 +9,11 @@
 struct VertexOut
 {
 	float4 Position : SV_POSITION;
+
+#ifdef MOTION_VECTORS
 	float4 CurrentFramePosition : CURR_POS;
 	float4 LastFramePosition : LAST_FRAME_POS;
+#endif // MOTION_VECTORS
 
 #ifdef ALPHA_DISCARD
 	float2 Texcoord : TEXCOORD;
@@ -23,31 +26,15 @@ cbuffer CameraCB : register(b0)
 	Camera CamData;
 }
 
+#ifdef MOTION_VECTORS
 cbuffer CameraCBLastFrame : register(b1)
 {
 	Camera CamDataLastFrame;
 }
 
-cbuffer SceneInfoCB : register(b1)
+cbuffer SceneInfoCB : register(b2)
 {
 	SceneInfo SceneInfoData;
-}
-
-VertexOut VS(VertexPipelineInput IN)
-{
-    const Drawable d = Drawables[IN.DrawableInstance];
-    const Vertex vert = GetWorldSpaceVertex(IN);
-	
-	VertexOut OUT;
-    OUT.Position = GetClipPosWithJitter(vert.Position, CamData);
-    OUT.CurrentFramePosition = GetClipPos(vert.Position, CamData);
-    OUT.LastFramePosition = GetClipPos(vert.Position, CamDataLastFrame);
-
-#ifdef ALPHA_DISCARD
-	OUT.Texcoord = vert.Texcoord;
-	OUT.MaterialIndex = d.MaterialIndex;
-#endif
-	return OUT;
 }
 
 float2 CalculateMotionVector(float4 newPosition, float4 oldPosition, float2 screenSize)
@@ -62,8 +49,35 @@ float2 CalculateMotionVector(float4 newPosition, float4 oldPosition, float2 scre
 
 	return (newPosition - oldPosition).xy;
 }
+#endif // MOTION_VECTORS
 
+VertexOut VS(VertexPipelineInput IN)
+{
+    const Drawable d = Drawables[IN.DrawableInstance];
+    const Vertex vert = GetWorldSpaceVertex(IN);
+	
+	VertexOut OUT;
+    OUT.Position = GetClipPosWithJitter(vert.Position, CamData);
+
+#ifdef MOTION_VECTORS
+    OUT.CurrentFramePosition = GetClipPos(vert.Position, CamData);
+    OUT.LastFramePosition = GetClipPos(vert.Position, CamDataLastFrame);
+#endif // MOTION_VECTORS
+
+#ifdef ALPHA_DISCARD
+	OUT.Texcoord = vert.Texcoord;
+	OUT.MaterialIndex = d.MaterialIndex;
+#endif
+	return OUT;
+}
+
+
+
+#ifdef MOTION_VECTORS
 float2 PS(VertexOut IN) : SV_TARGET
+#else
+void PS(VertexOut IN)
+#endif // MOTION_VECTORS
 {
 #ifdef ALPHA_DISCARD
 	const Material matParams = Materials[IN.MaterialIndex];
@@ -73,5 +87,7 @@ float2 PS(VertexOut IN) : SV_TARGET
 		clip(-1.0f);
 #endif
 
+#ifdef MOTION_VECTORS
 	return CalculateMotionVector(IN.CurrentFramePosition, IN.LastFramePosition, SceneInfoData.ScreenSize);
+#endif // MOTION_VECTORS
 }

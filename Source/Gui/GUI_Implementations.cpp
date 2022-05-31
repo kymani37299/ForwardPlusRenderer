@@ -2,6 +2,7 @@
 
 #include "Core/SceneGraph.h"
 #include "Gui/Imgui/imgui.h"
+#include "Render/Resource.h"
 #include "System/ApplicationConfiguration.h"
 
 DebugToolsConfiguration DebugToolsConfig;
@@ -93,4 +94,23 @@ void RenderStatsGUI::Render(ID3D11DeviceContext* context)
 {
 	ImGui::Text("Lights: \t\t %u / %u", RenderStats.VisibleLights, RenderStats.TotalLights);
 	ImGui::Text("Drawables: \t\t %u / %u", RenderStats.VisibleDrawables, RenderStats.TotalDrawables);
+}
+
+void TextureVisualizerGUI::Render(ID3D11DeviceContext* context)
+{
+	int val = m_SelectedTexture;
+	ImGui::InputInt("Texture ID", &val);
+	m_SelectedTexture = MIN((uint32_t) val, GFX::Storage::TEXTURE_STORAGE_SIZE);
+
+	ImGui::SliderFloat("Texture size", &m_ScaleFactor, 0.0f, 1.0f);
+
+	TextureID texture{ m_SelectedTexture };
+	if (texture.Valid())
+	{
+		const Texture& tex = GFX::Storage::GetTexture(texture);
+		if (tex.SRV.Get())
+		{
+			ImGui::Image(tex.SRV.Get(), { tex.Width * m_ScaleFactor, tex.Height * m_ScaleFactor });
+		}
+	}
 }

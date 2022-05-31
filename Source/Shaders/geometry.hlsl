@@ -26,8 +26,14 @@ cbuffer SceneInfoCB : register(b1)
 	SceneInfo SceneInfoData;
 }
 
+cbuffer ShadowCameraCB : register(b2)
+{
+	Camera ShadowCamera;
+}
+
 StructuredBuffer<Light> Lights : register(t0);
 StructuredBuffer<uint> VisibleLights : register(t1);
+Texture2D<float> Shadowmap : register(t2);
 
 VertexOut VS(VertexPipelineInput IN)
 {
@@ -43,6 +49,26 @@ VertexOut VS(VertexPipelineInput IN)
     OUT.UV = vert.Texcoord;
 	OUT.MaterialIndex = d.MaterialIndex;
 	return OUT;
+}
+
+float CalculateShadowFactor(float3 worldPosition)
+{
+	float4 shadowmapPosition = GetClipPos(worldPosition, ShadowCamera);
+	shadowmapPosition.xyz /= shadowmapPosition.w;
+
+	const float2 shadowmapUV = GetUVFromClipPosition(shadowmapPosition.xyz);
+
+	const bool inShadowMap = shadowmapUV.x < 1.0f && shadowmapUV.x > 0.0f && shadowmapUV.y < 1.0f && shadowmapUV.y > 0.0f;
+
+	float shadowFactor = 0.2f;
+	if (inShadowMap)
+	{
+		const float depthBias = 0.01f;
+		const float shadowmapDepth = Shadowmap.Sample(s_LinearWrap, shadowmapUV) + depthBias;
+		const bool isInShadow = shadowmapPosition.z > shadowmapDepth;
+		shadowFactor = isInShadow ? 0.5f : 1.0f;
+	}
+	return shadowFactor;
 }
 
 float4 PS(VertexOut IN) : SV_TARGET
@@ -109,6 +135,8 @@ float4 PS(VertexOut IN) : SV_TARGET
 #else
 	litColor.a = 1.0f;
 #endif // ALPHA_BLEND
+
+	litColor.rgb *= CalculateShadowFactor(IN.WorldPosition);
 
 	return litColor;
 }
