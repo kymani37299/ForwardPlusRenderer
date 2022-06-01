@@ -96,6 +96,7 @@ void RenderStatsGUI::Render(ID3D11DeviceContext* context)
 	ImGui::Text("Drawables: \t\t %u / %u", RenderStats.VisibleDrawables, RenderStats.TotalDrawables);
 }
 
+// --------------------------------------------------
 void TextureVisualizerGUI::Render(ID3D11DeviceContext* context)
 {
 	int val = m_SelectedTexture;
@@ -112,5 +113,23 @@ void TextureVisualizerGUI::Render(ID3D11DeviceContext* context)
 		{
 			ImGui::Image(tex.SRV.Get(), { tex.Width * m_ScaleFactor, tex.Height * m_ScaleFactor });
 		}
+	}
+}
+
+// --------------------------------------------------
+void LightsGUI::Render(ID3D11DeviceContext* context)
+{
+	if (MainSceneGraph.DirLightIndex != UINT32_MAX)
+	{
+		Light& dirLight = MainSceneGraph.Lights[MainSceneGraph.DirLightIndex];
+
+		float direction[3];
+		direction[0] = dirLight.Direction.x;
+		direction[1] = dirLight.Direction.y;
+		direction[2] = dirLight.Direction.z;
+
+		ImGui::SliderFloat3("Directional light ", direction, -1.0f, 1.0f);
+		dirLight.Direction = { direction[0], direction[1], direction[2] };
+		dirLight.Direction = dirLight.Direction.Normalize();
 	}
 }

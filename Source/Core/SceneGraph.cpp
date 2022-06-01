@@ -349,8 +349,13 @@ void SceneGraph::FrameUpdate(ID3D11DeviceContext* context)
 {
 	MainCamera.FrameUpdate(context);
 
-	ShadowCamera.NextTransform.Position = MainCamera.CurrentTranform.Position;
-	ShadowCamera.FrameUpdate(context);
+	// Shadow camera
+	{
+		ShadowCamera.NextTransform.Position = MainCamera.CurrentTranform.Position;
+		if (DirLightIndex != UINT32_MAX)
+			ShadowCamera.NextTransform.Forward = Lights[DirLightIndex].Direction;
+		ShadowCamera.FrameUpdate(context);
+	}
 
 	// Scene info
 	{
@@ -393,12 +398,16 @@ uint32_t SceneGraph::AddEntity(ID3D11DeviceContext* context, Entity entity)
 
 Light SceneGraph::CreateDirectionalLight(ID3D11DeviceContext* context, Float3 direction, Float3 color)
 {
+	ASSERT(DirLightIndex == UINT32_MAX, "Only one directional light is supported per scene!");
+
 	Light l{};
 	l.Type = LT_Directional;
 	l.Direction = direction;
 	l.Radiance = color;
 
-	return CreateLight(context, l);
+	l = CreateLight(context, l);
+	DirLightIndex = l.LightIndex;
+	return l;
 }
 
 Light SceneGraph::CreateAmbientLight(ID3D11DeviceContext* context, Float3 color)
@@ -485,9 +494,8 @@ TextureStorage::Allocation TextureStorage::AddTexture(ID3D11DeviceContext* conte
 	GFX::Cmd::BindShader<VS | PS>(c, Device::Get()->GetCopyShader());
 	c->OMSetRenderTargets(1, stagingTex.RTV.GetAddressOf(), nullptr);
 	GFX::Cmd::SetViewport(c, TEXTURE_SIZE, TEXTURE_SIZE);
-	GFX::Cmd::BindVertexBuffer(c, Device::Get()->GetQuadBuffer());
 	GFX::Cmd::BindSRV<PS>(c, texture, 0);
-	c->Draw(6, 0);
+	GFX::Cmd::DrawFC(context);
 	GFX::Cmd::MarkerEnd(c);
 
 	c->GenerateMips(stagingTex.SRV.Get());

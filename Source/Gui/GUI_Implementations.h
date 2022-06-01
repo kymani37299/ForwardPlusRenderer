@@ -62,6 +62,16 @@ private:
 	float m_ScaleFactor = 0.1f;
 };
 
+class LightsGUI : public GUIElement
+{
+public:
+	LightsGUI() : GUIElement("Lights", false) {}
+
+	virtual void Update(float dt) {}
+	virtual void Render(ID3D11DeviceContext* context);
+};
+
+
 struct DebugToolsConfiguration
 {
 	bool DisableGeometryCulling = false;

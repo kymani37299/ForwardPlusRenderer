@@ -38,6 +38,8 @@ namespace GFX
 
 		void ResolveTexture(ID3D11DeviceContext* context, TextureID srcTexture, TextureID dstTexture);
 
+		void DrawFC(ID3D11DeviceContext* context);
+
 		template<uint32_t stage>
 		void SetupStaticSamplers(ID3D11DeviceContext* context)
 		{

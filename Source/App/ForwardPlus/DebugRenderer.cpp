@@ -150,8 +150,7 @@ void DebugRenderer::Draw(ID3D11DeviceContext* context, TextureID colorTarget, Te
 		GFX::Cmd::BindShader<VS | PS>(context, m_LightHeatmapShader);
 		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.SceneInfoBuffer, 0);
 		GFX::Cmd::BindSRV<PS>(context, visibleLights, 0);
-		GFX::Cmd::BindVertexBuffer(context, Device::Get()->GetQuadBuffer());
-		context->Draw(6, 0);
+		GFX::Cmd::DrawFC(context);
 	}
 }
 

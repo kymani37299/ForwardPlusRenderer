@@ -1,19 +1,10 @@
 #include "light_culling.h"
 #include "scene.h"
+#include "full_screen.h"
+
+VS_IMPL;
 
 #define HIGH_LIGHT_COUNT 30
-
-struct VertexInput
-{
-	float2 pos : SV_POSITION;
-	float2 uv : TEXCOORD;
-};
-
-struct VertexOut
-{
-	float4 pos : SV_POSITION;
-	float2 uv : TEXCOORD;
-};
 
 cbuffer SceneInfoCB : register(b0)
 {
@@ -22,15 +13,7 @@ cbuffer SceneInfoCB : register(b0)
 
 StructuredBuffer<uint> VisibleLights : register(t0);
 
-VertexOut VS(VertexInput IN)
-{
-	VertexOut OUT;
-	OUT.pos = float4(IN.pos, 0.0f, 1.0f);
-	OUT.uv = IN.uv;
-	return OUT;
-}
-
-float4 PS(VertexOut IN) : SV_Target
+float4 PS(FCVertex IN) : SV_Target
 {
 	const uint2 tileIndex = GetTileIndexFromPosition(IN.pos);
 	const uint visibleLightOffset = GetOffsetFromTileIndex(SceneInfoData, tileIndex);

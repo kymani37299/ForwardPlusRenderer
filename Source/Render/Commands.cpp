@@ -246,5 +246,12 @@ namespace GFX
 			ASSERT(srcTex.Format == dstTex.Format, "In order to resolve a texture source and destination need to be a same format");
 			context->ResolveSubresource(dstTex.Handle.Get(), 0, srcTex.Handle.Get(), 0, srcTex.Format);
 		}
+
+		void DrawFC(ID3D11DeviceContext* context)
+		{
+			GFX::Cmd::BindVertexBuffer(context, Device::Get()->GetQuadBuffer());
+			context->Draw(6, 0);
+		}
+
 	}
 }

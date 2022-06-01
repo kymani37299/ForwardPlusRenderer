@@ -4,6 +4,7 @@
 #include "App/ForwardPlus/DebugRenderer.h"
 #include "App/ForwardPlus/SkyboxRenderer.h"
 #include "App/ForwardPlus/PostprocessingRenderer.h"
+#include "App/ForwardPlus/ShadowRenderer.h"
 
 #include "Render/ResourceID.h"
 
@@ -33,6 +34,7 @@ private:
 	DebugRenderer m_DebugRenderer;
 	SkyboxRenderer m_SkyboxRenderer{ "Resources/skybox_panorama.hdr" };
 	PostprocessingRenderer m_PostprocessingRenderer;
+	ShadowRenderer m_ShadowRenderer;
 
 	// GFX Resources
 	ShaderID m_DepthPrepassShader;
@@ -42,10 +44,6 @@ private:
 	TextureID m_MainRT_HDR;
 	TextureID m_MainRT_Depth;
 	TextureID m_MotionVectorRT;
-	TextureID m_ShadowmapRT_Depth;
 
-	BufferID m_MeshletIndexBuffer;
-	BufferID m_DrawableInstanceBuffer;
-	BufferID m_MeshletInstanceBuffer;
 	BufferID m_VisibleLightsBuffer;
 };

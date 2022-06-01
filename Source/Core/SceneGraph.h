@@ -368,6 +368,7 @@ struct SceneGraph
 	ElementBuffer<Entity> Entities;
 	RenderGroup RenderGroups[EnumToInt(RenderGroupType::Count)];
 	ElementBuffer<Light> Lights;
+	uint32_t DirLightIndex = UINT32_MAX;
 
 	BufferID SceneInfoBuffer;
 };

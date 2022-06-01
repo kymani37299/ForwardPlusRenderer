@@ -18,7 +18,7 @@ struct VertexOut
 
 cbuffer CameraCB : register(b0)
 {
-	Camera CamData;
+	Camera MainCamera;
 }
 
 cbuffer SceneInfoCB : register(b1)
@@ -26,14 +26,10 @@ cbuffer SceneInfoCB : register(b1)
 	SceneInfo SceneInfoData;
 }
 
-cbuffer ShadowCameraCB : register(b2)
-{
-	Camera ShadowCamera;
-}
 
 StructuredBuffer<Light> Lights : register(t0);
 StructuredBuffer<uint> VisibleLights : register(t1);
-Texture2D<float> Shadowmap : register(t2);
+Texture2D<float> Shadowmask : register(t2);
 
 VertexOut VS(VertexPipelineInput IN)
 {
@@ -41,7 +37,7 @@ VertexOut VS(VertexPipelineInput IN)
     const Vertex vert = GetWorldSpaceVertex(IN);
 	
 	VertexOut OUT;
-    OUT.Position = GetClipPosWithJitter(vert.Position, CamData);
+    OUT.Position = GetClipPosWithJitter(vert.Position, MainCamera);
     OUT.WorldPosition = vert.Position;
     OUT.Normal = vert.Normal;
     OUT.Tangent = vert.Tangent.xyz; // TODO: What should I do with tangent.w ?
@@ -49,26 +45,6 @@ VertexOut VS(VertexPipelineInput IN)
     OUT.UV = vert.Texcoord;
 	OUT.MaterialIndex = d.MaterialIndex;
 	return OUT;
-}
-
-float CalculateShadowFactor(float3 worldPosition)
-{
-	float4 shadowmapPosition = GetClipPos(worldPosition, ShadowCamera);
-	shadowmapPosition.xyz /= shadowmapPosition.w;
-
-	const float2 shadowmapUV = GetUVFromClipPosition(shadowmapPosition.xyz);
-
-	const bool inShadowMap = shadowmapUV.x < 1.0f && shadowmapUV.x > 0.0f && shadowmapUV.y < 1.0f && shadowmapUV.y > 0.0f;
-
-	float shadowFactor = 0.2f;
-	if (inShadowMap)
-	{
-		const float depthBias = 0.01f;
-		const float shadowmapDepth = Shadowmap.Sample(s_LinearWrap, shadowmapUV) + depthBias;
-		const bool isInShadow = shadowmapPosition.z > shadowmapDepth;
-		shadowFactor = isInShadow ? 0.5f : 1.0f;
-	}
-	return shadowFactor;
 }
 
 float4 PS(VertexOut IN) : SV_TARGET
@@ -96,9 +72,11 @@ float4 PS(VertexOut IN) : SV_TARGET
 	const float3 normalValue = 2.0f * Textures.Sample(s_LinearWrap, float3(IN.UV, matParams.Normal)).rgb - 1.0f;
 
 	const float3 normal = normalize(mul(normalValue, TBN));
-	const float3 view = normalize(CamData.Position - IN.WorldPosition);
+	const float3 view = normalize(MainCamera.Position - IN.WorldPosition);
 
 	float4 litColor = float4(0.0f, 0.0f, 0.0f, 0.0f);
+	const float2 shadowMaskUV = IN.Position.xy / SceneInfoData.ScreenSize;
+	const float shadowFactor = Shadowmask.Sample(s_LinearWrap, shadowMaskUV);
 
 #ifdef DISABLE_LIGHT_CULLING
 	for(uint i=0; i < SceneInfoData.NumLights; i++)
@@ -116,7 +94,7 @@ float4 PS(VertexOut IN) : SV_TARGET
 		switch (l.Type)
 		{
 		case LIGHT_TYPE_DIRECTIONAL:
-			litColor.rgb += ComputeDirectionalLight(l, mat, normal, view);
+			litColor.rgb += shadowFactor * ComputeDirectionalLight(l, mat, normal, view);
 			break;
 		case LIGHT_TYPE_POINT:
 			litColor.rgb += ComputePointLight(l, mat, IN.WorldPosition, normal, view);
@@ -135,8 +113,6 @@ float4 PS(VertexOut IN) : SV_TARGET
 #else
 	litColor.a = 1.0f;
 #endif // ALPHA_BLEND
-
-	litColor.rgb *= CalculateShadowFactor(IN.WorldPosition);
 
 	return litColor;
 }

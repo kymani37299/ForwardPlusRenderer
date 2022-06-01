@@ -72,8 +72,7 @@ TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureI
 		GFX::Cmd::BindShader<PS | VS>(context, m_PostprocessShader, config);
 		GFX::Cmd::BindCBV<PS>(context, m_PostprocessingSettingsBuffer, 0);
 		GFX::Cmd::BindSRV<PS>(context, readRT, 0);
-		GFX::Cmd::BindVertexBuffer(context, Device::Get()->GetQuadBuffer());
-		context->Draw(6, 0);
+		GFX::Cmd::DrawFC(context);
 		GFX::Cmd::MarkerEnd(context);
 
 		readRT = m_PostprocessingResult;
@@ -93,8 +92,7 @@ TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureI
 		GFX::Cmd::BindSRV<PS>(context, m_TAAHistory[0], 0);
 		GFX::Cmd::BindSRV<PS>(context, m_TAAHistory[1], 1);
 		GFX::Cmd::BindSRV<PS>(context, motionVectorInput, 2);
-		GFX::Cmd::BindVertexBuffer(context, Device::Get()->GetQuadBuffer());
-		context->Draw(6, 0);
+		GFX::Cmd::DrawFC(context);
 		GFX::Cmd::MarkerEnd(context);
 	}
 
