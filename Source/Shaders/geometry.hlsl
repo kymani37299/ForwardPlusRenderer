@@ -47,6 +47,18 @@ VertexOut VS(VertexPipelineInput IN)
 	return OUT;
 }
 
+float3 ApplyFog(float3 color, float depth)
+{
+	const float3 FogColor = float3(0.6f, 0.67f, 0.73f);
+	const float FogStart = 0.99f;
+	const float FogEnd = 1.0f;
+
+	const float distance = 1.0f - depth;
+	const float fogFactor = smoothstep(FogStart, FogEnd, distance);
+
+	return lerp(color, FogColor, fogFactor);
+}
+
 float4 PS(VertexOut IN) : SV_TARGET
 {
 	const Material matParams = Materials[IN.MaterialIndex];
@@ -107,6 +119,8 @@ float4 PS(VertexOut IN) : SV_TARGET
 			break;
 		}
 	}
+
+	litColor.rgb = ApplyFog(litColor.rgb, IN.Position.z / IN.Position.w);
 
 #ifdef ALPHA_BLEND
 	litColor.a = mat.Albedo.a;

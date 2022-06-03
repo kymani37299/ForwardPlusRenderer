@@ -1,7 +1,6 @@
+#include "shared_definitions.h"
 #include "scene.h"
 
-#define TILE_SIZE 16
-#define MAX_LIGHTS_PER_TILE 1024
 #define VISIBLE_LIGHT_END 0xffffffff
 
 uint2 GetNumTiles(SceneInfo sceneInfo)

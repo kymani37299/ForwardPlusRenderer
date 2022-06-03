@@ -11,6 +11,7 @@
 #include "Render/Resource.h"
 #include "Gui/GUI.h"
 #include "Gui/GUI_Implementations.h"
+#include "Shaders/shared_definitions.h"
 #include "System/Input.h"
 #include "System/Window.h"
 #include "System/ApplicationConfiguration.h"
@@ -30,11 +31,11 @@ namespace ForwardPlusPrivate
 		// TODO: Sync dir lights with camera automatically
 		MainSceneGraph.ShadowCamera.NextTransform.Forward = dirLight;
 
-		constexpr uint32_t NUM_LIGHTS = 10000;
+		constexpr uint32_t NUM_LIGHTS = 30000;
 		for (uint32_t i = 0; i < NUM_LIGHTS; i++)
 		{
 			const float strength = Random::Float(1.0f, 5.0f);
-			const Float3 position = Float3(200.0f, 100.0f, 200.0f) * Float3(Random::SNorm(), Random::SNorm(), Random::SNorm());
+			const Float3 position = Float3(1000.0f, 80.0f, 1000.0f) * Float3(Random::UNorm(), Random::UNorm(), Random::UNorm());
 			const Float3 color = strength * Float3(Random::UNorm(), Random::UNorm(), Random::UNorm());
 			const Float2 falloff = strength * Float2(0.5f + 2.0f * Random::UNorm(), 3.0f + 2.0f * Random::UNorm());
 			MainSceneGraph.CreatePointLight(context, position, color, falloff);
@@ -63,12 +64,23 @@ namespace ForwardPlusPrivate
 		}
 		else
 		{
-			Entity e{};
-			e.Position = { 0.0f, 0.0f, 0.0f };
-			e.Scale = { 0.1f, 0.1f, 0.1f };
-			uint32_t eIndex = MainSceneGraph.AddEntity(context, e);
+			constexpr uint32_t NUM_CASTLES[2] = { 10, 10 };
+			constexpr float CASTLE_OFFSET[2] = { 350.0f, 200.0f };
 			SceneLoading::LoadedScene scene = SceneLoading::Load("Resources/sponza/sponza.gltf");
-			SceneLoading::AddDraws(scene, eIndex);
+
+			for (uint32_t i = 0; i < NUM_CASTLES[0]; i++)
+			{
+				for (uint32_t j = 0; j < NUM_CASTLES[1]; j++)
+				{
+					Entity e{};
+					e.Position = { i * CASTLE_OFFSET[0], 0.0f , j * CASTLE_OFFSET[1] };
+					e.Scale = 0.1f * Float3{ 1.0f, 1.0f, 1.0f };
+					uint32_t eIndex = MainSceneGraph.AddEntity(context, e);
+					SceneLoading::AddDraws(scene, eIndex);
+				}
+			}
+
+			MainSceneGraph.MainCamera.NextTransform.Position += Float3(2 * CASTLE_OFFSET[0], 0.0f, 2 * CASTLE_OFFSET[1]);
 		}
 
 	}
@@ -105,11 +117,17 @@ namespace ForwardPlusPrivate
 		Float3 mov_effects[] = { {0.0f, 0.0f, 1.0f},{0.0f, 0.0f, -1.0f},{-1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f},{0.0f, -1.0f, 0.0f},{0.0f, 1.0f, 0.0f} };
 		static_assert(STATIC_ARRAY_SIZE(mov_inputs) == STATIC_ARRAY_SIZE(mov_effects));
 
+		float movement_factor = 1.0f;
+		if (Input::IsKeyPressed(VK_SHIFT))
+		{
+			movement_factor = 10.0f;
+		}
+
 		Float3 moveDir{ 0.0f, 0.0f, 0.0f };
 		for (uint16_t i = 0; i < STATIC_ARRAY_SIZE(mov_inputs); i++)
 		{
 			if (Input::IsKeyPressed(mov_inputs[i]))
-				moveDir += dtSec * movement_speed * mov_effects[i];
+				moveDir += dtSec * movement_factor * movement_speed * mov_effects[i];
 		}
 
 		Float4 moveDir4{ moveDir.x, moveDir.y, moveDir.z, 1.0f };
@@ -155,11 +173,10 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 			GUI::Get()->SetVisible(false);
 		}
 
-		GUI::Get()->AddElement(new FPSCounterGUI());
 		GUI::Get()->AddElement(new DebugToolsGUI());
 		GUI::Get()->AddElement(new PostprocessingGUI());
 		GUI::Get()->AddElement(new PositionInfoGUI());
-		GUI::Get()->AddElement(new RenderStatsGUI());
+		GUI::Get()->AddElement(new RenderStatsGUI(true));
 		GUI::Get()->AddElement(new TextureVisualizerGUI());
 		GUI::Get()->AddElement(new LightsGUI());
 	}
@@ -356,7 +373,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 	m_DebugRenderer.Draw(context, m_MainRT_HDR, m_MainRT_Depth, m_VisibleLightsBuffer);
 
 	// Postprocessing
-	TextureID ppResult = m_PostprocessingRenderer.Process(context, m_MainRT_HDR, m_MotionVectorRT);
+	TextureID ppResult = m_PostprocessingRenderer.Process(context, m_MainRT_HDR, m_MainRT_Depth, m_MotionVectorRT);
 
 	return ppResult;
 }

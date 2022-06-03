@@ -50,7 +50,7 @@ float CalculateShadowFactor(float3 worldPosition)
 
 float4 PS(FCVertex IN) : SV_Target
 {
-	const uint2 pixelCoord = uint2(IN.uv * SceneInfoData.ScreenSize);
+	const uint3 pixelCoord = uint3(IN.uv * SceneInfoData.ScreenSize, 0);
 #ifdef MULTISAMPLE_DEPTH
 	const float depth = DepthTexture.Load(pixelCoord, 0);
 #else

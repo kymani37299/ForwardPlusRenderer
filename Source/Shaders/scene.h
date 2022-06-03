@@ -42,9 +42,6 @@ struct Vertex
 	float4 Tangent;
 };
 
-#define MESHLET_TRIANGLE_COUNT 128
-#define MESHLET_INDEX_COUNT (3 * MESHLET_TRIANGLE_COUNT)
-
 struct Material
 {
 	float3 AlbedoFactor;

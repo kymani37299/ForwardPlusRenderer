@@ -228,6 +228,7 @@
     <ClInclude Include="Source\Render\ResourceID.h" />
     <ClInclude Include="Source\Render\Shader.h" />
     <ClInclude Include="Source\Render\Texture.h" />
+    <ClInclude Include="Source\Shaders\shared_definitions.h" />
     <ClInclude Include="Source\System\ApplicationConfiguration.h" />
     <ClInclude Include="Source\System\Input.h" />
     <ClInclude Include="Source\System\VSConsoleRedirect.h" />

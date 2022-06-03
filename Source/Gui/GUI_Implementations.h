@@ -10,18 +10,6 @@ public:
 	virtual void Render(ID3D11DeviceContext* context);
 };
 
-class FPSCounterGUI : public GUIElement
-{
-public:
-	FPSCounterGUI(bool shown = false) : GUIElement("Fps counter", shown) {}
-
-	virtual void Update(float dt);
-	virtual void Render(ID3D11DeviceContext* context);
-
-private:
-	float m_CurrentDT = 0.0f;
-};
-
 class PositionInfoGUI : public GUIElement
 {
 public:
@@ -45,8 +33,12 @@ class RenderStatsGUI : public GUIElement
 public:
 	RenderStatsGUI(bool shown = false) : GUIElement("Render stats", shown) {}
 
-	virtual void Update(float dt) {}
+	virtual void Update(float dt);
 	virtual void Render(ID3D11DeviceContext* context);
+
+private:
+	std::vector<float> DTHistory;
+	float m_CurrentDT = 0.0f;
 };
 
 class TextureVisualizerGUI : public GUIElement
@@ -104,9 +96,6 @@ struct PostprocessingSettings
 
 struct RenderStatistics
 {
-	uint32_t TotalLights;
-	uint32_t VisibleLights;
-
 	uint32_t TotalDrawables;
 	uint32_t VisibleDrawables;
 };

@@ -51,11 +51,9 @@ private:
 private:
 	std::vector<DebugGeometry> m_GeometriesToRender;
 
-	ShaderID m_LightStatsShader;
 	ShaderID m_DebugGeometryShader;
 	ShaderID m_LightHeatmapShader;
 
-	BufferID m_LightStatsBuffer;
 	BufferID m_DebugGeometryBuffer;
 
 	BufferID m_CubeVB;

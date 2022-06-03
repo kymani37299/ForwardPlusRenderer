@@ -318,7 +318,7 @@ private:
 // Group of data that can be rendered at once
 struct RenderGroup
 {
-	static constexpr uint32_t MAX_DRAWABLES = 100000;
+	static constexpr uint32_t MAX_DRAWABLES = 200000;
 
 	RenderGroup();
 	void Initialize(ID3D11DeviceContext* context);
@@ -348,8 +348,8 @@ enum class RenderGroupType : uint8_t
 
 struct SceneGraph
 {
-	static constexpr uint32_t MAX_ENTITIES = 100;
-	static constexpr uint32_t MAX_LIGHTS = 10500;
+	static constexpr uint32_t MAX_ENTITIES = 10000;
+	static constexpr uint32_t MAX_LIGHTS = 100000;
 
 	SceneGraph();
 	void InitRenderData(ID3D11DeviceContext* context);

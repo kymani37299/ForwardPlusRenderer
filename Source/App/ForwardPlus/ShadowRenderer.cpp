@@ -17,6 +17,8 @@ void ShadowRenderer::Init(ID3D11DeviceContext* context)
 
 TextureID ShadowRenderer::CalculateShadowMask(ID3D11DeviceContext* context, TextureID depth)
 {
+	GFX::Cmd::MarkerBegin(context, "Shadows");
+
 	GFX::Cmd::ClearDepthStencil(context, m_Shadowmap);
 
 	// Shadowmap
@@ -66,6 +68,8 @@ TextureID ShadowRenderer::CalculateShadowMask(ID3D11DeviceContext* context, Text
 		GFX::Cmd::BindSRV<PS>(context, nullptr, 0);
 		GFX::Cmd::MarkerEnd(context);
 	}
+
+	GFX::Cmd::MarkerEnd(context);
 
 	return m_Shadowmask;
 }

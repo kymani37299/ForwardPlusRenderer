@@ -9,6 +9,7 @@
 #include "Render/Buffer.h"
 #include "Render/Texture.h"
 #include "Utility/PathUtility.h"
+#include "Shaders/shared_definitions.h"
 #include "System/ApplicationConfiguration.h"
 
 #define CGTF_CALL(X) { cgltf_result result = X; ASSERT(result == cgltf_result_success, "CGTF_CALL_FAIL") }
@@ -76,17 +77,28 @@ namespace SceneLoading
 			}
 		}
 
+		template<typename T>
+		void FetchIndexData(cgltf_accessor* indexAccessor, std::vector<uint32_t>& buffer)
+		{
+			T* indexData = GetBufferData<T>(indexAccessor);
+			for (size_t i = 0; i < indexAccessor->count; i++)
+			{
+				buffer[i] = indexData[i];
+			}
+		}
+
 		void LoadIB(const LoadingContext& context, cgltf_accessor* indexAccessor, std::vector<uint32_t>& buffer)
 		{
 			ASSERT(indexAccessor, "[SceneLoading] Trying to read indices from empty accessor");
 			ASSERT(indexAccessor->type == cgltf_type_scalar, "[SceneLoading] Indices of a mesh arent scalar.");
-			ASSERT(indexAccessor->component_type == cgltf_component_type_r_16u, "[SceneLoading] Indices must be uint16.");
 			
 			buffer.resize(indexAccessor->count);
-			uint16_t* indexData = GetBufferData<uint16_t>(indexAccessor);
-			for (size_t i = 0; i < indexAccessor->count; i++)
+			
+			switch (indexAccessor->component_type)
 			{
-				buffer[i] = indexData[i];
+			case cgltf_component_type_r_16u: FetchIndexData<uint16_t>(indexAccessor, buffer); break;
+			case cgltf_component_type_r_32u: FetchIndexData<uint32_t>(indexAccessor, buffer); break;
+			default: NOT_IMPLEMENTED;
 			}
 		}
 

@@ -31,7 +31,7 @@ void PostprocessingRenderer::Init(ID3D11DeviceContext* context)
 	m_PostprocessShader = GFX::CreateShader("Source/Shaders/postprocessing.hlsl");
 }
 
-TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureID colorInput, TextureID motionVectorInput)
+TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureID colorInput, TextureID depthInput, TextureID motionVectorInput)
 {
 	GFX::Cmd::MarkerBegin(context, "Postprocessing");
 
@@ -51,12 +51,12 @@ TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureI
 		GFX::Cmd::UploadToBuffer(context, m_PostprocessingSettingsBuffer, 0, &cb, 0, sizeof(PostprocessingSettngsCB));
 	}
 
-	TextureID readRT = colorInput;
+	TextureID hdrRT = colorInput;
 
 	if (PostprocessSettings.AntialiasingMode == AntiAliasingMode::MSAA)
 	{
-		GFX::Cmd::ResolveTexture(context, readRT, m_ResolvedColor);
-		readRT = m_ResolvedColor;
+		GFX::Cmd::ResolveTexture(context, hdrRT, m_ResolvedColor);
+		hdrRT = m_ResolvedColor;
 	}
 
 	// Tonemapping
@@ -68,14 +68,14 @@ TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureI
 
 		GFX::Cmd::MarkerBegin(context, "Tonemapping");
 		GFX::Cmd::SetupStaticSamplers<PS>(context);
-		GFX::Cmd::BindRenderTarget(context, m_PostprocessingResult);
+		GFX::Cmd::BindRenderTarget(context, GetOutputTexture());
 		GFX::Cmd::BindShader<PS | VS>(context, m_PostprocessShader, config);
 		GFX::Cmd::BindCBV<PS>(context, m_PostprocessingSettingsBuffer, 0);
-		GFX::Cmd::BindSRV<PS>(context, readRT, 0);
+		GFX::Cmd::BindSRV<PS>(context, hdrRT, 0);
 		GFX::Cmd::DrawFC(context);
 		GFX::Cmd::MarkerEnd(context);
 
-		readRT = m_PostprocessingResult;
+		Step();
 	}
 
 	// TAA
@@ -83,10 +83,10 @@ TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureI
 	{
 		// TAA History
 		GFX::Cmd::CopyToTexture(context, m_TAAHistory[0], m_TAAHistory[1]);
-		GFX::Cmd::CopyToTexture(context, readRT, m_TAAHistory[0]);
+		GFX::Cmd::CopyToTexture(context, GetInputTexture(), m_TAAHistory[0]);
 
 		GFX::Cmd::MarkerBegin(context, "TAA");
-		GFX::Cmd::BindRenderTarget(context, m_PostprocessingResult);
+		GFX::Cmd::BindRenderTarget(context, GetOutputTexture());
 		GFX::Cmd::BindShader<VS | PS>(context, m_PostprocessShader, { "TAA" });
 		GFX::Cmd::SetupStaticSamplers<PS>(context);
 		GFX::Cmd::BindSRV<PS>(context, m_TAAHistory[0], 0);
@@ -94,28 +94,32 @@ TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureI
 		GFX::Cmd::BindSRV<PS>(context, motionVectorInput, 2);
 		GFX::Cmd::DrawFC(context);
 		GFX::Cmd::MarkerEnd(context);
+
+		Step();
 	}
 
 	GFX::Cmd::MarkerEnd(context);
 
-	return m_PostprocessingResult;
+	return GetInputTexture();
 }
 
 void PostprocessingRenderer::ReloadTextureResources(ID3D11DeviceContext* context)
 {
-	if (m_PostprocessingResult.Valid())
+	if (m_ResolvedColor.Valid())
 	{
-		GFX::Storage::Free(m_PostprocessingResult);
 		GFX::Storage::Free(m_ResolvedColor);
 		GFX::Storage::Free(m_TAAHistory[0]);
 		GFX::Storage::Free(m_TAAHistory[1]);
+		GFX::Storage::Free(m_PostprocessRT[0]);
+		GFX::Storage::Free(m_PostprocessRT[1]);
 	}
 
 	const uint32_t size[2] = { AppConfig.WindowWidth, AppConfig.WindowHeight };
-	m_PostprocessingResult = GFX::CreateTexture(size[0], size[1], RCF_Bind_RTV | RCF_Bind_SRV);
 	m_ResolvedColor = GFX::CreateTexture(size[0], size[1], RCF_Bind_RTV | RCF_Bind_SRV, 1, DXGI_FORMAT_R16G16B16A16_FLOAT);
 	m_TAAHistory[0] = GFX::CreateTexture(size[0], size[1], RCF_Bind_SRV | RCF_CopyDest);
 	m_TAAHistory[1] = GFX::CreateTexture(size[0], size[1], RCF_Bind_SRV | RCF_CopyDest);
+	m_PostprocessRT[0] = GFX::CreateTexture(size[0], size[1], RCF_Bind_RTV | RCF_Bind_SRV);
+	m_PostprocessRT[1] = GFX::CreateTexture(size[0], size[1], RCF_Bind_RTV | RCF_Bind_SRV);
 
 	MainSceneGraph.MainCamera.UseJitter = PostprocessSettings.AntialiasingMode == AntiAliasingMode::TAA;
 	for (uint32_t i = 0; i < 16; i++)

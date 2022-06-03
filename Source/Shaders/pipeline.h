@@ -1,3 +1,4 @@
+#include "shared_definitions.h"
 #include "scene.h"
 
 struct VertexPipelineInput

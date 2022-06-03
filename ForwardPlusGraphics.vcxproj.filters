@@ -230,5 +230,8 @@
     <ClInclude Include="Source\App\ForwardPlus\ShadowRenderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Shaders\shared_definitions.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

@@ -28,17 +28,6 @@ void DebugToolsGUI::Render(ID3D11DeviceContext* context)
 }
 
 // --------------------------------------------------
-void FPSCounterGUI::Update(float dt)
-{
-	m_CurrentDT = dt;
-}
-
-void FPSCounterGUI::Render(ID3D11DeviceContext* context)
-{
-	ImGui::Text("Frame: %.2f ms", m_CurrentDT);
-}
-
-// --------------------------------------------------
 void PositionInfoGUI::Render(ID3D11DeviceContext* context)
 {
 	Camera::CameraTransform t = MainSceneGraph.MainCamera.CurrentTranform;
@@ -89,11 +78,37 @@ void PostprocessingGUI::Render(ID3D11DeviceContext* context)
 		ImGui::SliderFloat("Exposure", &PostprocessSettings.Exposure, 0.01f, 10.0f);
 }
 
+void RenderStatsGUI::Update(float dt)
+{
+	static constexpr float UpdateInterval = 200.0f; // In ms
+	static float lastUpdate = 0.0f;
+
+	lastUpdate += dt;
+	DTHistory.push_back(dt);
+	if (lastUpdate > UpdateInterval)
+	{
+		uint32_t count = DTHistory.size();
+		float sum = 0.0f;
+		for (float _dt : DTHistory)
+		{
+			sum += _dt;
+		}
+
+		lastUpdate -= UpdateInterval;
+		m_CurrentDT = sum / count;
+
+		DTHistory.clear();
+	}
+}
+
 // --------------------------------------------------
 void RenderStatsGUI::Render(ID3D11DeviceContext* context)
 {
-	ImGui::Text("Lights: \t\t %u / %u", RenderStats.VisibleLights, RenderStats.TotalLights);
-	ImGui::Text("Drawables: \t\t %u / %u", RenderStats.VisibleDrawables, RenderStats.TotalDrawables);
+	ImGui::Text("Frame: %.2f ms", m_CurrentDT);
+	ImGui::Text("FPS:   %u", static_cast<uint32_t>(1000.0f / m_CurrentDT));
+	ImGui::Separator();
+	ImGui::Text("Num lights:  %u", MainSceneGraph.Lights.GetSize());
+	ImGui::Text("Drawables:   %u / %u", RenderStats.VisibleDrawables, RenderStats.TotalDrawables);
 }
 
 // --------------------------------------------------

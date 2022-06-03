@@ -90,9 +90,6 @@ void DebugRenderer::Init(ID3D11DeviceContext* context)
 
 	m_DebugGeometryShader = GFX::CreateShader("Source/Shaders/debug_geometry.hlsl");
 	m_LightHeatmapShader = GFX::CreateShader("Source/Shaders/light_heatmap.hlsl");
-
-	m_LightStatsShader = GFX::CreateShader("Source/Shaders/light_stats.hlsl");
-	m_LightStatsBuffer = GFX::CreateBuffer(sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_SB | RCF_Bind_UAV | RCF_CPU_Read);
 }
 
 void DebugRenderer::Draw(ID3D11DeviceContext* context, TextureID colorTarget, TextureID depthTarget, BufferID visibleLights)
@@ -169,37 +166,6 @@ void DebugRenderer::UpdateStats(ID3D11DeviceContext* context)
 		{
 			RenderStats.VisibleDrawables += rg.VisibilityMask.CountOnes();
 		}
-	}
-
-
-	// Light stats
-	RenderStats.TotalLights = MainSceneGraph.Lights.GetSize();
-
-	if (DebugToolsConfig.DisableLightCulling)
-	{
-		RenderStats.VisibleLights = RenderStats.TotalLights;
-	}
-	else if (!DebugToolsConfig.FreezeLightCulling)
-	{
-#ifdef LIGHT_STATS // Tmp disabled - too slow
-		GFX::Cmd::BindShader(context, m_LightStatsShader);
-		GFX::Cmd::BindUAV<CS>(context, m_LightStatsBuffer, 0);
-		GFX::Cmd::BindSRV<CS>(context, m_VisibleLightsBuffer, 0);
-		GFX::Cmd::BindCBV<CS>(context, m_TileCullingInfoBuffer, 0);
-		context->Dispatch(1, 1, 1);
-
-		D3D11_MAPPED_SUBRESOURCE mapResult;
-		const Buffer& lightStatsBuffer = GFX::Storage::GetBuffer(m_LightStatsBuffer);
-		API_CALL(context->Map(lightStatsBuffer.Handle.Get(), 0, D3D11_MAP_READ, 0, &mapResult));
-
-		uint32_t* dataPtr = reinterpret_cast<uint32_t*>(mapResult.pData);
-		RenderStats.VisibleLights = *dataPtr;
-
-		context->Unmap(lightStatsBuffer.Handle.Get(), 0);
-#else
-		RenderStats.VisibleLights = RenderStats.TotalLights;
-#endif
-
 	}
 
 	GFX::Cmd::MarkerEnd(context);
