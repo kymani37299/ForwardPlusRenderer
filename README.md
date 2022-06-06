@@ -1,7 +1,7 @@
 <p align="center">
-  <img src="Images/Showcase1.png" width="256" height="455">
-  <img src="Images/Showcase2.png" width="256" height="455">
-  <img src="Images/Showcase3.png" width="256" height="455">
+  <img src="Images/Showcase1.png" width="500" height="375">
+  <img src="Images/Showcase2.png" width="500" height="375">
+  <img src="Images/Showcase3.png" width="500" height="375">
 </p>
 
 ## Forward+ structure
@@ -24,7 +24,7 @@ For example in the Sponza scene with 10k lights randomly placed around the map, 
 For the geometry culling we are using just frustum culling with bounding spheres. Bounding spheres are calculated in the model loading phase and are in model space. When we are culling we are moving it to a world space where culling is performed. </br>
 Culling is performed on CPU and is producing a visibility mask (bitfield) that will be used at later stages only to process visible geometries.
 
-![Alt text](Images/FrustumCulling.png?raw=true "FrustumCulling")
+<img src="Images/FrustumCulling.png" width="500" height="375">
 
 ## Meshlets
 
