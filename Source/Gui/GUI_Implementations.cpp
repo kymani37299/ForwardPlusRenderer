@@ -74,11 +74,25 @@ void PostprocessingGUI::Render(ID3D11DeviceContext* context)
 		ImGui::EndCombo();
 	}
 
-	ImGui::Checkbox("Exposure tonemapping", &PostprocessSettings.UseExposureTonemapping);
-	if(PostprocessSettings.UseExposureTonemapping)
-		ImGui::SliderFloat("Exposure", &PostprocessSettings.Exposure, 0.01f, 10.0f);
+	ImGui::SliderFloat("Exposure", &PostprocessSettings.Exposure, 0.01f, 10.0f);
 
 	ImGui::Checkbox("Bloom", &PostprocessSettings.EnableBloom);
+	if (PostprocessSettings.EnableBloom)
+	{
+		ImGui::SliderFloat("Bloom treshold", &PostprocessSettings.BloomTreshold, 0.0f, 5.0f);
+		ImGui::SliderFloat("Bloom knee", &PostprocessSettings.BloomKnee, 0.0f, 5.0f);
+
+		float sampleScale[4];
+		sampleScale[0] = PostprocessSettings.BloomSampleScale.x;
+		sampleScale[1] = PostprocessSettings.BloomSampleScale.y;
+		sampleScale[2] = PostprocessSettings.BloomSampleScale.z;
+		sampleScale[3] = PostprocessSettings.BloomSampleScale.w;
+		ImGui::SliderFloat4("Bloom sample scale", sampleScale, 0.0f, 5.0f);
+		PostprocessSettings.BloomSampleScale.x = sampleScale[0];
+		PostprocessSettings.BloomSampleScale.y = sampleScale[1];
+		PostprocessSettings.BloomSampleScale.z = sampleScale[2];
+		PostprocessSettings.BloomSampleScale.w = sampleScale[3];
+	}
 }
 
 void RenderStatsGUI::Update(float dt)

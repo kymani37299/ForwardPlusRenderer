@@ -89,11 +89,11 @@ enum class AntiAliasingMode
 struct PostprocessingSettings
 {
 	AntiAliasingMode AntialiasingMode = AntiAliasingMode::MSAA;
-
-	bool UseExposureTonemapping = true;
-	float Exposure = 0.8f;
-
+	float Exposure = 1.0f;
 	bool EnableBloom = true;
+	float BloomTreshold = 1.0f;
+	float BloomKnee = 0.4f;
+	Float4 BloomSampleScale{ 1.0f, 1.0f, 1.0f, 1.0f };
 };
 
 struct RenderStatistics

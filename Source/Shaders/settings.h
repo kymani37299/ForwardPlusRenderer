@@ -1,0 +1,4 @@
+struct PostprocessingSettings
+{
+	float Exposure;
+};

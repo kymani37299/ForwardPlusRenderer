@@ -102,7 +102,7 @@ void Device::DeferredInit()
 
 void Device::CreateStaticSamplers()
 {
-    m_StaticSamplers.resize(4);
+    m_StaticSamplers.resize(5);
 
     D3D11_SAMPLER_DESC samplerDesc{};
     D3D11_SAMPLER_DESC defaultSamplerDesc{};
@@ -151,6 +151,15 @@ void Device::CreateStaticSamplers()
 	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_BORDER;
 	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_BORDER;
 	m_Device->CreateSamplerState(&samplerDesc, &m_StaticSamplers[3]);
+
+	// s_LinearBorder
+	samplerDesc = defaultSamplerDesc;
+	samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_BORDER;
+	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_BORDER;
+	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_BORDER;
+	m_Device->CreateSamplerState(&samplerDesc, &m_StaticSamplers[4]);
+
 }
 
 void Device::EndFrame(TextureID finalImage)

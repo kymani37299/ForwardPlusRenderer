@@ -1,12 +1,8 @@
 #include "samplers.h"
 #include "full_screen.h"
+#include "settings.h"
 
 VS_IMPL;
-
-struct PostprocessingSettings
-{
-	float Exposure;
-};
 
 #ifdef TAA
 
@@ -44,14 +40,7 @@ float4 PS(FCVertex IN) : SV_Target
 	hdrColor += BloomTexture.Sample(s_LinearWrap, IN.uv).rgb;
 #endif // APPLY_BLOOM
 
-#ifdef REINHARD
-	const float3 color = hdrColor / (hdrColor + float3(1.0f,1.0f,1.0f));
-#endif
-
-#ifdef EXPOSURE
-	// vec3 mapped = vec3(1.0) - exp(-hdrColor * exposure);
 	const float3 color = float3(1.0f, 1.0f, 1.0f) - exp(-hdrColor * PP_Settings.Exposure);
-#endif 
 
 	return float4(color, 1.0f);
 }

@@ -1,5 +1,20 @@
 #include "samplers.h"
 #include "full_screen.h"
+#include "settings.h"
+
+struct BloomInput
+{
+    float4 SampleScale;
+    float2 TexelSize;
+    float2 Padding;
+    float Treshold;
+    float Knee;
+};
+
+cbuffer BloomInputCB : register(b0)
+{
+    BloomInput BloomIN;
+}
 
 VS_IMPL;
 
@@ -52,12 +67,12 @@ static const float EPSILON = 0.0001f;
 
 #ifdef PREFILTER
 
-// TODO: Add exposure
-static const float EXPOSURE = 1.0f;
-
-// x: threshold value (linear), y: threshold - knee, z: knee * 2, w: 0.25 / knee
-static const float4 EMISSIVE_TRESHOLD = float4(1.0f, 0.75f, 1.5f, 0.25 / 1.5f);
 static const float4 EMISSIVE_CLAMP = 20.0f;
+
+cbuffer PPSettingsCB : register(b1)
+{
+    PostprocessingSettings PP_Settings;
+}
 
 Texture2D<float4> inputTexture : register(t0);
 
@@ -78,15 +93,13 @@ float4 QuadraticThreshold(float4 color, float threshold, float3 curve)
 
 float4 PS(FCVertex IN) : SV_Target
 {
-    // TODO: Use CB for this
-    uint3 textureSize = 0;
-    inputTexture.GetDimensions(0, textureSize.x, textureSize.y, textureSize.z);
-    const float2 texelSize = 1.0f / textureSize.xy;
+    const float knee = BloomIN.Knee;
+    const float3 curve = float3(BloomIN.Treshold - knee, 2.0f * knee, 0.25f / knee);
 
-    float4 color = DownsampleBox(inputTexture, s_LinearWrap, IN.uv, texelSize);
-    color *= EXPOSURE;
+    float4 color = DownsampleBox(inputTexture, s_LinearBorder, IN.uv, BloomIN.TexelSize);
+    color *= PP_Settings.Exposure;
     color = min(EMISSIVE_CLAMP, color);
-    color = QuadraticThreshold(color, EMISSIVE_TRESHOLD.x, EMISSIVE_TRESHOLD.yzw);
+    color = QuadraticThreshold(color, BloomIN.Treshold, curve);
     return color;
 }
 
@@ -98,33 +111,20 @@ Texture2D<float4> inputTexture : register(t0);
 
 float4 PS(FCVertex IN) : SV_Target
 {
-    // TODO: Use CB for this
-    uint3 textureSize = 0;
-    inputTexture.GetDimensions(0, textureSize.x, textureSize.y, textureSize.z);
-    const float2 texelSize = 1.0f / textureSize.xy;
-
-    return DownsampleBox(inputTexture, s_LinearWrap, IN.uv, texelSize);
+    return DownsampleBox(inputTexture, s_LinearBorder, IN.uv, BloomIN.TexelSize);
 }
 
 #endif // DOWNSAMPLE
 
 #ifdef UPSAMPLE
 
-static const float SAMPLE_SCALE = float4(1.0f, 1.0f, 1.0f, 1.0f);
-
 Texture2D<float4> lowRes : register(t0);
 Texture2D<float4> highRes : register(t1);
 
 float4 PS(FCVertex IN) : SV_Target
 {
-    // TODO: Use CB for this
-    uint3 textureSize = 0;
-    lowRes.GetDimensions(0, textureSize.x, textureSize.y, textureSize.z);
-    const float2 texelSize = 1.0f / textureSize.xy;
-
-    const float4 bloom = UpsampleTent(lowRes, s_LinearWrap, IN.uv, texelSize, SAMPLE_SCALE);
-    const float4 color = highRes.Sample(s_LinearWrap, IN.uv);
-
+    const float4 bloom = UpsampleTent(lowRes, s_LinearBorder, IN.uv, BloomIN.TexelSize, BloomIN.SampleScale);
+    const float4 color = highRes.Sample(s_LinearBorder, IN.uv);
     return bloom + color;
 }
 

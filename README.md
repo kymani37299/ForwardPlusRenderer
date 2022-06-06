@@ -1,5 +1,8 @@
-![Alt text](Images/Showcase1.png?raw=true "Showcase1")
-![Alt text](Images/Showcase2.png?raw=true "Showcase2")
+<p align="center">
+  <img src="Images/Showcase1.png" width="256" height="455">
+  <img src="Images/Showcase2.png" width="256" height="455">
+  <img src="Images/Showcase3.png" width="256" height="455">
+</p>
 
 ## Forward+ structure
 
