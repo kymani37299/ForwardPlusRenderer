@@ -99,6 +99,9 @@
     <ClCompile Include="Source\App\ForwardPlus\ShadowRenderer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Loading\TextureLoading.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\Common.h">
@@ -231,6 +234,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Source\Shaders\shared_definitions.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Loading\TextureLoading.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

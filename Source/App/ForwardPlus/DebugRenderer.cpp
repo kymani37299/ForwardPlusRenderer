@@ -110,9 +110,8 @@ void DebugRenderer::Draw(ID3D11DeviceContext* context, TextureID colorTarget, Te
 				const Entity& e = MainSceneGraph.Entities[d.EntityIndex];
 				const float maxScale = MAX(MAX(e.Scale.x, e.Scale.y), e.Scale.z);
 
-				BoundingSphere bs;
-				bs.Center = e.Position + e.Scale * d.BoundingVolume.Center;
-				bs.Radius = d.BoundingVolume.Radius * maxScale;
+				BoundingSphere bs = e.GetBoundingVolume(d.BoundingVolume);
+
 				DrawSphere(bs.Center, Float4(Random::UNorm(i), Random::UNorm(i + 1), Random::UNorm(i + 2), 0.2f), { bs.Radius, bs.Radius, bs.Radius });
 			}
 		}

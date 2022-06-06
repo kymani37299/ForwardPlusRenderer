@@ -5,6 +5,7 @@
 #include <cgltf.h>
 
 #include "Loading/LoadingThread.h"
+#include "Loading/TextureLoading.h"
 #include "Render/Device.h"
 #include "Render/Buffer.h"
 #include "Render/Texture.h"
@@ -34,6 +35,11 @@ namespace SceneLoading
 		static Float3 ToFloat3(cgltf_float color[3])
 		{
 			return Float3{ color[0], color[1], color[2] };
+		}
+
+		static Float4 ToFloat4(cgltf_float color[4])
+		{
+			return Float4{ color[0], color[1], color[2], color[3] };
 		}
 
 		template<typename T>
@@ -235,19 +241,26 @@ namespace SceneLoading
 
 		uint32_t LoadTexture(const LoadingContext& context, cgltf_texture* texture, ColorUNORM defaultColor = {1.0f, 1.0f, 1.0f, 1.0f})
 		{
+			TextureStorage::Allocation alloc = context.LoadingRG->TextureData.AllocTexture(context.GfxContext);
 			TextureID tex;
+			std::string texturePath = "";
 			if (texture)
 			{
 				const std::string textureURI = texture->image->uri;
-				const std::string texutrePath = context.RelativePath + "/" + textureURI;
-				tex = GFX::LoadTexture(context.GfxContext, texutrePath, RCF_Bind_SRV);
+				texturePath = context.RelativePath + "/" + textureURI;
+			}
+
+			if (AppConfig.Settings.contains("NO_BG_LOADING"))
+			{
+				TextureLoadingTask texLoadingTask{ texturePath, alloc, context.LoadingRG->TextureData, defaultColor };
+				texLoadingTask.Run(context.GfxContext);
 			}
 			else
 			{
-				tex = GFX::CreateTexture(1, 1, RCF_Bind_SRV, 1, DXGI_FORMAT_R8G8B8A8_UNORM, &defaultColor);
+				LoadingThread::Get()->Submit(new TextureLoadingTask(texturePath, alloc, context.LoadingRG->TextureData, defaultColor));
 			}
 			
-			return context.LoadingRG->TextureData.AddTexture(context.GfxContext, tex).TextureIndex;
+			return alloc.TextureIndex;
 		}
 
 		RenderGroupType GetRenderGroupType(const Material& material)
@@ -290,116 +303,114 @@ namespace SceneLoading
 			object.BoundingVolume = CalculateBoundingSphere(objectData);
 			return object;
 		}
-	}
-	
-	class SceneLoadingTask : public LoadingTask
-	{
-	public:
-		SceneLoadingTask(const std::string& path) :
-			m_Path(path) {}
 
-
-		void Run(ID3D11DeviceContext* context) override
+		DirectX::XMFLOAT4X4 CalcBaseTransform(cgltf_node* nodeData)
 		{
-			const std::string& ext = PathUtility::GetFileExtension(m_Path);
-			if (ext != "gltf")
+			using namespace DirectX;
+
+			std::vector<cgltf_node*> hierarchy;
+			cgltf_node* currNode = nodeData;
+			while (currNode)
 			{
-				ASSERT(0, "[SceneLoading] For now we only support glTF 3D format.");
-				return;
+				hierarchy.push_back(currNode);
+				currNode = currNode->parent;
 			}
 
-			cgltf_options options = {};
-			cgltf_data* data = NULL;
-			CGTF_CALL(cgltf_parse_file(&options, m_Path.c_str(), &data));
-			CGTF_CALL(cgltf_load_buffers(&options, data, m_Path.c_str()));
-
-			LoadingContext loadingContext{};
-			loadingContext.RelativePath = PathUtility::GetPathWitoutFile(m_Path);
-			loadingContext.GfxContext = context;
-			loadingContext.LoadingScene = &MainSceneGraph;
-
-			uint32_t pendingDrawables = 0;
-			for (size_t i = 0; i < data->meshes_count; i++)
+			XMMATRIX transform = XMMatrixIdentity();
+			for (int32_t i = hierarchy.size()-1; i >= 0; i--)
 			{
-				cgltf_mesh* meshData = (data->meshes + i);
-				for (size_t j = 0; j < meshData->primitives_count; j++)
+				cgltf_node* node = hierarchy[i];
+				if (node->has_matrix)
 				{
-					if (ShouldStop()) break; // Something requested stop
-
-					// TODO: Do something to add into drawables
-					LoadedObject object = LoadObject(loadingContext, meshData->primitives + j);
-					pendingDrawables++;
-
-					if (pendingDrawables >= BATCH_SIZE)
-					{
-						GFX::Cmd::SubmitDeferredContext(context);
-						GFX::Cmd::ResetContext(context);
-						pendingDrawables = 0;
-					}
-
+					NOT_IMPLEMENTED;
+				}
+				else
+				{
+					const Float3 position = node->has_translation ? ToFloat3(node->translation) : Float3{ 0.0f, 0.0f, 0.0f };
+					const Float4 rotation = node->has_rotation ? ToFloat4(node->rotation) : Float4{ 0.0f, 0.0f, 0.0f, 0.0f };
+					const Float3 scale = node->has_scale ? ToFloat3(node->scale) : Float3{ 1.0f, 1.0f, 1.0f };
+					const XMMATRIX nodeTransform = XMMatrixAffineTransformation(scale, Float3{ 0.0f, 0.0f, 0.0f }, rotation, position);
+					transform = XMMatrixMultiply(transform, nodeTransform);
 				}
 			}
 
-			GFX::Cmd::SubmitDeferredContext(context);
-			GFX::Cmd::ResetContext(context);
-
-			cgltf_free(data);
+			return XMUtility::ToXMFloat4x4(transform);
 		}
 
-	private:
-		std::string m_Path;
+		std::vector<LoadedObject> LoadNode(LoadingContext& context, cgltf_node* nodeData, LoadedScene& sceneRef)
+		{
+			std::vector<LoadedObject> objects;
+			if (nodeData->mesh)
+			{
+				uint32_t entityIndex = sceneRef.Entities.size();
 
-		static constexpr uint32_t BATCH_SIZE = 4;
-	};
+				Entity e;
+				e.BaseTransform = CalcBaseTransform(nodeData);
+				sceneRef.Entities.push_back(e);
 
-	LoadedScene Load(const std::string& path, bool inBackground)
+				for (size_t i = 0; i < nodeData->mesh->primitives_count; i++)
+				{
+					LoadedObject obj = LoadObject(context, nodeData->mesh->primitives + i);
+					obj.EntityIndex = entityIndex;
+					sceneRef.Objects.push_back(obj);
+				}
+			}
+			return objects;
+		}
+	}
+
+	LoadedScene Load(const std::string& path)
 	{
 		LoadedScene scene;
 
-		static constexpr bool ENABLE_BG_LOADING = false;
-		if (!inBackground || ENABLE_BG_LOADING || AppConfig.Settings.contains("NO_BG_LOADING"))
+		const std::string& ext = PathUtility::GetFileExtension(path);
+		if (ext != "gltf")
 		{
-			const std::string& ext = PathUtility::GetFileExtension(path);
-			if (ext != "gltf")
-			{
-				ASSERT(0, "[SceneLoading] For now we only support glTF 3D format.");
-				return scene;
-			}
-
-			LoadingContext context{};
-			context.RelativePath = PathUtility::GetPathWitoutFile(path);
-			context.GfxContext = Device::Get()->GetContext();
-			context.LoadingScene = &MainSceneGraph;
-
-			cgltf_options options = {};
-			cgltf_data* data = NULL;
-			CGTF_CALL(cgltf_parse_file(&options, path.c_str(), &data));
-			CGTF_CALL(cgltf_load_buffers(&options, data, path.c_str()));
-
-			for (size_t i = 0; i < data->meshes_count; i++)
-			{
-				cgltf_mesh* meshData = (data->meshes + i);
-				for (size_t j = 0; j < meshData->primitives_count; j++)
-				{
-					scene.push_back(LoadObject(context, meshData->primitives + j));
-				}
-			}
-			cgltf_free(data);
+			ASSERT(0, "[SceneLoading] For now we only support glTF 3D format.");
+			return scene;
 		}
-		else
+
+		LoadingContext context{};
+		context.RelativePath = PathUtility::GetPathWitoutFile(path);
+		context.GfxContext = Device::Get()->GetContext();
+		context.LoadingScene = &MainSceneGraph;
+
+		cgltf_options options = {};
+		cgltf_data* data = NULL;
+		CGTF_CALL(cgltf_parse_file(&options, path.c_str(), &data));
+		CGTF_CALL(cgltf_load_buffers(&options, data, path.c_str()));
+
+		for (size_t i = 0; i < data->nodes_count; i++)
 		{
-			LoadingThread::Get()->Submit(new SceneLoadingTask(path));
+			std::vector<LoadedObject> objects = LoadNode(context, data->nodes + i, scene);
 		}
+
+		cgltf_free(data);
 
 		return scene;
 	}
 
-	void AddDraws(LoadedScene scene, uint32_t entityIndex)
+	void AddDraws(LoadedScene scene, Entity entity)
 	{
-		for (const LoadedObject& obj : scene)
+		ID3D11DeviceContext* context = Device::Get()->GetContext();
+
+		std::unordered_map<uint32_t, uint32_t> entityIndexMap;
+		for (uint32_t i = 0; i < scene.Entities.size(); i++)
+		{
+			Entity e = scene.Entities[i];
+
+			e.Position = entity.Position;
+			e.Scale = entity.Scale;
+			e.Rotation = entity.Rotation;
+
+			uint32_t entityIndex = MainSceneGraph.AddEntity(context, e);
+			entityIndexMap[i] = entityIndex;
+		}
+
+		for (const LoadedObject& obj : scene.Objects)
 		{
 			RenderGroup& rg = MainSceneGraph.RenderGroups[EnumToInt(obj.RenderGroup)];
-			rg.AddDraw(Device::Get()->GetContext(), obj.MaterialIndex, obj.MeshIndex, entityIndex, obj.BoundingVolume);
+			rg.AddDraw(Device::Get()->GetContext(), obj.MaterialIndex, obj.MeshIndex, entityIndexMap[obj.EntityIndex], obj.BoundingVolume);
 		}
 	}
 }

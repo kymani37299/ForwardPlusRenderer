@@ -115,11 +115,31 @@ void Mesh::UpdateBuffer(ID3D11DeviceContext* context, RenderGroup& renderGroup)
 	GFX::Cmd::UploadToBuffer(context, renderGroup.Meshes.GetBuffer(), sizeof(MeshSB) * MeshIndex, &meshSB, 0, sizeof(MeshSB));
 }
 
+BoundingSphere Entity::GetBoundingVolume(BoundingSphere bv) const
+{
+	const float maxBaseScale = MAX(MAX(BaseTransform(0, 0), BaseTransform(1, 1)), BaseTransform(2, 2));
+	const float maxlocalScale = MAX(MAX(Scale.x, Scale.y), Scale.z);
+	const float maxScale = maxBaseScale * maxlocalScale;
+
+	const DirectX::XMMATRIX baseTransform = DirectX::XMLoadFloat4x4(&BaseTransform);
+	const DirectX::XMVECTOR xmbasePosition = DirectX::XMVector4Transform(Float4{ bv.Center.x, bv.Center.y, bv.Center.z, 1.0f }, baseTransform);
+	const Float3 basePosition{ xmbasePosition };
+
+	BoundingSphere bs;
+	bs.Center = Position + maxlocalScale * basePosition;
+	bs.Radius = bv.Radius * maxScale;
+
+	return bs;
+}
+
 void Entity::UpdateBuffer(ID3D11DeviceContext* context)
 {
 	using namespace DirectX;
 	
+	XMMATRIX baseTransform = XMLoadFloat4x4(&BaseTransform);
 	XMMATRIX modelToWorld = XMMatrixAffineTransformation(Scale.ToXM(), Float3(0.0f, 0.0f, 0.0f).ToXM(), Float4(0.0f, 0.0f, 0.0f, 0.0f).ToXM(), Position.ToXM());
+	modelToWorld = XMMatrixMultiply(baseTransform, modelToWorld);
+
 	EntitySB entitySB{};
 	entitySB.ModelToWorld = XMUtility::ToHLSLFloat4x4(modelToWorld);
 	GFX::Cmd::UploadToBuffer(context, MainSceneGraph.Entities.GetBuffer(), sizeof(EntitySB) * EntityIndex, &entitySB, 0, sizeof(EntitySB));
@@ -481,9 +501,20 @@ void TextureStorage::Initialize()
 
 TextureStorage::Allocation TextureStorage::AddTexture(ID3D11DeviceContext* context, TextureID texture)
 {
+	Allocation alloc = AllocTexture(context);
+	UpdateTexture(context, alloc, texture);
+	return alloc;
+}
+
+TextureStorage::Allocation TextureStorage::AllocTexture(ID3D11DeviceContext* context)
+{
 	const uint32_t textureIndex = m_NextAllocation++;
 	ASSERT(textureIndex < MAX_TEXTURES, "textureIndex < SceneGraph::MAX_TEXTURES");
+	return { textureIndex };
+}
 
+void TextureStorage::UpdateTexture(ID3D11DeviceContext* context, Allocation alloc, TextureID texture)
+{
 	const Texture& stagingTex = GFX::Storage::GetTexture(m_StagingTexture);
 
 	// Resize texture and generate mips
@@ -500,8 +531,6 @@ TextureStorage::Allocation TextureStorage::AddTexture(ID3D11DeviceContext* conte
 
 	c->GenerateMips(stagingTex.SRV.Get());
 
-	GFX::Storage::Free(texture);
-
 	// Copy to the array
 	const Texture& dataTex = GFX::Storage::GetTexture(m_Data);
 
@@ -510,9 +539,7 @@ TextureStorage::Allocation TextureStorage::AddTexture(ID3D11DeviceContext* conte
 	for (uint32_t mip = 0; mip < dataTex.NumMips; mip++)
 	{
 		uint32_t srcSubresource = D3D11CalcSubresource(mip, 0, stagingTex.NumMips);
-		uint32_t dstSubresource = D3D11CalcSubresource(mip, textureIndex, dataTex.NumMips);
+		uint32_t dstSubresource = D3D11CalcSubresource(mip, alloc.TextureIndex, dataTex.NumMips);
 		c->CopySubresourceRegion(dataTex.Handle.Get(), dstSubresource, 0, 0, 0, stagingTex.Handle.Get(), srcSubresource, nullptr);
 	}
-
-	return { textureIndex };
 }

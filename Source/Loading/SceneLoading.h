@@ -10,10 +10,15 @@ namespace SceneLoading
 		uint32_t MeshIndex;
 		uint32_t MaterialIndex;
 		BoundingSphere BoundingVolume;
+		uint32_t EntityIndex;
 	};
 
-	using LoadedScene = std::vector<LoadedObject>;
+	struct LoadedScene
+	{
+		std::vector<LoadedObject> Objects;
+		std::vector<Entity> Entities;
+	};
 
-	void AddDraws(LoadedScene scene, uint32_t entityIndex);
-	LoadedScene Load(const std::string& path, bool inBackground = false);
+	void AddDraws(LoadedScene scene, Entity entity);
+	LoadedScene Load(const std::string& path);
 }

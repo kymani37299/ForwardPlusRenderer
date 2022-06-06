@@ -185,6 +185,7 @@
     <ClCompile Include="Source\Gui\Imgui\imgui_tables.cpp" />
     <ClCompile Include="Source\Gui\Imgui\imgui_widgets.cpp" />
     <ClCompile Include="Source\Loading\SceneLoading.cpp" />
+    <ClCompile Include="Source\Loading\TextureLoading.cpp" />
     <ClCompile Include="Source\main.cpp" />
     <ClCompile Include="Source\Render\Buffer.cpp" />
     <ClCompile Include="Source\Render\Commands.cpp" />
@@ -219,6 +220,7 @@
     <ClInclude Include="Source\Gui\Imgui\imstb_truetype.h" />
     <ClInclude Include="Source\Loading\LoadingThread.h" />
     <ClInclude Include="Source\Loading\SceneLoading.h" />
+    <ClInclude Include="Source\Loading\TextureLoading.h" />
     <ClInclude Include="Source\Render\Buffer.h" />
     <ClInclude Include="Source\Render\Commands.h" />
     <ClInclude Include="Source\Render\Device.h" />

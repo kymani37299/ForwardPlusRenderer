@@ -127,8 +127,12 @@ struct Entity
 {
 	uint32_t EntityIndex;
 
+	DirectX::XMFLOAT4X4 BaseTransform = XMUtility::ToXMFloat4x4(DirectX::XMMatrixIdentity());
 	Float3 Position = Float3(0.0f, 0.0f, 0.0f);
 	Float3 Scale = Float3(1.0f, 1.0f, 1.0f);
+	Float3 Rotation = Float3(0.0f, 0.0f, 0.0f);
+
+	BoundingSphere GetBoundingVolume(BoundingSphere bv) const;
 
 	void UpdateBuffer(ID3D11DeviceContext* context);
 };
@@ -307,6 +311,8 @@ public:
 
 	void Initialize();
 	Allocation AddTexture(ID3D11DeviceContext* context, TextureID texture);
+	Allocation AllocTexture(ID3D11DeviceContext* context);
+	void UpdateTexture(ID3D11DeviceContext* context, Allocation alloc,  TextureID texture);
 	TextureID GetBuffer() const { return m_Data; }
 
 private:

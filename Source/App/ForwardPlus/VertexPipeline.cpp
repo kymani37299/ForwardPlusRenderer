@@ -9,6 +9,8 @@ VertexPipeline VertPipeline;
 
 bool IsMeshletVisible(const Drawable& drawable, uint32_t meshletIndex, RenderGroup& rg)
 {
+	if (DebugToolsConfig.DisableGeometryCulling) return true;
+
 	static ViewFrustum vf;
 
 	const Mesh& m = rg.Meshes[drawable.MeshIndex];
@@ -17,12 +19,11 @@ bool IsMeshletVisible(const Drawable& drawable, uint32_t meshletIndex, RenderGro
 	if (!DebugToolsConfig.FreezeGeometryCulling)
 		vf = MainSceneGraph.MainCamera.CameraFrustum;
 
-	const float maxScale = MAX(MAX(e.Scale.x, e.Scale.y), e.Scale.z);
-
 	BoundingSphere bv;
-	bv.Center = e.Position + e.Scale * m.MeshletCullData[meshletIndex].BoundingSphere.Center;
-	bv.Radius = m.MeshletCullData[meshletIndex].BoundingSphere.Radius * maxScale;
-
+	bv.Center = m.MeshletCullData[meshletIndex].BoundingSphere.Center;
+	bv.Radius = m.MeshletCullData[meshletIndex].BoundingSphere.Radius;
+	bv = e.GetBoundingVolume(bv);
+	
 	return vf.IsInFrustum(bv);
 }
 

@@ -46,9 +46,8 @@ namespace ForwardPlusPrivate
 			Entity plane{};
 			plane.Position = { 0.0f, -10.0f, 0.0f };
 			plane.Scale = { 10000.0f, 1.0f, 10000.0f };
-			uint32_t planeIndex = MainSceneGraph.AddEntity(context, plane);
 			SceneLoading::LoadedScene cubeScene = SceneLoading::Load("Resources/cube/cube.gltf");
-			SceneLoading::AddDraws(cubeScene, planeIndex);
+			SceneLoading::AddDraws(cubeScene, plane);
 
 			constexpr uint32_t NUM_CUBES = 50;
 			for (uint32_t i = 0; i < NUM_CUBES; i++)
@@ -58,15 +57,17 @@ namespace ForwardPlusPrivate
 				Entity cube{};
 				cube.Position = position;
 				cube.Scale = scale;
-				uint32_t cubeIndex = MainSceneGraph.AddEntity(context, cube);
-				SceneLoading::AddDraws(cubeScene, cubeIndex);
+				SceneLoading::AddDraws(cubeScene, cube);
 			}
 		}
 		else
 		{
+			// Note: Too big for the github, so using low res scene on repo
+			//SceneLoading::LoadedScene scene = SceneLoading::Load("Resources/SuperSponza/NewSponza_Main_Blender_glTF.gltf");
+			SceneLoading::LoadedScene scene = SceneLoading::Load("Resources/sponza/sponza.gltf");
+
 			constexpr uint32_t NUM_CASTLES[2] = { 10, 10 };
 			constexpr float CASTLE_OFFSET[2] = { 350.0f, 200.0f };
-			SceneLoading::LoadedScene scene = SceneLoading::Load("Resources/sponza/sponza.gltf");
 
 			for (uint32_t i = 0; i < NUM_CASTLES[0]; i++)
 			{
@@ -74,9 +75,8 @@ namespace ForwardPlusPrivate
 				{
 					Entity e{};
 					e.Position = { i * CASTLE_OFFSET[0], 0.0f , j * CASTLE_OFFSET[1] };
-					e.Scale = 0.1f * Float3{ 1.0f, 1.0f, 1.0f };
-					uint32_t eIndex = MainSceneGraph.AddEntity(context, e);
-					SceneLoading::AddDraws(scene, eIndex);
+					e.Scale = 10.0f * Float3{ 1.0f, 1.0f, 1.0f };
+					SceneLoading::AddDraws(scene, e);
 				}
 			}
 
@@ -211,12 +211,7 @@ bool IsVisible(const Drawable& d)
 {
 	const Entity& e = MainSceneGraph.Entities[d.EntityIndex];
 	const ViewFrustum& vf = MainSceneGraph.MainCamera.CameraFrustum;
-
-	const float maxScale = MAX(MAX(e.Scale.x, e.Scale.y), e.Scale.z);
-
-	BoundingSphere bv;
-	bv.Center = e.Position + e.Scale * d.BoundingVolume.Center;
-	bv.Radius = d.BoundingVolume.Radius * maxScale;
+	const BoundingSphere bv = e.GetBoundingVolume(d.BoundingVolume);
 
 	return vf.IsInFrustum(bv);
 }
