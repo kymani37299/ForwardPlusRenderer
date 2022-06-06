@@ -92,6 +92,8 @@ struct PostprocessingSettings
 
 	bool UseExposureTonemapping = true;
 	float Exposure = 0.8f;
+
+	bool EnableBloom = true;
 };
 
 struct RenderStatistics

@@ -29,6 +29,7 @@ static const Float2 HaltonSequence[16] = { {0.500000,0.333333},
 void PostprocessingRenderer::Init(ID3D11DeviceContext* context)
 {
 	m_PostprocessShader = GFX::CreateShader("Source/Shaders/postprocessing.hlsl");
+	m_BloomShader = GFX::CreateShader("Source/Shaders/bloom.hlsl");
 }
 
 TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureID colorInput, TextureID depthInput, TextureID motionVectorInput)
@@ -59,6 +60,59 @@ TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureI
 		hdrRT = m_ResolvedColor;
 	}
 
+	// Bloom
+	if(PostprocessSettings.EnableBloom)
+	{
+		GFX::Cmd::MarkerBegin(context, "Bloom");
+		GFX::Cmd::SetupStaticSamplers<PS>(context);
+
+		// Prefilter
+		{
+			GFX::Cmd::MarkerBegin(context, "Prefilter");
+			GFX::Cmd::BindRenderTarget(context, m_BloomTexturesDownsample[0]);
+			GFX::Cmd::BindShader<VS | PS>(context, m_BloomShader, { "PREFILTER" });
+			GFX::Cmd::BindSRV<PS>(context, hdrRT, 0);
+			GFX::Cmd::DrawFC(context);
+			GFX::Cmd::MarkerEnd(context);
+		}
+
+		// Downsample
+		{
+			GFX::Cmd::MarkerBegin(context, "Downsample");
+			GFX::Cmd::BindShader<VS | PS>(context, m_BloomShader, { "DOWNSAMPLE" });
+			for (uint32_t i = 1; i < BLOOM_NUM_SAMPLES; i++)
+			{
+				GFX::Cmd::BindRenderTarget(context, m_BloomTexturesDownsample[i]);
+				GFX::Cmd::BindSRV<PS>(context, m_BloomTexturesDownsample[i-1], 0);
+				GFX::Cmd::DrawFC(context);
+			}
+			GFX::Cmd::MarkerEnd(context);
+		}
+
+		// Upsample
+		{
+			GFX::Cmd::MarkerBegin(context, "Upsample");
+			GFX::Cmd::BindShader<VS | PS>(context, m_BloomShader, { "UPSAMPLE" });
+
+			GFX::Cmd::BindRenderTarget(context, m_BloomTexturesUpsample[BLOOM_NUM_SAMPLES - 2]);
+			GFX::Cmd::BindSRV<PS>(context, m_BloomTexturesDownsample[BLOOM_NUM_SAMPLES - 1], 0);
+			GFX::Cmd::BindSRV<PS>(context, m_BloomTexturesDownsample[BLOOM_NUM_SAMPLES - 2], 1);
+			GFX::Cmd::DrawFC(context);
+
+			for (int32_t i = BLOOM_NUM_SAMPLES - 3; i >= 0; i--)
+			{
+				GFX::Cmd::BindRenderTarget(context, m_BloomTexturesUpsample[i]);
+				GFX::Cmd::BindSRV<PS>(context, m_BloomTexturesUpsample[i+1], 0);
+				GFX::Cmd::BindSRV<PS>(context, m_BloomTexturesDownsample[i], 1);
+				GFX::Cmd::DrawFC(context);
+			}
+
+			GFX::Cmd::MarkerEnd(context);
+		}
+
+		GFX::Cmd::MarkerEnd(context);
+	}
+
 	// Tonemapping
 	{
 		std::vector<std::string> config{};
@@ -66,12 +120,15 @@ TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureI
 		if (PostprocessSettings.UseExposureTonemapping) config.push_back("EXPOSURE");
 		else config.push_back("REINHARD");
 
+		if (PostprocessSettings.EnableBloom) config.push_back("APPLY_BLOOM");
+
 		GFX::Cmd::MarkerBegin(context, "Tonemapping");
 		GFX::Cmd::SetupStaticSamplers<PS>(context);
 		GFX::Cmd::BindRenderTarget(context, GetOutputTexture());
 		GFX::Cmd::BindShader<PS | VS>(context, m_PostprocessShader, config);
 		GFX::Cmd::BindCBV<PS>(context, m_PostprocessingSettingsBuffer, 0);
 		GFX::Cmd::BindSRV<PS>(context, hdrRT, 0);
+		GFX::Cmd::BindSRV<PS>(context, m_BloomTexturesUpsample[0], 1);
 		GFX::Cmd::DrawFC(context);
 		GFX::Cmd::MarkerEnd(context);
 
@@ -121,6 +178,19 @@ void PostprocessingRenderer::ReloadTextureResources(ID3D11DeviceContext* context
 	m_PostprocessRT[0] = GFX::CreateTexture(size[0], size[1], RCF_Bind_RTV | RCF_Bind_SRV);
 	m_PostprocessRT[1] = GFX::CreateTexture(size[0], size[1], RCF_Bind_RTV | RCF_Bind_SRV);
 
+	// Bloom
+	const float aspect = (float)size[0] / size[1];
+	uint32_t bloomTexSize[2] = { 512 * aspect, 512 };
+	for (uint32_t i = 0; i < BLOOM_NUM_SAMPLES; i++)
+	{
+		m_BloomTexturesDownsample[i] = GFX::CreateTexture(bloomTexSize[0], bloomTexSize[1], RCF_Bind_RTV | RCF_Bind_SRV, 1, DXGI_FORMAT_R16G16B16A16_FLOAT);
+		m_BloomTexturesUpsample[i] = GFX::CreateTexture(bloomTexSize[0], bloomTexSize[1], RCF_Bind_RTV | RCF_Bind_SRV, 1, DXGI_FORMAT_R16G16B16A16_FLOAT);
+
+		bloomTexSize[0] /= 2;
+		bloomTexSize[1] /= 2;
+	}
+
+	// Camera
 	MainSceneGraph.MainCamera.UseJitter = PostprocessSettings.AntialiasingMode == AntiAliasingMode::TAA;
 	for (uint32_t i = 0; i < 16; i++)
 	{

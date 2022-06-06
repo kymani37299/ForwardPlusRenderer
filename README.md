@@ -1,3 +1,6 @@
+![Alt text](Images/Showcase1.png?raw=true "Showcase1")
+![Alt text](Images/Showcase2.png?raw=true "Showcase2")
+
 ## Forward+ structure
 
 Implemented classic forward+ structure, where everything is rendered in forward fashion but more optimized than classic Forward renderer. There are 3 main steps in that:
@@ -18,7 +21,7 @@ For example in the Sponza scene with 10k lights randomly placed around the map, 
 For the geometry culling we are using just frustum culling with bounding spheres. Bounding spheres are calculated in the model loading phase and are in model space. When we are culling we are moving it to a world space where culling is performed. </br>
 Culling is performed on CPU and is producing a visibility mask (bitfield) that will be used at later stages only to process visible geometries.
 
-![Alt text](Images/FrustumCulling.png?raw=true "ForwardPlusVersusForward")
+![Alt text](Images/FrustumCulling.png?raw=true "FrustumCulling")
 
 ## Meshlets
 
@@ -43,7 +46,7 @@ Those 4 buffers are: <br>
 
 Here is the graph of the data state on shader:
 
-![Alt text](Images/ShaderDataGraph.png?raw=true "ForwardPlusVersusForward")
+![Alt text](Images/ShaderDataGraph.png?raw=true "ShaderDataGraph")
 
 In the real case scenario it is not that simple to have just one batch draw for all. I've divided the batch calls by the geometries that needs special case of pipeline or shader and those groups are named render groups. Every render group has separate buffers for the vertices, materials and drawables, the only thing shared is the entity buffer. Also every render group has its own visibility mask.
 
@@ -56,3 +59,6 @@ There are serveral implementations of the antialiasing from which you can choose
 - <b>Temporal Anti-aliasing(TAA)</b> - AA technique that is based on last frame data. It is implemented using motion vectors.
 - <b>Multisample Anti-alising(MSAA)</b> - Classic AA technique that relies on directX api
 
+## Bloom
+
+Implementation of the bloom is inspired by Unity implementation. It works by 12 point linear downsampling, after that image is upsampled using combination of the high res downsampled image and lower res upsampled image with tent filter.

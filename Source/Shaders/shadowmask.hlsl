@@ -43,7 +43,7 @@ float CalculateShadowFactor(float3 worldPosition)
 		const float depthBias = 0.05f;
 		const float shadowmapDepth = Shadowmap.Sample(s_LinearWrap, shadowmapUV) + depthBias;
 		const bool isInShadow = shadowmapPosition.z > shadowmapDepth;
-		shadowFactor = isInShadow ? 0.2f : 1.0f;
+		shadowFactor = isInShadow ? 0.1f : 1.0f;
 	}
 	return shadowFactor;
 }

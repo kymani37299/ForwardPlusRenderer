@@ -4,6 +4,7 @@
 #include "Gui/Imgui/imgui.h"
 #include "Render/Resource.h"
 #include "System/ApplicationConfiguration.h"
+#include "Utility/Random.h"
 
 DebugToolsConfiguration DebugToolsConfig;
 PostprocessingSettings PostprocessSettings;
@@ -76,6 +77,8 @@ void PostprocessingGUI::Render(ID3D11DeviceContext* context)
 	ImGui::Checkbox("Exposure tonemapping", &PostprocessSettings.UseExposureTonemapping);
 	if(PostprocessSettings.UseExposureTonemapping)
 		ImGui::SliderFloat("Exposure", &PostprocessSettings.Exposure, 0.01f, 10.0f);
+
+	ImGui::Checkbox("Bloom", &PostprocessSettings.EnableBloom);
 }
 
 void RenderStatsGUI::Update(float dt)
@@ -134,6 +137,20 @@ void TextureVisualizerGUI::Render(ID3D11DeviceContext* context)
 // --------------------------------------------------
 void LightsGUI::Render(ID3D11DeviceContext* context)
 {
+	if (ImGui::Button("Generate 1k lights"))
+	{
+		for (uint32_t i = 0; i < 1000; i++)
+		{
+			const float strength = Random::Float(1.0f, 5.0f);
+			const Float3 position = Float3(1000.0f, 80.0f, 1000.0f) * Float3(Random::UNorm(), Random::UNorm(), Random::UNorm());
+			const Float3 color = strength * Float3(Random::UNorm(), Random::UNorm(), Random::UNorm());
+			const Float2 falloff = strength * Float2(0.5f + 2.0f * Random::UNorm(), 3.0f + 2.0f * Random::UNorm());
+			MainSceneGraph.CreatePointLight(context, position, color, falloff);
+		}
+	}
+
+	ImGui::Separator();
+
 	if (MainSceneGraph.DirLightIndex != UINT32_MAX)
 	{
 		Light& dirLight = MainSceneGraph.Lights[MainSceneGraph.DirLightIndex];
@@ -143,8 +160,22 @@ void LightsGUI::Render(ID3D11DeviceContext* context)
 		direction[1] = dirLight.Direction.y;
 		direction[2] = dirLight.Direction.z;
 
-		ImGui::SliderFloat3("Directional light ", direction, -1.0f, 1.0f);
+		ImGui::Text("Directional light");
+		bool changed = ImGui::SliderFloat3("Direction", direction, -1.0f, 1.0f);
 		dirLight.Direction = { direction[0], direction[1], direction[2] };
 		dirLight.Direction = dirLight.Direction.Normalize();
+
+		float color[3];
+		color[0] = dirLight.Radiance.x;
+		color[1] = dirLight.Radiance.y;
+		color[2] = dirLight.Radiance.z;
+		changed = ImGui::SliderFloat3("Color", color, 0.0f, 5.0f) || changed;
+
+		dirLight.Radiance = { color[0], color[1], color[2] };
+
+		if (changed)
+		{
+			dirLight.UpdateBuffer(context);
+		}
 	}
 }

@@ -25,21 +25,8 @@ namespace ForwardPlusPrivate
 	{
 		const Float3 dirLight = Float3(-0.2f, -1.0f, -0.2f);
 
-		MainSceneGraph.CreateAmbientLight(context, Float3(0.1f, 0.1f, 0.15f));
-		MainSceneGraph.CreateDirectionalLight(context, dirLight, Float3(0.99f, 0.72f, 0.07f));
-
-		// TODO: Sync dir lights with camera automatically
-		MainSceneGraph.ShadowCamera.NextTransform.Forward = dirLight;
-
-		constexpr uint32_t NUM_LIGHTS = 30000;
-		for (uint32_t i = 0; i < NUM_LIGHTS; i++)
-		{
-			const float strength = Random::Float(1.0f, 5.0f);
-			const Float3 position = Float3(1000.0f, 80.0f, 1000.0f) * Float3(Random::UNorm(), Random::UNorm(), Random::UNorm());
-			const Float3 color = strength * Float3(Random::UNorm(), Random::UNorm(), Random::UNorm());
-			const Float2 falloff = strength * Float2(0.5f + 2.0f * Random::UNorm(), 3.0f + 2.0f * Random::UNorm());
-			MainSceneGraph.CreatePointLight(context, position, color, falloff);
-		}
+		MainSceneGraph.CreateAmbientLight(context, Float3(0.05f, 0.05f, 0.2f));
+		MainSceneGraph.CreateDirectionalLight(context, dirLight, Float3(3.7f, 2.0f, 0.9f));
 
 		if (AppConfig.Settings.contains("SIMPLE_SCENE"))
 		{

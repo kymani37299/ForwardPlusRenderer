@@ -34,11 +34,16 @@ cbuffer PPSettingsCB : register(b0)
 }
 
 Texture2D HDRTexture : register(t0);
+Texture2D BloomTexture : register(t1);
 
 float4 PS(FCVertex IN) : SV_Target
 {
-	const float3 hdrColor = HDRTexture.Sample(s_LinearWrap, IN.uv).rgb;
+	float3 hdrColor = HDRTexture.Sample(s_LinearWrap, IN.uv).rgb;
 	
+#ifdef APPLY_BLOOM
+	hdrColor += BloomTexture.Sample(s_LinearWrap, IN.uv).rgb;
+#endif // APPLY_BLOOM
+
 #ifdef REINHARD
 	const float3 color = hdrColor / (hdrColor + float3(1.0f,1.0f,1.0f));
 #endif

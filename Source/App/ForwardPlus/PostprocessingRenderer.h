@@ -18,12 +18,19 @@ private:
 
 private:
 	ShaderID m_PostprocessShader;
+	ShaderID m_BloomShader;
 
+	// TAA
 	TextureID m_TAAHistory[2]; // 0 - current frame, 1 - last frame
-	TextureID m_ResolvedColor;
+
+	// Bloom
+	static constexpr uint32_t BLOOM_NUM_SAMPLES = 5;
+	TextureID m_BloomTexturesDownsample[5];
+	TextureID m_BloomTexturesUpsample[5];
 
 	uint32_t m_PostprocessRTIndex = 0;
 	TextureID m_PostprocessRT[2];
+	TextureID m_ResolvedColor;
 
 	BufferID m_PostprocessingSettingsBuffer;
 };
