@@ -167,6 +167,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Source\App\ForwardPlus\ConstantManager.cpp" />
     <ClCompile Include="Source\App\ForwardPlus\DebugRenderer.cpp" />
     <ClCompile Include="Source\App\ForwardPlus\ForwardPlus.cpp" />
     <ClCompile Include="Source\App\ForwardPlus\PostprocessingRenderer.cpp" />
@@ -191,6 +192,7 @@
     <ClCompile Include="Source\Render\Commands.cpp" />
     <ClCompile Include="Source\Render\Device.cpp" />
     <ClCompile Include="Source\Render\PipelineState.cpp" />
+    <ClCompile Include="Source\Render\RenderThread.cpp" />
     <ClCompile Include="Source\Render\Resource.cpp" />
     <ClCompile Include="Source\Render\Shader.cpp" />
     <ClCompile Include="Source\Render\Texture.cpp" />
@@ -199,6 +201,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\App\Application.h" />
+    <ClInclude Include="Source\App\ForwardPlus\ConstantManager.h" />
     <ClInclude Include="Source\App\ForwardPlus\DebugRenderer.h" />
     <ClInclude Include="Source\App\ForwardPlus\ForwardPlus.h" />
     <ClInclude Include="Source\App\ForwardPlus\PostprocessingRenderer.h" />
@@ -218,7 +221,6 @@
     <ClInclude Include="Source\Gui\Imgui\imstb_rectpack.h" />
     <ClInclude Include="Source\Gui\Imgui\imstb_textedit.h" />
     <ClInclude Include="Source\Gui\Imgui\imstb_truetype.h" />
-    <ClInclude Include="Source\Loading\LoadingThread.h" />
     <ClInclude Include="Source\Loading\SceneLoading.h" />
     <ClInclude Include="Source\Loading\TextureLoading.h" />
     <ClInclude Include="Source\Render\Buffer.h" />
@@ -226,6 +228,7 @@
     <ClInclude Include="Source\Render\Device.h" />
     <ClInclude Include="Source\Render\PipelineState.h" />
     <ClInclude Include="Source\Render\RenderAPI.h" />
+    <ClInclude Include="Source\Render\RenderThread.h" />
     <ClInclude Include="Source\Render\Resource.h" />
     <ClInclude Include="Source\Render\ResourceID.h" />
     <ClInclude Include="Source\Render\Shader.h" />

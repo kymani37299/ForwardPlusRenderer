@@ -168,6 +168,15 @@ struct Camera
 		Perspective,
 	};
 
+	struct CameraRenderData
+	{
+		DirectX::XMFLOAT4X4 WorldToView;
+		DirectX::XMFLOAT4X4 ViewToClip;
+		DirectX::XMFLOAT4X4 ClipToWorld;
+		DirectX::XMFLOAT3A Position;
+		DirectX::XMFLOAT2A Jitter;
+	};
+
 	struct CameraTransform
 	{
 		Float3 Position{ 0.0f, 2.0f, 0.0f };
@@ -181,8 +190,8 @@ struct Camera
 	static Camera CreateOrtho(float rectWidth, float rectHeight, float znear, float zfar);
 
 	void FrameUpdate(ID3D11DeviceContext* context);
-	void UpdateBuffers(ID3D11DeviceContext* context);
-	void UpdateBufferForTransform(ID3D11DeviceContext* context, CameraTransform& transform, BufferID& destBuffer);
+	void UpdateRenderData();
+	void UpdateRenderDataForTransform(CameraTransform& transform, CameraRenderData& destData);
 
 	CameraType Type;
 	float ZFar;
@@ -207,8 +216,8 @@ struct Camera
 
 	DirectX::XMMATRIX WorldToView = DirectX::XMMatrixIdentity();
 
-	BufferID CameraBuffer;
-	BufferID LastFrameCameraBuffer;
+	CameraRenderData CameraData;
+	CameraRenderData LastCameraData;
 
 	ViewFrustum CameraFrustum;
 };
@@ -357,6 +366,14 @@ struct SceneGraph
 	static constexpr uint32_t MAX_ENTITIES = 10000;
 	static constexpr uint32_t MAX_LIGHTS = 100000;
 
+	struct SceneInfoRenderData
+	{
+		uint32_t NumLights;
+		DirectX::XMFLOAT3 Padding;
+		DirectX::XMFLOAT2A ScreenSize;
+		float AspectRatio;
+	};
+
 	SceneGraph();
 	void InitRenderData(ID3D11DeviceContext* context);
 
@@ -376,7 +393,7 @@ struct SceneGraph
 	ElementBuffer<Light> Lights;
 	uint32_t DirLightIndex = UINT32_MAX;
 
-	BufferID SceneInfoBuffer;
+	SceneInfoRenderData SceneInfoData;
 };
 
 extern SceneGraph MainSceneGraph;

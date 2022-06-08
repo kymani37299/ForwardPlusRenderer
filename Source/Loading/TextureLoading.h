@@ -1,10 +1,10 @@
 #pragma once
 
 #include "Common.h"
-#include "Loading/LoadingThread.h"
+#include "Render/RenderThread.h"
 #include "Core/SceneGraph.h"
 
-class TextureLoadingTask : public LoadingTask
+class TextureLoadingTask : public RenderTask
 {
 public:
 	TextureLoadingTask(const std::string& texturePath, TextureStorage::Allocation alloc, TextureStorage& textureStorage, ColorUNORM defaultColor = {0.0f, 0.0f, 0.0f, 0.0f}) :

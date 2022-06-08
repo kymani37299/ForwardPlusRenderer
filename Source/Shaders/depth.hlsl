@@ -21,21 +21,16 @@ struct VertexOut
 #endif // ALPHA_DISCARD
 };
 
-cbuffer CameraCB : register(b0)
+cbuffer Constants : register(b0)
 {
 	Camera CamData;
+#ifndef SHADOWMAP
+	Camera CamDataLastFrame;
+	SceneInfo SceneInfoData;
+#endif // SHADOWMAP
 }
 
 #ifdef MOTION_VECTORS
-cbuffer CameraCBLastFrame : register(b1)
-{
-	Camera CamDataLastFrame;
-}
-
-cbuffer SceneInfoCB : register(b2)
-{
-	SceneInfo SceneInfoData;
-}
 
 float2 CalculateMotionVector(float4 newPosition, float4 oldPosition, float2 screenSize)
 {

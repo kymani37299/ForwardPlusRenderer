@@ -8,13 +8,9 @@ struct DebugGeometry
 	float4 Color;
 };
 
-cbuffer DebugGeometryCB : register(b0)
+cbuffer Constants : register(b0)
 {
 	DebugGeometry DebugGeoData;
-}
-
-cbuffer CameraCB : register(b1)
-{
 	Camera CamData;
 }
 

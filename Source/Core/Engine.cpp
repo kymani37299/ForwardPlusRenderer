@@ -5,22 +5,20 @@
 #include "App/Application.h"
 #include "Core/SceneGraph.h"
 #include "Render/Device.h"
-#include "Loading/LoadingThread.h"
+#include "Render/RenderThread.h"
 #include "Gui/GUI.h"
 #include "System/ApplicationConfiguration.h"
 #include "System/Window.h"
 #include "System/Input.h"
 
 ApplicationConfiguration AppConfig;
-LoadingThread* LoadingThread::s_Instance = nullptr;
-PoisonPillTask* PoisonPillTask::s_Instance = nullptr;
 
 Engine::Engine(Application* app)
 {
 	Window::Init();
 	Window::Get()->ShowCursor(false);
 	Device::Init();
-	LoadingThread::Init();
+	RenderThreadPool::Init(8);
 	GUI::Init();
 	m_Application = app;
 	m_Application->OnInit(Device::Get()->GetContext());
@@ -32,7 +30,7 @@ Engine::~Engine()
 	m_Application->OnDestroy(context);
 	GUI::Destroy();
 	delete m_Application;
-	LoadingThread::Destroy();
+	RenderThreadPool::Destroy();
 	Window::Destroy();
 	GFX::Storage::ClearStorage();
 	Device::Destroy();

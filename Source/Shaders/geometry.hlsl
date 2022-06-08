@@ -16,16 +16,11 @@ struct VertexOut
 	nointerpolation uint MaterialIndex : MAT_INDEX;
 };
 
-cbuffer CameraCB : register(b0)
+cbuffer Constants : register(b0)
 {
 	Camera MainCamera;
-}
-
-cbuffer SceneInfoCB : register(b1)
-{
 	SceneInfo SceneInfoData;
 }
-
 
 StructuredBuffer<Light> Lights : register(t0);
 StructuredBuffer<uint> VisibleLights : register(t1);

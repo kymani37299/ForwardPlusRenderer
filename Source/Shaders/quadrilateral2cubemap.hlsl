@@ -11,7 +11,7 @@ struct VS_Output
 	float3 localPos : LOCAL_POS;
 };
 
-cbuffer CameraCB : register(b0)
+cbuffer Constants : register(b0)
 {
 	float4x4 WorldToClip;
 }

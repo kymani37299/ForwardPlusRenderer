@@ -9,11 +9,13 @@ struct BloomInput
     float2 Padding;
     float Treshold;
     float Knee;
+    float2 Padding2;
 };
 
-cbuffer BloomInputCB : register(b0)
+cbuffer Constants : register(b0)
 {
     BloomInput BloomIN;
+    float Exposure;
 }
 
 VS_IMPL;
@@ -69,11 +71,6 @@ static const float EPSILON = 0.0001f;
 
 static const float4 EMISSIVE_CLAMP = 20.0f;
 
-cbuffer PPSettingsCB : register(b1)
-{
-    PostprocessingSettings PP_Settings;
-}
-
 Texture2D<float4> inputTexture : register(t0);
 
 float4 QuadraticThreshold(float4 color, float threshold, float3 curve)
@@ -97,7 +94,7 @@ float4 PS(FCVertex IN) : SV_Target
     const float3 curve = float3(BloomIN.Treshold - knee, 2.0f * knee, 0.25f / knee);
 
     float4 color = DownsampleBox(inputTexture, s_LinearBorder, IN.uv, BloomIN.TexelSize);
-    color *= PP_Settings.Exposure;
+    color *= Exposure;
     color = min(EMISSIVE_CLAMP, color);
     color = QuadraticThreshold(color, BloomIN.Treshold, curve);
     return color;

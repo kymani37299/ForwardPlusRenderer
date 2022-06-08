@@ -6,7 +6,7 @@ VS_IMPL;
 
 #define HIGH_LIGHT_COUNT 30
 
-cbuffer SceneInfoCB : register(b0)
+cbuffer Constants : register(b0)
 {
 	SceneInfo SceneInfoData;
 }

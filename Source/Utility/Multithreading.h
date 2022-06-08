@@ -119,6 +119,11 @@ namespace MTR
 			m_Queue.clear();
 		}
 
+		uint32_t Size() const
+		{
+			return m_Queue.size();
+		}
+
 	private:
 		std::mutex              m_Mutex;
 		std::condition_variable m_Condition;

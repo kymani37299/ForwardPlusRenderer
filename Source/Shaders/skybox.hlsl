@@ -12,7 +12,7 @@ struct VertexOut
 	float3 SkyRay : SKY_RAY;
 };
 
-cbuffer CameraCB : register(b0)
+cbuffer Constants : register(b0)
 {
 	Camera CamData;
 }

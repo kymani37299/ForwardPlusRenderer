@@ -4,11 +4,11 @@
 #define CGLTF_IMPLEMENTATION
 #include <cgltf.h>
 
-#include "Loading/LoadingThread.h"
 #include "Loading/TextureLoading.h"
 #include "Render/Device.h"
 #include "Render/Buffer.h"
 #include "Render/Texture.h"
+#include "Render/RenderThread.h"
 #include "Utility/PathUtility.h"
 #include "Shaders/shared_definitions.h"
 #include "System/ApplicationConfiguration.h"
@@ -241,8 +241,12 @@ namespace SceneLoading
 
 		uint32_t LoadTexture(const LoadingContext& context, cgltf_texture* texture, ColorUNORM defaultColor = {1.0f, 1.0f, 1.0f, 1.0f})
 		{
-			TextureStorage::Allocation alloc = context.LoadingRG->TextureData.AllocTexture(context.GfxContext);
-			TextureID tex;
+			TextureID defaultTex = GFX::CreateTexture(1,1,RCF_Bind_SRV, 1, DXGI_FORMAT_R8G8B8A8_UNORM, &defaultColor);
+
+			TextureStorage::Allocation alloc = context.LoadingRG->TextureData.AddTexture(context.GfxContext, defaultTex);
+
+			GFX::Storage::Free(defaultTex);
+
 			std::string texturePath = "";
 			if (texture)
 			{
@@ -257,7 +261,7 @@ namespace SceneLoading
 			}
 			else
 			{
-				LoadingThread::Get()->Submit(new TextureLoadingTask(texturePath, alloc, context.LoadingRG->TextureData, defaultColor));
+				RenderThreadPool::Get()->Submit(new TextureLoadingTask(texturePath, alloc, context.LoadingRG->TextureData, defaultColor));
 			}
 			
 			return alloc.TextureIndex;

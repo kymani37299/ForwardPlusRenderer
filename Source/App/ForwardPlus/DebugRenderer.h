@@ -54,8 +54,6 @@ private:
 	ShaderID m_DebugGeometryShader;
 	ShaderID m_LightHeatmapShader;
 
-	BufferID m_DebugGeometryBuffer;
-
 	BufferID m_CubeVB;
 	BufferID m_SphereVB;
 };

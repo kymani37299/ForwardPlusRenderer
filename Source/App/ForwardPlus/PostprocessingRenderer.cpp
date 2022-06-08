@@ -1,5 +1,6 @@
 #include "PostprocessingRenderer.h"
 
+#include "App/ForwardPlus/ConstantManager.h"
 #include "Core/SceneGraph.h"
 #include "Render/Commands.h"
 #include "Render/Buffer.h"
@@ -8,8 +9,6 @@
 #include "Render/Texture.h"
 #include "Gui/GUI_Implementations.h"
 #include "System/ApplicationConfiguration.h"
-
-
 
 static const Float2 HaltonSequence[16] = { {0.500000,0.333333},
 						{0.250000,0.666667},
@@ -28,31 +27,26 @@ static const Float2 HaltonSequence[16] = { {0.500000,0.333333},
 						{0.937500,0.259259},
 						{0.031250,0.592593} };
 
-
-static void SetupAndBindBloomInput(ID3D11DeviceContext* context, TextureID targetTex)
+struct BloomInputRenderData
 {
-	struct BloomInputCB
-	{
-		DirectX::XMFLOAT4 SampleScale;
-		DirectX::XMFLOAT2A TexelSize;
-		float Treshold;
-		float Knee;
-	};
+	DirectX::XMFLOAT4 SampleScale;
+	DirectX::XMFLOAT2A TexelSize;
+	float Treshold;
+	float Knee;
+};
 
-	static BufferID BloomInputBuffer;
-	if (!BloomInputBuffer.Valid()) BloomInputBuffer = GFX::CreateConstantBuffer<BloomInputCB>();
-
+static BloomInputRenderData GetBloomInput(ID3D11DeviceContext* context, TextureID targetTex)
+{
 	const Texture& tex = GFX::Storage::GetTexture(targetTex);
 
-	BloomInputCB inputCB{};
-	inputCB.SampleScale = PostprocessSettings.BloomSampleScale.ToXMF();
-	inputCB.Treshold = PostprocessSettings.BloomTreshold;
-	inputCB.Knee = PostprocessSettings.BloomKnee;
-	inputCB.TexelSize.x = 1.0f / tex.Width;
-	inputCB.TexelSize.y = 1.0f / tex.Height;
+	BloomInputRenderData input{};
+	input.SampleScale = PostprocessSettings.BloomSampleScale.ToXMF();
+	input.Treshold = PostprocessSettings.BloomTreshold;
+	input.Knee = PostprocessSettings.BloomKnee;
+	input.TexelSize.x = 1.0f / tex.Width;
+	input.TexelSize.y = 1.0f / tex.Height;
 
-	GFX::Cmd::UploadToBuffer(context, BloomInputBuffer, 0, &inputCB, 0, sizeof(BloomInputCB));
-	GFX::Cmd::BindCBV<PS>(context, BloomInputBuffer, 0);
+	return input;
 }
 
 void PostprocessingRenderer::Init(ID3D11DeviceContext* context)
@@ -65,21 +59,7 @@ TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureI
 {
 	GFX::Cmd::MarkerBegin(context, "Postprocessing");
 
-	// Update settings buffer
-	{
-		struct PostprocessingSettngsCB
-		{
-			float Exposure;
-		};
-
-		if (!m_PostprocessingSettingsBuffer.Valid())
-			m_PostprocessingSettingsBuffer = GFX::CreateConstantBuffer<PostprocessingSettngsCB>();
-
-		PostprocessingSettngsCB cb{};
-		cb.Exposure = PostprocessSettings.Exposure;
-
-		GFX::Cmd::UploadToBuffer(context, m_PostprocessingSettingsBuffer, 0, &cb, 0, sizeof(PostprocessingSettngsCB));
-	}
+	
 
 	TextureID hdrRT = colorInput;
 
@@ -93,16 +73,22 @@ TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureI
 	if(PostprocessSettings.EnableBloom)
 	{
 		GFX::Cmd::MarkerBegin(context, "Bloom");
+
+
+
 		GFX::Cmd::SetupStaticSamplers<PS>(context);
 
 		// Prefilter
 		{
 			GFX::Cmd::MarkerBegin(context, "Prefilter");
+			
+			CBManager.Clear();
+			CBManager.Add(GetBloomInput(context, hdrRT));
+			CBManager.Add(PostprocessSettings.Exposure, true);
+			
 			GFX::Cmd::BindRenderTarget(context, m_BloomTexturesDownsample[0]);
 			GFX::Cmd::BindShader<VS | PS>(context, m_BloomShader, { "PREFILTER" });
-			GFX::Cmd::BindCBV<PS>(context, m_PostprocessingSettingsBuffer, 1);
 			GFX::Cmd::BindSRV<PS>(context, hdrRT, 0);
-			SetupAndBindBloomInput(context, hdrRT);
 			GFX::Cmd::DrawFC(context);
 			GFX::Cmd::MarkerEnd(context);
 		}
@@ -113,9 +99,12 @@ TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureI
 			GFX::Cmd::BindShader<VS | PS>(context, m_BloomShader, { "DOWNSAMPLE" });
 			for (uint32_t i = 1; i < BLOOM_NUM_SAMPLES; i++)
 			{
+				CBManager.Clear();
+				CBManager.Add(GetBloomInput(context, m_BloomTexturesDownsample[i - 1]));
+				CBManager.Add(PostprocessSettings.Exposure, true);
+
 				GFX::Cmd::BindRenderTarget(context, m_BloomTexturesDownsample[i]);
 				GFX::Cmd::BindSRV<PS>(context, m_BloomTexturesDownsample[i-1], 0);
-				SetupAndBindBloomInput(context, m_BloomTexturesDownsample[i - 1]);
 				GFX::Cmd::DrawFC(context);
 			}
 			GFX::Cmd::MarkerEnd(context);
@@ -126,18 +115,24 @@ TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureI
 			GFX::Cmd::MarkerBegin(context, "Upsample");
 			GFX::Cmd::BindShader<VS | PS>(context, m_BloomShader, { "UPSAMPLE" });
 
+			CBManager.Clear();
+			CBManager.Add(GetBloomInput(context, m_BloomTexturesDownsample[BLOOM_NUM_SAMPLES - 1]));
+			CBManager.Add(PostprocessSettings.Exposure, true);
+
 			GFX::Cmd::BindRenderTarget(context, m_BloomTexturesUpsample[BLOOM_NUM_SAMPLES - 2]);
 			GFX::Cmd::BindSRV<PS>(context, m_BloomTexturesDownsample[BLOOM_NUM_SAMPLES - 1], 0);
 			GFX::Cmd::BindSRV<PS>(context, m_BloomTexturesDownsample[BLOOM_NUM_SAMPLES - 2], 1);
-			SetupAndBindBloomInput(context, m_BloomTexturesDownsample[BLOOM_NUM_SAMPLES - 1]);
 			GFX::Cmd::DrawFC(context);
 
 			for (int32_t i = BLOOM_NUM_SAMPLES - 3; i >= 0; i--)
 			{
+				CBManager.Clear();
+				CBManager.Add(GetBloomInput(context, m_BloomTexturesDownsample[i]));
+				CBManager.Add(PostprocessSettings.Exposure, true);
+
 				GFX::Cmd::BindRenderTarget(context, m_BloomTexturesUpsample[i]);
 				GFX::Cmd::BindSRV<PS>(context, m_BloomTexturesUpsample[i+1], 0);
 				GFX::Cmd::BindSRV<PS>(context, m_BloomTexturesDownsample[i], 1);
-				SetupAndBindBloomInput(context, m_BloomTexturesDownsample[i]);
 				GFX::Cmd::DrawFC(context);
 			}
 
@@ -149,6 +144,9 @@ TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureI
 
 	// Tonemapping
 	{
+		CBManager.Clear();
+		CBManager.Add(PostprocessSettings.Exposure, true);
+
 		std::vector<std::string> config{};
 		config.push_back("TONEMAPPING");
 
@@ -158,7 +156,6 @@ TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureI
 		GFX::Cmd::SetupStaticSamplers<PS>(context);
 		GFX::Cmd::BindRenderTarget(context, GetOutputTexture());
 		GFX::Cmd::BindShader<PS | VS>(context, m_PostprocessShader, config);
-		GFX::Cmd::BindCBV<PS>(context, m_PostprocessingSettingsBuffer, 0);
 		GFX::Cmd::BindSRV<PS>(context, hdrRT, 0);
 		GFX::Cmd::BindSRV<PS>(context, m_BloomTexturesUpsample[0], 1);
 		GFX::Cmd::DrawFC(context);

@@ -31,6 +31,4 @@ private:
 	uint32_t m_PostprocessRTIndex = 0;
 	TextureID m_PostprocessRT[2];
 	TextureID m_ResolvedColor;
-
-	BufferID m_PostprocessingSettingsBuffer;
 };

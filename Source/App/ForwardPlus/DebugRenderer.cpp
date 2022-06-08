@@ -1,5 +1,6 @@
 #include "DebugRenderer.h"
 
+#include "App/ForwardPlus/ConstantManager.h"
 #include "Core/SceneGraph.h"
 #include "Render/Commands.h"
 #include "Render/Buffer.h"
@@ -132,6 +133,9 @@ void DebugRenderer::Draw(ID3D11DeviceContext* context, TextureID colorTarget, Te
 
 	if (DebugToolsConfig.LightHeatmap && !DebugToolsConfig.DisableLightCulling && !DebugToolsConfig.FreezeGeometryCulling)
 	{
+		CBManager.Clear();
+		CBManager.Add(MainSceneGraph.SceneInfoData, true);
+
 		PipelineState pso = GFX::DefaultPipelineState();
 		pso.BS.RenderTarget[0].BlendEnable = true;
 		pso.BS.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
@@ -144,7 +148,6 @@ void DebugRenderer::Draw(ID3D11DeviceContext* context, TextureID colorTarget, Te
 
 		GFX::Cmd::BindRenderTarget(context, colorTarget);
 		GFX::Cmd::BindShader<VS | PS>(context, m_LightHeatmapShader);
-		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.SceneInfoBuffer, 0);
 		GFX::Cmd::BindSRV<PS>(context, visibleLights, 0);
 		GFX::Cmd::DrawFC(context);
 	}
@@ -172,14 +175,6 @@ void DebugRenderer::UpdateStats(ID3D11DeviceContext* context)
 
 void DebugRenderer::DrawGeometries(ID3D11DeviceContext* context)
 {
-	struct DebugGeometryDataCB
-	{
-		DirectX::XMFLOAT4X4 ModelToWorld;
-		DirectX::XMFLOAT4 Color;
-	};
-
-	if (!m_DebugGeometryBuffer.Valid()) m_DebugGeometryBuffer = GFX::CreateConstantBuffer<DebugGeometryDataCB>();
-
 	GFX::Cmd::MarkerBegin(context, "Debug Geometries");
 
 	// Prepare pipeline
@@ -195,7 +190,6 @@ void DebugRenderer::DrawGeometries(ID3D11DeviceContext* context)
 	pso.BS.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
 	GFX::Cmd::SetPipelineState(context, pso);
 	GFX::Cmd::BindShader<PS|VS>(context, m_DebugGeometryShader);
-	GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 1);
 
 	for (const DebugGeometry& dg : m_GeometriesToRender)
 	{
@@ -220,16 +214,15 @@ void DebugRenderer::DrawGeometries(ID3D11DeviceContext* context)
 			default: NOT_IMPLEMENTED;
 			}
 
-			DebugGeometryDataCB debugGeometryDataCB{};
-			debugGeometryDataCB.ModelToWorld = XMUtility::ToHLSLFloat4x4(modelToWorld);
-			debugGeometryDataCB.Color = dg.Color.ToXMF();
-			GFX::Cmd::UploadToBuffer(context, m_DebugGeometryBuffer, 0, &debugGeometryDataCB, 0, sizeof(DebugGeometryDataCB));
+			CBManager.Clear();
+			CBManager.Add(MainSceneGraph.MainCamera.CameraData);
+			CBManager.Add(XMUtility::ToHLSLFloat4x4(modelToWorld));
+			CBManager.Add(dg.Color.ToXMF(), true);
 		}
 
 		// Draw
 		{
 			GFX::Cmd::BindVertexBuffer(context, vertexBuffer);
-			GFX::Cmd::BindCBV<VS | PS>(context, m_DebugGeometryBuffer, 0);
 			context->Draw(GFX::GetNumElements(vertexBuffer), 0);
 		}
 	}

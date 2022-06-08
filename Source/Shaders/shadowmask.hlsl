@@ -5,18 +5,10 @@
 
 VS_IMPL;
 
-cbuffer CameraCB : register(b0)
+cbuffer Constants : register(b0)
 {
 	Camera MainCamera;
-}
-
-cbuffer ShadowCameraCB : register(b1)
-{
 	Camera ShadowCamera;
-}
-
-cbuffer SceneInfoCB : register(b2)
-{
 	SceneInfo SceneInfoData;
 }
 

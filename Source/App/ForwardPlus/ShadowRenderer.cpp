@@ -1,5 +1,6 @@
 #include "ShadowRenderer.h"
 
+#include "App/ForwardPlus/ConstantManager.h"
 #include "App/ForwardPlus/VertexPipeline.h"
 #include "Core/SceneGraph.h"
 #include "Render/Texture.h"
@@ -24,6 +25,10 @@ TextureID ShadowRenderer::CalculateShadowMask(ID3D11DeviceContext* context, Text
 	// Shadowmap
 	{
 		GFX::Cmd::MarkerBegin(context, "Shadowmap");
+		
+		CBManager.Clear();
+		CBManager.Add(MainSceneGraph.ShadowCamera.CameraData, true);
+		
 		PipelineState pso = GFX::DefaultPipelineState();
 		pso.DS.DepthEnable = true;
 
@@ -34,10 +39,10 @@ TextureID ShadowRenderer::CalculateShadowMask(ID3D11DeviceContext* context, Text
 			RenderGroup& renderGroup = MainSceneGraph.RenderGroups[i];
 
 			std::vector<std::string> config{};
+			config.push_back("SHADOWMAP");
 
 			GFX::Cmd::BindRenderTarget(context, TextureID{}, m_Shadowmap);
 			GFX::Cmd::SetPipelineState(context, pso);
-			GFX::Cmd::BindCBV<VS | PS>(context, MainSceneGraph.ShadowCamera.CameraBuffer, 0);
 			if (rgType == RenderGroupType::AlphaDiscard)
 			{
 				config.push_back("ALPHA_DISCARD");
@@ -52,6 +57,11 @@ TextureID ShadowRenderer::CalculateShadowMask(ID3D11DeviceContext* context, Text
 
 	// Shadowmask
 	{
+		CBManager.Clear();
+		CBManager.Add(MainSceneGraph.MainCamera.CameraData);
+		CBManager.Add(MainSceneGraph.ShadowCamera.CameraData);
+		CBManager.Add(MainSceneGraph.SceneInfoData, true);
+
 		std::vector<std::string> config;
 		if (PostprocessSettings.AntialiasingMode == AntiAliasingMode::MSAA) config.push_back("MULTISAMPLE_DEPTH");
 
@@ -60,9 +70,6 @@ TextureID ShadowRenderer::CalculateShadowMask(ID3D11DeviceContext* context, Text
 		GFX::Cmd::BindRenderTarget(context, m_Shadowmask);
 		GFX::Cmd::BindSRV<PS>(context, depth, 0);
 		GFX::Cmd::BindSRV<PS>(context, m_Shadowmap, 1);
-		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
-		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.ShadowCamera.CameraBuffer, 1);
-		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.SceneInfoBuffer, 2);
 		GFX::Cmd::BindShader<VS | PS>(context, m_ShadowmaskShader, config);
 		GFX::Cmd::DrawFC(context);
 		GFX::Cmd::BindSRV<PS>(context, nullptr, 0);

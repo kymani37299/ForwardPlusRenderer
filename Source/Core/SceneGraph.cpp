@@ -200,17 +200,9 @@ Float3 CalcForwardVector(float pitch, float yaw)
 	return Float3{ x,y,z }.Normalize();
 }
 
-void Camera::UpdateBufferForTransform(ID3D11DeviceContext* context, CameraTransform& transform, BufferID& destBuffer)
+void Camera::UpdateRenderDataForTransform(CameraTransform& transform, CameraRenderData& destData)
 {
 	using namespace DirectX;
-	struct CameraCB
-	{
-		XMFLOAT4X4 WorldToView;
-		XMFLOAT4X4 ViewToClip;
-		XMFLOAT4X4 ClipToWorld;
-		XMFLOAT3A Position;
-		XMFLOAT2A Jitter;
-	};
 
 	if (UseRotation)
 	{
@@ -233,21 +225,17 @@ void Camera::UpdateBufferForTransform(ID3D11DeviceContext* context, CameraTransf
 
 	WorldToView = XMMatrixTranspose(worldToView);
 
-	CameraCB cameraCB{};
-	cameraCB.WorldToView = XMUtility::ToHLSLFloat4x4(worldToView);
-	cameraCB.ViewToClip = XMUtility::ToHLSLFloat4x4(viewToClip);
-	cameraCB.ClipToWorld = XMUtility::ToHLSLFloat4x4(clipToWorld);
-	cameraCB.Position = transform.Position.ToXMFA();
-	cameraCB.Jitter = UseJitter ? Jitter[JitterIndex].ToXMFA() : Float2(0.0f, 0.0f).ToXMFA();
-
-	if (!destBuffer.Valid()) destBuffer = GFX::CreateConstantBuffer<CameraCB>();
-	GFX::Cmd::UploadToBuffer(context, destBuffer, 0, &cameraCB, 0, sizeof(CameraCB));
+	destData.WorldToView = XMUtility::ToHLSLFloat4x4(worldToView);
+	destData.ViewToClip = XMUtility::ToHLSLFloat4x4(viewToClip);
+	destData.ClipToWorld = XMUtility::ToHLSLFloat4x4(clipToWorld);
+	destData.Position = transform.Position.ToXMFA();
+	destData.Jitter = UseJitter ? Jitter[JitterIndex].ToXMFA() : Float2(0.0f, 0.0f).ToXMFA();
 }
 
-void Camera::UpdateBuffers(ID3D11DeviceContext* context)
+void Camera::UpdateRenderData()
 {
-	UpdateBufferForTransform(context, CurrentTranform, CameraBuffer);
-	UpdateBufferForTransform(context, LastTransform, LastFrameCameraBuffer);
+	UpdateRenderDataForTransform(CurrentTranform, CameraData);
+	UpdateRenderDataForTransform(LastTransform, LastCameraData);
 }
 
 void Camera::FrameUpdate(ID3D11DeviceContext* context)
@@ -255,7 +243,7 @@ void Camera::FrameUpdate(ID3D11DeviceContext* context)
 	LastTransform = CurrentTranform;
 	CurrentTranform = NextTransform;
 	JitterIndex = (JitterIndex + 1) % 16;
-	UpdateBuffers(context);
+	UpdateRenderData();
 	CameraFrustum.Update(*this);
 }
 
@@ -379,22 +367,9 @@ void SceneGraph::FrameUpdate(ID3D11DeviceContext* context)
 
 	// Scene info
 	{
-		struct SceneInfoCB
-		{
-			uint32_t NumLights;
-			DirectX::XMFLOAT3 Padding;
-			DirectX::XMFLOAT2A ScreenSize;
-			float AspectRatio;
-		};
-
-		SceneInfoCB sceneInfoCB{};
-		sceneInfoCB.NumLights = Lights.GetSize();
-		sceneInfoCB.ScreenSize = { (float) AppConfig.WindowWidth, (float) AppConfig.WindowHeight };
-		sceneInfoCB.AspectRatio = (float) AppConfig.WindowWidth / AppConfig.WindowHeight;
-
-		if (!SceneInfoBuffer.Valid()) SceneInfoBuffer = GFX::CreateConstantBuffer<SceneInfoCB>();
-
-		GFX::Cmd::UploadToBuffer(context, SceneInfoBuffer, 0, &sceneInfoCB, 0, sizeof(SceneInfoCB));
+		SceneInfoData.NumLights = Lights.GetSize();
+		SceneInfoData.ScreenSize = { (float) AppConfig.WindowWidth, (float) AppConfig.WindowHeight };
+		SceneInfoData.AspectRatio = (float) AppConfig.WindowWidth / AppConfig.WindowHeight;
 	}
 }
 

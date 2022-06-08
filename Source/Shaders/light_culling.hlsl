@@ -3,13 +3,9 @@
 #include "light_culling.h"
 #include "util.h"
 
-cbuffer SceneInfoCB : register(b0)
+cbuffer Constants : register(b0)
 {
 	SceneInfo SceneInfoData;
-}
-
-cbuffer CameraCB : register(b2)
-{
 	Camera CamData;
 }
 

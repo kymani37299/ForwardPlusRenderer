@@ -13,6 +13,7 @@ struct Camera
 	float4x4 ViewToClip;
 	float4x4 ClipToWorld;
 	float3 Position;
+	float Padding;
 	float2 Jitter;
 };
 

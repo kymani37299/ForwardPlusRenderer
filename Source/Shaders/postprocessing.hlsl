@@ -24,9 +24,9 @@ float4 PS(FCVertex IN) : SV_Target
 
 #ifdef TONEMAPPING
 
-cbuffer PPSettingsCB : register(b0)
+cbuffer Constants : register(b0)
 {
-	PostprocessingSettings PP_Settings;
+	float Exposure;
 }
 
 Texture2D HDRTexture : register(t0);
@@ -40,7 +40,7 @@ float4 PS(FCVertex IN) : SV_Target
 	hdrColor += BloomTexture.Sample(s_LinearWrap, IN.uv).rgb;
 #endif // APPLY_BLOOM
 
-	const float3 color = float3(1.0f, 1.0f, 1.0f) - exp(-hdrColor * PP_Settings.Exposure);
+	const float3 color = float3(1.0f, 1.0f, 1.0f) - exp(-hdrColor * Exposure);
 
 	return float4(color, 1.0f);
 }

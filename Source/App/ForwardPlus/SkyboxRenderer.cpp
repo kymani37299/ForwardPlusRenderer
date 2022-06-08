@@ -1,5 +1,6 @@
 #include "SkyboxRenderer.h"
 
+#include "App/ForwardPlus/ConstantManager.h"
 #include "Core/SceneGraph.h"
 #include "Render/Commands.h"
 #include "Render/Buffer.h"
@@ -35,7 +36,7 @@ static TextureID PanoramaToCubemap(ID3D11DeviceContext* context, TextureID panor
 
 	GFX::Cmd::BindVertexBuffer(context, CubeVB);
 	GFX::Cmd::BindShader<VS | PS>(context, shader);
-	GFX::Cmd::BindCBV<VS>(context, cameraCB, 0);
+	GFX::Cmd::BindCBV<VS>(context, cameraCB, 0); // TODO: Convert to ConstantManager
 	GFX::Cmd::BindSRV<PS>(context, panoramaTexture, 0);
 	GFX::Cmd::SetupStaticSamplers<PS>(context);
 	GFX::Cmd::SetViewport(context, cubemapSize, cubemapSize);
@@ -96,11 +97,14 @@ void SkyboxRenderer::Draw(ID3D11DeviceContext* context)
 	pso.DS.BackFace = pso.DS.FrontFace;
 
 	GFX::Cmd::MarkerBegin(context, "Skybox");
+
+	CBManager.Clear();
+	CBManager.Add(MainSceneGraph.MainCamera.CameraData, true);
+
 	GFX::Cmd::SetPipelineState(context, pso);
 	
 	GFX::Cmd::BindShader<VS | PS>(context, m_SkyboxShader);
 	GFX::Cmd::BindVertexBuffer(context, m_CubeVB);
-	GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
 	GFX::Cmd::BindSRV<PS>(context, m_SkyboxCubemap, 0);
 	GFX::Cmd::SetupStaticSamplers<PS>(context);
 	context->Draw(GFX::GetNumElements(m_CubeVB), 0);

@@ -1,6 +1,7 @@
 #include "ForwardPlus.h"
 
 #include "Common.h"
+#include "App/ForwardPlus/ConstantManager.h"
 #include "App/ForwardPlus/VertexPipeline.h"
 #include "Core/SceneGraph.h"
 #include "Render/Commands.h"
@@ -223,6 +224,8 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 
 	MainSceneGraph.FrameUpdate(context);
 
+	CBManager.Bind(context);
+
 	// Geometry culling
 	if (!DebugToolsConfig.FreezeGeometryCulling)
 	{
@@ -253,8 +256,14 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 	// Depth prepass
 	{
 		const bool drawMotionVectors = PostprocessSettings.AntialiasingMode == AntiAliasingMode::TAA;
-	
+		
 		GFX::Cmd::MarkerBegin(context, "Depth Prepass");
+		
+		CBManager.Clear();
+		CBManager.Add(MainSceneGraph.MainCamera.CameraData);
+		CBManager.Add(MainSceneGraph.MainCamera.LastCameraData);
+		CBManager.Add(MainSceneGraph.SceneInfoData, true);
+		
 		PipelineState pso = GFX::DefaultPipelineState();
 		pso.DS.DepthEnable = true;
 	
@@ -269,9 +278,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 	
 			GFX::Cmd::BindRenderTarget(context, drawMotionVectors ? m_MotionVectorRT : TextureID{}, m_MainRT_Depth);
 			GFX::Cmd::SetPipelineState(context, pso);
-			GFX::Cmd::BindCBV<VS | PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
-			GFX::Cmd::BindCBV<VS>(context, MainSceneGraph.MainCamera.LastFrameCameraBuffer, 1);
-			GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.SceneInfoBuffer, 2);
+
 			if (rgType == RenderGroupType::AlphaDiscard)
 			{
 				config.push_back("ALPHA_DISCARD");
@@ -291,11 +298,13 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		std::vector<std::string> config{};
 		if (PostprocessSettings.AntialiasingMode == AntiAliasingMode::MSAA) config.push_back("MULTISAMPLE_DEPTH");
 
+		CBManager.Clear();
+		CBManager.Add(MainSceneGraph.SceneInfoData);
+		CBManager.Add(MainSceneGraph.MainCamera.CameraData, true);
+
 		GFX::Cmd::BindRenderTarget(context, TextureID{}, TextureID{});
 		GFX::Cmd::MarkerBegin(context, "Light Culling");
 		GFX::Cmd::BindShader<CS>(context, m_LightCullingShader, config);
-		GFX::Cmd::BindCBV<CS>(context, MainSceneGraph.SceneInfoBuffer, 0);
-		GFX::Cmd::BindCBV<CS>(context, MainSceneGraph.MainCamera.CameraBuffer, 2);
 		GFX::Cmd::BindSRV<CS>(context, MainSceneGraph.Lights.GetBuffer(), 0);
 		GFX::Cmd::BindSRV<CS>(context, m_MainRT_Depth, 1);
 		GFX::Cmd::BindUAV<CS>(context, m_VisibleLightsBuffer, 0);
@@ -309,7 +318,10 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 	{
 		GFX::Cmd::MarkerBegin(context, "Geometry");
 		
-		// Initial setup
+		CBManager.Clear();
+		CBManager.Add(MainSceneGraph.MainCamera.CameraData);
+		CBManager.Add(MainSceneGraph.SceneInfoData, true);
+
 		PipelineState pso = GFX::DefaultPipelineState();
 		pso.DS.DepthEnable = true;
 		pso.DS.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
@@ -323,8 +335,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 
 		GFX::Cmd::BindRenderTarget(context, m_MainRT_HDR, m_MainRT_Depth);
 		GFX::Cmd::SetupStaticSamplers<PS>(context);
-		GFX::Cmd::BindCBV<VS|PS>(context, MainSceneGraph.MainCamera.CameraBuffer, 0);
-		GFX::Cmd::BindCBV<PS>(context, MainSceneGraph.SceneInfoBuffer, 1);
+
 		GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Lights.GetBuffer(), 0);
 		GFX::Cmd::BindSRV<PS>(context, m_VisibleLightsBuffer, 1);
 		GFX::Cmd::BindSRV<PS>(context, shadowMask, 2);
