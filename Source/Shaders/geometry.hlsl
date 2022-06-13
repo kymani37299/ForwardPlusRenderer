@@ -25,6 +25,7 @@ cbuffer Constants : register(b0)
 StructuredBuffer<Light> Lights : register(t0);
 StructuredBuffer<uint> VisibleLights : register(t1);
 Texture2D<float> Shadowmask : register(t2);
+TextureCube IrradianceMap : register(t3);
 
 VertexOut VS(VertexPipelineInput IN)
 {
@@ -109,11 +110,20 @@ float4 PS(VertexOut IN) : SV_TARGET
 		case LIGHT_TYPE_SPOT:
 			litColor.rgb += ComputeSpotLight(l, mat, IN.WorldPosition, normal, view);
 			break;
+
+		// We are using ambient lights only when IBL is not turned on
+#ifndef USE_IBL
 		case LIGHT_TYPE_AMBIENT:
 			litColor.rgb += ComputeAmbientLight(l, mat);
 			break;
+#endif // !USE_IBL
 		}
 	}
+
+#ifdef USE_IBL
+	const float3 irradiance = IrradianceMap.Sample(s_LinearWrap, normal).rgb;
+	litColor.rgb += ComputeIrradianceEffect(irradiance, mat, normal, view);
+#endif // USE_IBL
 
 	litColor.rgb = ApplyFog(litColor.rgb, IN.Position.z / IN.Position.w);
 

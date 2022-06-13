@@ -339,6 +339,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Lights.GetBuffer(), 0);
 		GFX::Cmd::BindSRV<PS>(context, m_VisibleLightsBuffer, 1);
 		GFX::Cmd::BindSRV<PS>(context, shadowMask, 2);
+		GFX::Cmd::BindSRV<PS>(context, m_SkyboxRenderer.GetIrradianceMap(), 3);
 
 		for (uint32_t i = 0; i < EnumToInt(RenderGroupType::Count); i++)
 		{
@@ -350,6 +351,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			if (rgType == RenderGroupType::AlphaDiscard) configuration.push_back("ALPHA_DISCARD");
 			if (DebugToolsConfig.DisableLightCulling) configuration.push_back("DISABLE_LIGHT_CULLING");
 			if (DebugToolsConfig.UsePBR) configuration.push_back("USE_PBR");
+			if (DebugToolsConfig.UsePBR && DebugToolsConfig.UseIBL) configuration.push_back("USE_IBL");
 
 			GFX::Cmd::BindShader<VS|PS>(context, m_GeometryShader, configuration, true);
 			VertPipeline.Draw(context, renderGroup);

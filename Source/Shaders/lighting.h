@@ -29,6 +29,12 @@ float3 FresnelSchlick(float3 F0, float cosTheta)
 	return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
+float3 FresnelSchlickRoughness(float3 F0, float cosTheta, float roughness)
+{
+	float3 invRoughness = 1.0f - roughness;
+	return F0 + (max(invRoughness, F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
 // GGX / Towbridge - Reitz normal distribution function.
 // Uses Disney's reparametrization of alpha = roughness^2.
 float NdfGGX(float cosLh, float roughness)
@@ -127,4 +133,13 @@ float3 ComputeSpotLight(Light light, MaterialInput mat, float3 pos, float3 norma
 float3 ComputeAmbientLight(Light light, MaterialInput mat)
 {
 	return light.Radiance * mat.Albedo;
+}
+
+float3 ComputeIrradianceEffect(float3 irradiance, MaterialInput mat, float3 normal, float3 view)
+{
+	const float3 specularFactor = FresnelSchlickRoughness(mat.F0, max(dot(normal, view), 0.0), mat.Roughness);
+	const float3 diffuseFactor = 1.0f - specularFactor;
+	const float3 diffuse = irradiance * mat.Albedo.rgb;
+	const float ao = 1.0f; // TODO: Ambient occlusion
+	return diffuseFactor * diffuse * ao;
 }

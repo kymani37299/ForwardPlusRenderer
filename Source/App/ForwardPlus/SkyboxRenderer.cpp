@@ -10,10 +10,16 @@
 
 BufferID GenerateCubeVB();
 
-static TextureID PanoramaToCubemap(ID3D11DeviceContext* context, TextureID panoramaTexture, uint32_t cubemapSize)
+static void ProcessAllCubemapFaces(ID3D11DeviceContext* context, TextureID cubemap)
 {
+	// TODO: Use CBManager
+	static BufferID CameraCB;
 	static BufferID CubeVB;
-	if (!CubeVB.Valid()) CubeVB = GenerateCubeVB();
+	if (!CubeVB.Valid())
+	{
+		CameraCB = GFX::CreateConstantBuffer<DirectX::XMFLOAT4X4>();
+		CubeVB = GenerateCubeVB();
+	}
 
 	const auto getCameraForFace = [](uint32_t faceIndex)
 	{
@@ -27,19 +33,10 @@ static TextureID PanoramaToCubemap(ID3D11DeviceContext* context, TextureID panor
 		return XMUtility::ToHLSLFloat4x4(viewProj);
 	};
 
-	TextureID cubemapTex = GFX::CreateTextureArray(cubemapSize, cubemapSize, 6, RCF_Bind_SRV | RCF_Bind_RTV | RCF_Cubemap);
-	const Texture& cubemapTexHandle = GFX::Storage::GetTexture(cubemapTex);
-	BufferID cameraCB = GFX::CreateConstantBuffer<DirectX::XMFLOAT4X4>();
-	ShaderID shader = GFX::CreateShader("Source/Shaders/quadrilateral2cubemap.hlsl");
-
-	GFX::Cmd::MarkerBegin(context, "PanoramaToCubemap");
+	const Texture& cubemapTexHandle = GFX::Storage::GetTexture(cubemap);
 
 	GFX::Cmd::BindVertexBuffer(context, CubeVB);
-	GFX::Cmd::BindShader<VS | PS>(context, shader);
-	GFX::Cmd::BindCBV<VS>(context, cameraCB, 0); // TODO: Convert to ConstantManager
-	GFX::Cmd::BindSRV<PS>(context, panoramaTexture, 0);
-	GFX::Cmd::SetupStaticSamplers<PS>(context);
-	GFX::Cmd::SetViewport(context, cubemapSize, cubemapSize);
+	GFX::Cmd::BindCBV<VS>(context, CameraCB, 0);
 
 	for (uint32_t i = 0; i < 6; i++)
 	{
@@ -54,7 +51,7 @@ static TextureID PanoramaToCubemap(ID3D11DeviceContext* context, TextureID panor
 		API_CALL(Device::Get()->GetHandle()->CreateRenderTargetView(cubemapTexHandle.Handle.Get(), &rtvDesc, &rtv));
 
 		DirectX::XMFLOAT4X4 worldToClip = getCameraForFace(i);
-		GFX::Cmd::UploadToBuffer(context, cameraCB, 0, &worldToClip, 0, sizeof(DirectX::XMFLOAT4X4));
+		GFX::Cmd::UploadToBuffer(context, CameraCB, 0, &worldToClip, 0, sizeof(DirectX::XMFLOAT4X4));
 
 		context->OMSetRenderTargets(1, &rtv, nullptr);
 		context->Draw(GFX::GetNumElements(CubeVB), 0);
@@ -62,9 +59,38 @@ static TextureID PanoramaToCubemap(ID3D11DeviceContext* context, TextureID panor
 		rtv->Release();
 	}
 
-	GFX::Storage::Free(shader);
-	GFX::Storage::Free(cameraCB);
+	GFX::Cmd::BindRenderTarget(context, TextureID{});
+}
 
+static TextureID PanoramaToCubemap(ID3D11DeviceContext* context, TextureID panoramaTexture, uint32_t cubemapSize)
+{
+	TextureID cubemapTex = GFX::CreateTextureArray(cubemapSize, cubemapSize, 6, RCF_Bind_SRV | RCF_Bind_RTV | RCF_Cubemap);
+	ShaderID shader = GFX::CreateShader("Source/Shaders/quadrilateral2cubemap.hlsl");
+
+	GFX::Cmd::MarkerBegin(context, "Panorama to cubemap");
+	GFX::Cmd::BindShader<VS | PS>(context, shader);
+	GFX::Cmd::BindSRV<PS>(context, panoramaTexture, 0);
+	GFX::Cmd::SetupStaticSamplers<PS>(context);
+	GFX::Cmd::SetViewport(context, cubemapSize, cubemapSize);
+	ProcessAllCubemapFaces(context, cubemapTex);
+	GFX::Storage::Free(shader);
+	GFX::Cmd::MarkerEnd(context);
+
+	return cubemapTex;
+}
+
+static TextureID CubemapToIrradianceMap(ID3D11DeviceContext* context, TextureID cubemapTexture, uint32_t cubemapSize)
+{
+	TextureID cubemapTex = GFX::CreateTextureArray(cubemapSize, cubemapSize, 6, RCF_Bind_SRV | RCF_Bind_RTV | RCF_Cubemap, 1, DXGI_FORMAT_R11G11B10_FLOAT);
+	ShaderID shader = GFX::CreateShader("Source/Shaders/calculate_irradiance.hlsl");
+
+	GFX::Cmd::MarkerBegin(context, "Calculate irradiance");
+	GFX::Cmd::BindShader<VS | PS>(context, shader);
+	GFX::Cmd::BindSRV<PS>(context, cubemapTexture, 0);
+	GFX::Cmd::SetupStaticSamplers<PS>(context);
+	GFX::Cmd::SetViewport(context, cubemapSize, cubemapSize);
+	ProcessAllCubemapFaces(context, cubemapTex);
+	GFX::Storage::Free(shader);
 	GFX::Cmd::MarkerEnd(context);
 
 	return cubemapTex;
@@ -81,6 +107,7 @@ static TextureID GenerateSkybox(ID3D11DeviceContext* context, const std::string&
 void SkyboxRenderer::Init(ID3D11DeviceContext* context)
 {
 	m_SkyboxCubemap = GenerateSkybox(context, m_SkyboxTexturePath);
+	m_IrradianceCubemap = CubemapToIrradianceMap(context, m_SkyboxCubemap, 512);
 	m_SkyboxShader = GFX::CreateShader("Source/Shaders/skybox.hlsl");
 	m_CubeVB = GenerateCubeVB();
 }

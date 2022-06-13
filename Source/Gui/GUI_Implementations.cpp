@@ -25,6 +25,7 @@ void DebugToolsGUI::Render(ID3D11DeviceContext* context)
 	ImGui::Checkbox("Draw light spheres", &DebugToolsConfig.DrawLightSpheres);
 	ImGui::Separator();
 	ImGui::Checkbox("Use PBR", &DebugToolsConfig.UsePBR);
+	ImGui::Checkbox("Use IBL", &DebugToolsConfig.UseIBL);
 	
 }
 

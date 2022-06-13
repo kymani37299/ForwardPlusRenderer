@@ -1,6 +1,5 @@
 #include "samplers.h"
 #include "full_screen.h"
-#include "settings.h"
 
 struct BloomInput
 {

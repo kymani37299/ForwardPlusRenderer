@@ -65,3 +65,8 @@ There are serveral implementations of the antialiasing from which you can choose
 ## Bloom
 
 Implementation of the bloom is inspired by Unity implementation. It works by 12 point linear downsampling, after that image is upsampled using combination of the high res downsampled image and lower res upsampled image with tent filter.
+
+## Phisically based rendering
+
+Renderer is using phisically based rendering. The formulas for PBR are inspired by [LearnOpenGL](https://learnopengl.com) site. <br>
+It is also using IBL(Image based lighting) which means that the color of the skybox is also affecting overall color of the scene. This is an better alternative for ambient lights.

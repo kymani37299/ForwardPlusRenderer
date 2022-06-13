@@ -76,6 +76,7 @@ struct DebugToolsConfiguration
 	bool DrawLightSpheres = false;
 
 	bool UsePBR = true;
+	bool UseIBL = true;
 };
 
 enum class AntiAliasingMode

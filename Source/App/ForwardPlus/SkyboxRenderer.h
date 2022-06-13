@@ -13,10 +13,13 @@ public:
 
 	void OnShaderReload(ID3D11DeviceContext* context);
 
+	TextureID GetIrradianceMap() const { return m_IrradianceCubemap; }
+
 private:
 	std::string m_SkyboxTexturePath;
 
 	BufferID m_CubeVB;
 	ShaderID m_SkyboxShader;
 	TextureID m_SkyboxCubemap;
+	TextureID m_IrradianceCubemap;
 };
