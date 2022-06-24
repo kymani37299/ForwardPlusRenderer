@@ -305,15 +305,4 @@ namespace GFX
 		const Texture& texture = GFX::Storage::GetTexture(textureID);
 		return texture.NumMips;
 	}
-
-	ID3D11SamplerState** GetStaticSamplers()
-	{
-		return (ID3D11SamplerState**) Device::Get()->GetStaticSamplers().data();
-	}
-	
-	
-	size_t GetStaticSamplersNum()
-	{
-		return Device::Get()->GetStaticSamplers().size();
-	}
 }

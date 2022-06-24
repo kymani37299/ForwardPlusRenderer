@@ -42,8 +42,6 @@ public:
 
 	void SubmitDeferredContext(ID3D11DeviceContext* context);
 
-	std::vector<ID3D11SamplerState*>& GetStaticSamplers() { return m_StaticSamplers; }
-
 	// Hack
 	ShaderID GetCopyShader() const { return m_CopyShader; }
 	BufferID GetQuadBuffer() const { return m_QuadBuffer; }
@@ -52,7 +50,6 @@ public:
 private:
 	// Initialize components that will use Device::Get()
 	void DeferredInit();
-	void CreateStaticSamplers();
 private:
 	ID3D11Device* m_Device;
 	ComPtr<ID3D11DeviceContext1> m_Context;
@@ -61,8 +58,7 @@ private:
 	ComPtr<ID3D11Texture2D> m_SwapchainTexture;
 	ComPtr<ID3D11RenderTargetView> m_SwapchainView;
 
-	std::vector<ID3D11SamplerState*> m_StaticSamplers;
-
+	ID3D11SamplerState* m_CopySampler;
 	ShaderID m_CopyShader;
 	BufferID m_QuadBuffer;
 

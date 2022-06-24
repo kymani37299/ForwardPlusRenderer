@@ -27,6 +27,7 @@
     <ClCompile Include="Renderers\ShadowRenderer.cpp" />
     <ClCompile Include="Renderers\SkyboxRenderer.cpp" />
     <ClCompile Include="Renderers\Util\ConstantManager.cpp" />
+    <ClCompile Include="Renderers\Util\SamplerManager.cpp" />
     <ClCompile Include="Renderers\Util\VertexPipeline.cpp" />
     <ClCompile Include="Scene\SceneGraph.cpp" />
     <ClCompile Include="Scene\SceneLoading.cpp" />
@@ -40,6 +41,7 @@
     <ClInclude Include="Renderers\ShadowRenderer.h" />
     <ClInclude Include="Renderers\SkyboxRenderer.h" />
     <ClInclude Include="Renderers\Util\ConstantManager.h" />
+    <ClInclude Include="Renderers\Util\SamplerManager.h" />
     <ClInclude Include="Renderers\Util\VertexPipeline.h" />
     <ClInclude Include="Scene\SceneGraph.h" />
     <ClInclude Include="Scene\SceneLoading.h" />

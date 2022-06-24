@@ -8,6 +8,7 @@
 #include <Engine/System/ApplicationConfiguration.h>
 
 #include "Renderers/Util/ConstantManager.h"
+#include "Renderers/Util/SamplerManager.h"
 #include "Scene/SceneGraph.h"
 #include "Gui/GUI_Implementations.h"
 
@@ -77,7 +78,7 @@ TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureI
 
 
 
-		GFX::Cmd::SetupStaticSamplers<PS>(context);
+		SSManager.Bind(context);
 
 		// Prefilter
 		{
@@ -154,7 +155,7 @@ TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureI
 		if (PostprocessSettings.EnableBloom) config.push_back("APPLY_BLOOM");
 
 		GFX::Cmd::MarkerBegin(context, "Tonemapping");
-		GFX::Cmd::SetupStaticSamplers<PS>(context);
+		SSManager.Bind(context);
 		GFX::Cmd::BindRenderTarget(context, GetOutputTexture());
 		GFX::Cmd::BindShader<PS | VS>(context, m_PostprocessShader, config);
 		GFX::Cmd::BindSRV<PS>(context, hdrRT, 0);
@@ -175,7 +176,7 @@ TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureI
 		GFX::Cmd::MarkerBegin(context, "TAA");
 		GFX::Cmd::BindRenderTarget(context, GetOutputTexture());
 		GFX::Cmd::BindShader<VS | PS>(context, m_PostprocessShader, { "TAA" });
-		GFX::Cmd::SetupStaticSamplers<PS>(context);
+		SSManager.Bind(context);
 		GFX::Cmd::BindSRV<PS>(context, m_TAAHistory[0], 0);
 		GFX::Cmd::BindSRV<PS>(context, m_TAAHistory[1], 1);
 		GFX::Cmd::BindSRV<PS>(context, motionVectorInput, 2);

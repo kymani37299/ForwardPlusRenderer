@@ -41,14 +41,6 @@ namespace GFX
 		void DrawFC(ID3D11DeviceContext* context);
 
 		template<uint32_t stage>
-		void SetupStaticSamplers(ID3D11DeviceContext* context)
-		{
-			if (stage & VS) context->VSSetSamplers(0, GFX::GetStaticSamplersNum(), GFX::GetStaticSamplers());
-			if (stage & PS) context->PSSetSamplers(0, GFX::GetStaticSamplersNum(), GFX::GetStaticSamplers());
-			if (stage & CS) context->CSSetSamplers(0, GFX::GetStaticSamplersNum(), GFX::GetStaticSamplers());
-		}
-
-		template<uint32_t stage>
 		void BindShader(ID3D11DeviceContext* context, ShaderID shaderID, std::vector<std::string> configuration = {}, bool multiInput = false)
 		{
 			const ShaderImplementation& impl = GFX::GetShaderImplementation(shaderID, configuration, stage);

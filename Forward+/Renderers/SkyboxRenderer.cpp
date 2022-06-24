@@ -7,6 +7,7 @@
 #include <Engine/Render/Texture.h>
 
 #include "Renderers/Util/ConstantManager.h"
+#include "Renderers/Util/SamplerManager.h"
 #include "Scene/SceneGraph.h"
 
 BufferID GenerateCubeVB();
@@ -71,7 +72,7 @@ static TextureID PanoramaToCubemap(ID3D11DeviceContext* context, TextureID panor
 	GFX::Cmd::MarkerBegin(context, "Panorama to cubemap");
 	GFX::Cmd::BindShader<VS | PS>(context, shader);
 	GFX::Cmd::BindSRV<PS>(context, panoramaTexture, 0);
-	GFX::Cmd::SetupStaticSamplers<PS>(context);
+	SSManager.Bind(context);
 	GFX::Cmd::SetViewport(context, cubemapSize, cubemapSize);
 	ProcessAllCubemapFaces(context, cubemapTex);
 	GFX::Storage::Free(shader);
@@ -88,7 +89,7 @@ static TextureID CubemapToIrradianceMap(ID3D11DeviceContext* context, TextureID 
 	GFX::Cmd::MarkerBegin(context, "Calculate irradiance");
 	GFX::Cmd::BindShader<VS | PS>(context, shader);
 	GFX::Cmd::BindSRV<PS>(context, cubemapTexture, 0);
-	GFX::Cmd::SetupStaticSamplers<PS>(context);
+	SSManager.Bind(context);
 	GFX::Cmd::SetViewport(context, cubemapSize, cubemapSize);
 	ProcessAllCubemapFaces(context, cubemapTex);
 	GFX::Storage::Free(shader);
@@ -134,7 +135,7 @@ void SkyboxRenderer::Draw(ID3D11DeviceContext* context)
 	GFX::Cmd::BindShader<VS | PS>(context, m_SkyboxShader);
 	GFX::Cmd::BindVertexBuffer(context, m_CubeVB);
 	GFX::Cmd::BindSRV<PS>(context, m_SkyboxCubemap, 0);
-	GFX::Cmd::SetupStaticSamplers<PS>(context);
+	SSManager.Bind(context);
 	context->Draw(GFX::GetNumElements(m_CubeVB), 0);
 	GFX::Cmd::MarkerEnd(context);
 }

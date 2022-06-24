@@ -61,10 +61,7 @@ Device::Device()
 
 Device::~Device()
 {
-    for (ID3D11SamplerState* sampler : m_StaticSamplers)
-    {
-        sampler->Release();
-    }
+
 }
 
 void Device::SubmitDeferredContext(ID3D11DeviceContext* context)
@@ -77,7 +74,6 @@ void Device::SubmitDeferredContext(ID3D11DeviceContext* context)
 void Device::DeferredInit()
 {
     CreateSwapchain();
-    CreateStaticSamplers();
 
     struct FCVert
     {
@@ -94,72 +90,22 @@ void Device::DeferredInit()
         FCVert{	{-1.0,-1.0},	{0.0,1.0}}
     };
 
-    m_CopyShader = GFX::CreateShader("Forward+/Shaders/copy.hlsl"); // TODO: Move copy.hlsl into engine project
+    m_CopyShader = GFX::CreateShader("Engine/Render/copy.hlsl");
     m_QuadBuffer = GFX::CreateVertexBuffer<FCVert>(fcVBData.size(), fcVBData.data());
 
+	D3D11_SAMPLER_DESC copySamplerDesc{};
+	copySamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+	copySamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	copySamplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	copySamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	copySamplerDesc.MipLODBias = 0;
+	copySamplerDesc.MaxAnisotropy = 16;
+	copySamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+	copySamplerDesc.MinLOD = 0.0f;
+	copySamplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+    m_Device->CreateSamplerState(&copySamplerDesc, &m_CopySampler);
+
     GFX::Cmd::ResetContext(m_Context.Get());
-}
-
-void Device::CreateStaticSamplers()
-{
-    m_StaticSamplers.resize(5);
-
-    D3D11_SAMPLER_DESC samplerDesc{};
-    D3D11_SAMPLER_DESC defaultSamplerDesc{};
-    defaultSamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
-	defaultSamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-	defaultSamplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-	defaultSamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-    defaultSamplerDesc.MipLODBias = 0;
-    defaultSamplerDesc.MaxAnisotropy = 16;
-    defaultSamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-    defaultSamplerDesc.BorderColor[0] = 0.0f;
-    defaultSamplerDesc.BorderColor[1] = 0.0f;
-	defaultSamplerDesc.BorderColor[2] = 0.0f;
-	defaultSamplerDesc.BorderColor[3] = 0.0f;
-	defaultSamplerDesc.MinLOD = 0.0f;
-    defaultSamplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
-
-    // s_LinearWrap
-    samplerDesc = defaultSamplerDesc;
-    samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-    samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-    samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-    samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-    m_Device->CreateSamplerState(&samplerDesc, &m_StaticSamplers[0]);
-
-    // s_AnisoWrap
-    samplerDesc = defaultSamplerDesc;
-    samplerDesc.Filter = D3D11_FILTER_ANISOTROPIC;
-    samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-    samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-    samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-    m_Device->CreateSamplerState(&samplerDesc, &m_StaticSamplers[1]);
-
-    // s_PointWrap
-    samplerDesc = defaultSamplerDesc;
-    samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
-    samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-    samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-    samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-    m_Device->CreateSamplerState(&samplerDesc, &m_StaticSamplers[2]);
-
-	// s_PointBorder
-    samplerDesc = defaultSamplerDesc;
-	samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
-	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_BORDER;
-	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_BORDER;
-	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_BORDER;
-	m_Device->CreateSamplerState(&samplerDesc, &m_StaticSamplers[3]);
-
-	// s_LinearBorder
-	samplerDesc = defaultSamplerDesc;
-	samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_BORDER;
-	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_BORDER;
-	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_BORDER;
-	m_Device->CreateSamplerState(&samplerDesc, &m_StaticSamplers[4]);
-
 }
 
 void Device::EndFrame(TextureID finalImage)
@@ -168,7 +114,7 @@ void Device::EndFrame(TextureID finalImage)
     {
         GFX::Cmd::MarkerBegin(m_Context.Get(), "Present");
         GFX::Cmd::BindShader<VS|PS>(m_Context.Get(), m_CopyShader);
-        GFX::Cmd::SetupStaticSamplers<PS>(m_Context.Get());
+        m_Context->PSSetSamplers(0, 1, &m_CopySampler);
         m_Context->OMSetRenderTargets(1, m_SwapchainView.GetAddressOf(), nullptr);
         GFX::Cmd::BindVertexBuffer(m_Context.Get(), m_QuadBuffer);
 

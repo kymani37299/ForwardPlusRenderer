@@ -6,6 +6,7 @@
 
 #include "Gui/GUI_Implementations.h"
 #include "Renderers/Util/ConstantManager.h"
+#include "Renderers/Util/SamplerManager.h"
 #include "Renderers/Util/VertexPipeline.h"
 #include "Scene/SceneGraph.h"
 
@@ -47,7 +48,7 @@ TextureID ShadowRenderer::CalculateShadowMask(ID3D11DeviceContext* context, Text
 			if (rgType == RenderGroupType::AlphaDiscard)
 			{
 				config.push_back("ALPHA_DISCARD");
-				GFX::Cmd::SetupStaticSamplers<PS>(context);
+				SSManager.Bind(context);
 			}
 
 			GFX::Cmd::BindShader<VS | PS>(context, m_ShadowmapShader, config, true);
@@ -67,7 +68,7 @@ TextureID ShadowRenderer::CalculateShadowMask(ID3D11DeviceContext* context, Text
 		if (PostprocessSettings.AntialiasingMode == AntiAliasingMode::MSAA) config.push_back("MULTISAMPLE_DEPTH");
 
 		GFX::Cmd::MarkerBegin(context, "Shadowmask");
-		GFX::Cmd::SetupStaticSamplers<PS>(context);
+		SSManager.Bind(context);
 		GFX::Cmd::BindRenderTarget(context, m_Shadowmask);
 		GFX::Cmd::BindSRV<PS>(context, depth, 0);
 		GFX::Cmd::BindSRV<PS>(context, m_Shadowmap, 1);

@@ -20,8 +20,4 @@ namespace GFX
 
 	// Info
 	uint32_t GetNumMips(TextureID textureID);
-
-	// Static samplers
-	ID3D11SamplerState** GetStaticSamplers();
-	size_t GetStaticSamplersNum();
 }

@@ -15,6 +15,7 @@
 #include <Engine/Utility/Random.h>
 
 #include "Renderers/Util/ConstantManager.h"
+#include "Renderers/Util/SamplerManager.h"
 #include "Renderers/Util/VertexPipeline.h"
 #include "Gui/GUI_Implementations.h"
 #include "Scene/SceneLoading.h"
@@ -172,6 +173,7 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 
 	// Initialize GFX resources
 	{
+		SSManager.Init();
 		MainSceneGraph.InitRenderData(context);
 		VertPipeline.Init(context);
 
@@ -283,7 +285,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 			if (rgType == RenderGroupType::AlphaDiscard)
 			{
 				config.push_back("ALPHA_DISCARD");
-				GFX::Cmd::SetupStaticSamplers<PS>(context);
+				SSManager.Bind(context);
 			}
 			GFX::Cmd::BindShader<VS | PS>(context, m_DepthPrepassShader, config, true);
 			VertPipeline.Draw(context, renderGroup);
@@ -335,7 +337,7 @@ TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
 		GFX::Cmd::SetPipelineState(context, pso);
 
 		GFX::Cmd::BindRenderTarget(context, m_MainRT_HDR, m_MainRT_Depth);
-		GFX::Cmd::SetupStaticSamplers<PS>(context);
+		SSManager.Bind(context);
 
 		GFX::Cmd::BindSRV<PS>(context, MainSceneGraph.Lights.GetBuffer(), 0);
 		GFX::Cmd::BindSRV<PS>(context, m_VisibleLightsBuffer, 1);

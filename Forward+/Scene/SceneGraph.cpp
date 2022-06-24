@@ -5,6 +5,8 @@
 #include <Engine/Render/Buffer.h>
 #include <Engine/System/ApplicationConfiguration.h>
 
+#include "Renderers/Util/SamplerManager.h"
+
 SceneGraph MainSceneGraph;
 
 namespace
@@ -496,7 +498,7 @@ void TextureStorage::UpdateTexture(ID3D11DeviceContext* context, Allocation allo
 	ID3D11DeviceContext* c = context;
 
 	GFX::Cmd::MarkerBegin(c, "CopyTexture");
-	GFX::Cmd::SetupStaticSamplers<PS>(c);
+	SSManager.Bind(context);
 	GFX::Cmd::BindShader<VS | PS>(c, Device::Get()->GetCopyShader());
 	c->OMSetRenderTargets(1, stagingTex.RTV.GetAddressOf(), nullptr);
 	GFX::Cmd::SetViewport(c, TEXTURE_SIZE, TEXTURE_SIZE);
