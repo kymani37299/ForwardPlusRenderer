@@ -1,10 +1,11 @@
 #include "GUI_Implementations.h"
 
-#include "Core/SceneGraph.h"
-#include "Gui/Imgui/imgui.h"
-#include "Render/Resource.h"
-#include "System/ApplicationConfiguration.h"
-#include "Utility/Random.h"
+#include <Engine/Gui/Imgui/imgui.h>
+#include <Engine/Render/Resource.h>
+#include <Engine/System/ApplicationConfiguration.h>
+#include <Engine/Utility/Random.h>
+
+#include "Scene/SceneGraph.h"
 
 DebugToolsConfiguration DebugToolsConfig;
 PostprocessingSettings PostprocessSettings;

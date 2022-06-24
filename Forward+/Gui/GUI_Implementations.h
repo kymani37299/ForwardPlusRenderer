@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Gui/GUI.h"
+#include <Engine/Gui/GUI.h>
 
 class DebugToolsGUI : public GUIElement
 {

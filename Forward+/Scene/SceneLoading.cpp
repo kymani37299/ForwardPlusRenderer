@@ -4,13 +4,14 @@
 #define CGLTF_IMPLEMENTATION
 #include <cgltf.h>
 
-#include "Loading/TextureLoading.h"
-#include "Render/Device.h"
-#include "Render/Buffer.h"
-#include "Render/Texture.h"
-#include "Render/RenderThread.h"
-#include "Utility/PathUtility.h"
-#include "System/ApplicationConfiguration.h"
+#include <Engine/Render/Device.h>
+#include <Engine/Render/Buffer.h>
+#include <Engine/Render/Texture.h>
+#include <Engine/Render/RenderThread.h>
+#include <Engine/Utility/PathUtility.h>
+#include <Engine/System/ApplicationConfiguration.h>
+
+#include "Scene/TextureLoading.h"
 
 #define CGTF_CALL(X) { cgltf_result result = X; ASSERT(result == cgltf_result_success, "CGTF_CALL_FAIL") }
 

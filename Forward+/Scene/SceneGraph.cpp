@@ -1,9 +1,9 @@
 #include "SceneGraph.h"
 
-#include "Render/Device.h"
-#include "Render/Commands.h"
-#include "Render/Buffer.h"
-#include "System/ApplicationConfiguration.h"
+#include <Engine/Render/Device.h>
+#include <Engine/Render/Commands.h>
+#include <Engine/Render/Buffer.h>
+#include <Engine/System/ApplicationConfiguration.h>
 
 SceneGraph MainSceneGraph;
 

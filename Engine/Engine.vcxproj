@@ -169,9 +169,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Core\Engine.cpp" />
-    <ClCompile Include="Core\SceneGraph.cpp" />
     <ClCompile Include="Gui\GUI.cpp" />
-    <ClCompile Include="Gui\GUI_Implementations.cpp" />
     <ClCompile Include="Gui\Imgui\imgui.cpp" />
     <ClCompile Include="Gui\Imgui\imgui_demo.cpp" />
     <ClCompile Include="Gui\Imgui\imgui_draw.cpp" />
@@ -179,8 +177,6 @@
     <ClCompile Include="Gui\Imgui\imgui_impl_win32.cpp" />
     <ClCompile Include="Gui\Imgui\imgui_tables.cpp" />
     <ClCompile Include="Gui\Imgui\imgui_widgets.cpp" />
-    <ClCompile Include="Loading\SceneLoading.cpp" />
-    <ClCompile Include="Loading\TextureLoading.cpp" />
     <ClCompile Include="Render\Buffer.cpp" />
     <ClCompile Include="Render\Commands.cpp" />
     <ClCompile Include="Render\Device.cpp" />
@@ -196,9 +192,7 @@
     <ClInclude Include="Common.h" />
     <ClInclude Include="Core\Application.h" />
     <ClInclude Include="Core\Engine.h" />
-    <ClInclude Include="Core\SceneGraph.h" />
     <ClInclude Include="Gui\GUI.h" />
-    <ClInclude Include="Gui\GUI_Implementations.h" />
     <ClInclude Include="Gui\Imgui\imconfig.h" />
     <ClInclude Include="Gui\Imgui\imgui.h" />
     <ClInclude Include="Gui\Imgui\imgui_impl_dx11.h" />
@@ -207,8 +201,6 @@
     <ClInclude Include="Gui\Imgui\imstb_rectpack.h" />
     <ClInclude Include="Gui\Imgui\imstb_textedit.h" />
     <ClInclude Include="Gui\Imgui\imstb_truetype.h" />
-    <ClInclude Include="Loading\SceneLoading.h" />
-    <ClInclude Include="Loading\TextureLoading.h" />
     <ClInclude Include="Render\Buffer.h" />
     <ClInclude Include="Render\Commands.h" />
     <ClInclude Include="Render\Device.h" />

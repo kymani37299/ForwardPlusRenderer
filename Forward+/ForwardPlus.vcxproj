@@ -18,6 +18,33 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="ForwardPlus.cpp" />
+    <ClCompile Include="Gui\GUI_Implementations.cpp" />
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="Renderers\DebugRenderer.cpp" />
+    <ClCompile Include="Renderers\PostprocessingRenderer.cpp" />
+    <ClCompile Include="Renderers\ShadowRenderer.cpp" />
+    <ClCompile Include="Renderers\SkyboxRenderer.cpp" />
+    <ClCompile Include="Renderers\Util\ConstantManager.cpp" />
+    <ClCompile Include="Renderers\Util\VertexPipeline.cpp" />
+    <ClCompile Include="Scene\SceneGraph.cpp" />
+    <ClCompile Include="Scene\SceneLoading.cpp" />
+    <ClCompile Include="Scene\TextureLoading.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="ForwardPlus.h" />
+    <ClInclude Include="Gui\GUI_Implementations.h" />
+    <ClInclude Include="Renderers\DebugRenderer.h" />
+    <ClInclude Include="Renderers\PostprocessingRenderer.h" />
+    <ClInclude Include="Renderers\ShadowRenderer.h" />
+    <ClInclude Include="Renderers\SkyboxRenderer.h" />
+    <ClInclude Include="Renderers\Util\ConstantManager.h" />
+    <ClInclude Include="Renderers\Util\VertexPipeline.h" />
+    <ClInclude Include="Scene\SceneGraph.h" />
+    <ClInclude Include="Scene\SceneLoading.h" />
+    <ClInclude Include="Scene\TextureLoading.h" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
@@ -167,26 +194,6 @@
       <AdditionalLibraryDirectories>$(SolutionDir)\Build\Engine\$(Platform)\$(Configuration)\;$(SolutionDir)\External\DirectXMesh\Lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClCompile Include="ConstantManager.cpp" />
-    <ClCompile Include="DebugRenderer.cpp" />
-    <ClCompile Include="ForwardPlus.cpp" />
-    <ClCompile Include="PostprocessingRenderer.cpp" />
-    <ClCompile Include="ShadowRenderer.cpp" />
-    <ClCompile Include="SkyboxRenderer.cpp" />
-    <ClCompile Include="VertexPipeline.cpp" />
-    <ClCompile Include="main.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="ConstantManager.h" />
-    <ClInclude Include="DebugRenderer.h" />
-    <ClInclude Include="ForwardPlus.h" />
-    <ClInclude Include="PostprocessingRenderer.h" />
-    <ClInclude Include="ShadowRenderer.h" />
-    <ClInclude Include="SkyboxRenderer.h" />
-    <ClInclude Include="VertexPipeline.h" />
-    <ClInclude Include="Shaders\shared_definitions.h" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

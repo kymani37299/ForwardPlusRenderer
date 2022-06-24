@@ -1,14 +1,14 @@
 #include "DebugRenderer.h"
 
-#include <Engine/Core/SceneGraph.h>
 #include <Engine/Render/Commands.h>
 #include <Engine/Render/Buffer.h>
 #include <Engine/Render/Shader.h>
 #include <Engine/Render/Device.h>
-#include <Engine/Gui/GUI_Implementations.h>
 #include <Engine/Utility/Random.h>
 
-#include "ConstantManager.h"
+#include "Gui/GUI_Implementations.h"
+#include "Renderers/Util/ConstantManager.h"
+#include "Scene/SceneGraph.h"
 
 static BufferID GenerateSphereVB()
 {

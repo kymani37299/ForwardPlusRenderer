@@ -1,8 +1,9 @@
 #pragma once
 
-#include "Common.h"
-#include "Render/RenderThread.h"
-#include "Core/SceneGraph.h"
+#include <Engine/Common.h>
+#include <Engine/Render/RenderThread.h>
+
+#include "Scene/SceneGraph.h"
 
 class TextureLoadingTask : public RenderTask
 {

@@ -1,7 +1,7 @@
 #include "TextureLoading.h"
 
-#include "Render/Resource.h"
-#include "Render/Texture.h"
+#include <Engine/Render/Resource.h>
+#include <Engine/Render/Texture.h>
 
 void TextureLoadingTask::Run(ID3D11DeviceContext* context)
 {

@@ -1,15 +1,15 @@
 #include "PostprocessingRenderer.h"
 
-#include <Engine/Core/SceneGraph.h>
 #include <Engine/Render/Commands.h>
 #include <Engine/Render/Buffer.h>
 #include <Engine/Render/Shader.h>
 #include <Engine/Render/Device.h>
 #include <Engine/Render/Texture.h>
-#include <Engine/Gui/GUI_Implementations.h>
 #include <Engine/System/ApplicationConfiguration.h>
 
-#include "ConstantManager.h"
+#include "Renderers/Util/ConstantManager.h"
+#include "Scene/SceneGraph.h"
+#include "Gui/GUI_Implementations.h"
 
 static const Float2 HaltonSequence[16] = { {0.500000,0.333333},
 						{0.250000,0.666667},

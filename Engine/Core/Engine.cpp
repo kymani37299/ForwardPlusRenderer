@@ -3,7 +3,6 @@
 #include <sstream>
 
 #include "Core/Application.h"
-#include "Core/SceneGraph.h"
 #include "Render/Device.h"
 #include "Render/RenderThread.h"
 #include "Render/Commands.h"

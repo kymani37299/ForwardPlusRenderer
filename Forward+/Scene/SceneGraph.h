@@ -2,9 +2,9 @@
 
 #include <vector>
 
-#include "Common.h"
-#include "Render/ResourceID.h"
-#include "Utility/Multithreading.h"
+#include <Engine/Common.h>
+#include <Engine/Render/ResourceID.h>
+#include <Engine/Utility/Multithreading.h>
 
 struct ID3D11DeviceContext;
 

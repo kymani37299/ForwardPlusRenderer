@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Core/SceneGraph.h"
+#include "Scene/SceneGraph.h"
 
 namespace SceneLoading
 {

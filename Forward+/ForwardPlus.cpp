@@ -1,7 +1,6 @@
 #include "ForwardPlus.h"
 
 #include <Engine/Common.h>
-#include <Engine/Core/SceneGraph.h>
 #include <Engine/Render/Commands.h>
 #include <Engine/Render/Texture.h>
 #include <Engine/Render/Buffer.h>
@@ -9,16 +8,17 @@
 #include <Engine/Render/Device.h>
 #include <Engine/Render/Resource.h>
 #include <Engine/Gui/GUI.h>
-#include <Engine/Gui/GUI_Implementations.h>
 #include <Engine/System/Input.h>
 #include <Engine/System/Window.h>
 #include <Engine/System/ApplicationConfiguration.h>
-#include <Engine/Loading/SceneLoading.h>
 #include <Engine/Utility/MathUtility.h>
 #include <Engine/Utility/Random.h>
 
-#include "ConstantManager.h"
-#include "VertexPipeline.h"
+#include "Renderers/Util/ConstantManager.h"
+#include "Renderers/Util/VertexPipeline.h"
+#include "Gui/GUI_Implementations.h"
+#include "Scene/SceneLoading.h"
+#include "Scene/SceneGraph.h"
 #include "Shaders/shared_definitions.h"
 
 namespace ForwardPlusPrivate

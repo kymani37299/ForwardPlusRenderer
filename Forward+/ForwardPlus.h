@@ -3,10 +3,10 @@
 #include <Engine/Core/Application.h>
 #include <Engine/Render/ResourceID.h>
 
-#include "DebugRenderer.h"
-#include "SkyboxRenderer.h"
-#include "PostprocessingRenderer.h"
-#include "ShadowRenderer.h"
+#include "Renderers/DebugRenderer.h"
+#include "Renderers/SkyboxRenderer.h"
+#include "Renderers/PostprocessingRenderer.h"
+#include "Renderers/ShadowRenderer.h"
 
 class ForwardPlus : public Application
 {

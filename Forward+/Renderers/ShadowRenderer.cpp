@@ -1,13 +1,13 @@
 #include "ShadowRenderer.h"
 
-#include <Engine/Core/SceneGraph.h>
 #include <Engine/Render/Texture.h>
 #include <Engine/Render/Commands.h>
-#include <Engine/Gui/GUI_Implementations.h>
 #include <Engine/System/ApplicationConfiguration.h>
 
-#include "ConstantManager.h"
-#include "VertexPipeline.h"
+#include "Gui/GUI_Implementations.h"
+#include "Renderers/Util/ConstantManager.h"
+#include "Renderers/Util/VertexPipeline.h"
+#include "Scene/SceneGraph.h"
 
 void ShadowRenderer::Init(ID3D11DeviceContext* context)
 {
