@@ -22,7 +22,9 @@
     <ClCompile Include="ForwardPlus.cpp" />
     <ClCompile Include="Gui\GUI_Implementations.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Renderers\Culling.cpp" />
     <ClCompile Include="Renderers\DebugRenderer.cpp" />
+    <ClCompile Include="Renderers\GeometryRenderer.cpp" />
     <ClCompile Include="Renderers\PostprocessingRenderer.cpp" />
     <ClCompile Include="Renderers\ShadowRenderer.cpp" />
     <ClCompile Include="Renderers\SkyboxRenderer.cpp" />
@@ -36,7 +38,9 @@
   <ItemGroup>
     <ClInclude Include="ForwardPlus.h" />
     <ClInclude Include="Gui\GUI_Implementations.h" />
+    <ClInclude Include="Renderers\Culling.h" />
     <ClInclude Include="Renderers\DebugRenderer.h" />
+    <ClInclude Include="Renderers\GeometryRenderer.h" />
     <ClInclude Include="Renderers\PostprocessingRenderer.h" />
     <ClInclude Include="Renderers\ShadowRenderer.h" />
     <ClInclude Include="Renderers\SkyboxRenderer.h" />
