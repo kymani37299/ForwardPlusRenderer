@@ -7,10 +7,6 @@
 
 #include "Scene/SceneGraph.h"
 
-DebugToolsConfiguration DebugToolsConfig;
-PostprocessingSettings PostprocessSettings;
-RenderStatistics RenderStats;
-
 // --------------------------------------------------
 void DebugToolsGUI::Render(ID3D11DeviceContext* context)
 {
@@ -55,9 +51,9 @@ std::string ToString(AntiAliasingMode aaMode)
 	return "";
 }
 
-void PostprocessingGUI::Render(ID3D11DeviceContext* context)
+void RenderSettingsGUI::Render(ID3D11DeviceContext* context)
 {
-	if (ImGui::BeginCombo("Antialiasing mode", ToString(PostprocessSettings.AntialiasingMode).c_str()))
+	if (ImGui::BeginCombo("Antialiasing mode", ToString(RenderSettings.AntialiasingMode).c_str()))
 	{
 		const uint32_t modeCount = EnumToInt(AntiAliasingMode::Count);
 		for (uint32_t i = 0; i < modeCount; i++)
@@ -67,8 +63,8 @@ void PostprocessingGUI::Render(ID3D11DeviceContext* context)
 			ImGui::Selectable(ToString(mode).c_str(), &isSelected);
 			if (isSelected)
 			{
-				AntiAliasingMode lastMode = PostprocessSettings.AntialiasingMode;
-				PostprocessSettings.AntialiasingMode = mode;
+				AntiAliasingMode lastMode = RenderSettings.AntialiasingMode;
+				RenderSettings.AntialiasingMode = mode;
 				AppConfig.WindowSizeDirty = true; // Reload the render targets
 				ImGui::SetItemDefaultFocus();
 			}
@@ -76,24 +72,38 @@ void PostprocessingGUI::Render(ID3D11DeviceContext* context)
 		ImGui::EndCombo();
 	}
 
-	ImGui::SliderFloat("Exposure", &PostprocessSettings.Exposure, 0.01f, 10.0f);
+	ImGui::SliderFloat("Exposure", &RenderSettings.Exposure, 0.01f, 10.0f);
 
-	ImGui::Checkbox("Bloom", &PostprocessSettings.EnableBloom);
-	if (PostprocessSettings.EnableBloom)
+	if (ImGui::CollapsingHeader("Bloom"))
 	{
-		ImGui::SliderFloat("Bloom treshold", &PostprocessSettings.BloomTreshold, 0.0f, 5.0f);
-		ImGui::SliderFloat("Bloom knee", &PostprocessSettings.BloomKnee, 0.0f, 5.0f);
+		ImGui::Checkbox("Enabled", &RenderSettings.Bloom.Enabled);
+		if (RenderSettings.Bloom.Enabled)
+		{
+			ImGui::SliderFloat("Treshold", &RenderSettings.Bloom.FTheshold, 0.0f, 5.0f);
+			ImGui::SliderFloat("Knee", &RenderSettings.Bloom.FKnee, 0.0f, 5.0f);
 
-		float sampleScale[4];
-		sampleScale[0] = PostprocessSettings.BloomSampleScale.x;
-		sampleScale[1] = PostprocessSettings.BloomSampleScale.y;
-		sampleScale[2] = PostprocessSettings.BloomSampleScale.z;
-		sampleScale[3] = PostprocessSettings.BloomSampleScale.w;
-		ImGui::SliderFloat4("Bloom sample scale", sampleScale, 0.0f, 5.0f);
-		PostprocessSettings.BloomSampleScale.x = sampleScale[0];
-		PostprocessSettings.BloomSampleScale.y = sampleScale[1];
-		PostprocessSettings.BloomSampleScale.z = sampleScale[2];
-		PostprocessSettings.BloomSampleScale.w = sampleScale[3];
+			float sampleScale[4];
+			sampleScale[0] = RenderSettings.Bloom.SamplingScale.x;
+			sampleScale[1] = RenderSettings.Bloom.SamplingScale.y;
+			sampleScale[2] = RenderSettings.Bloom.SamplingScale.z;
+			sampleScale[3] = RenderSettings.Bloom.SamplingScale.w;
+			ImGui::SliderFloat4("Sample scale", sampleScale, 0.0f, 5.0f);
+			RenderSettings.Bloom.SamplingScale.x = sampleScale[0];
+			RenderSettings.Bloom.SamplingScale.y = sampleScale[1];
+			RenderSettings.Bloom.SamplingScale.z = sampleScale[2];
+			RenderSettings.Bloom.SamplingScale.w = sampleScale[3];
+		}
+	}
+
+	if (ImGui::CollapsingHeader("SSAO"))
+	{
+		ImGui::Checkbox(" Enabled", &RenderSettings.SSAO.Enabled); // TODO: Checkboxes cant have same name, fix this somehow
+		if (RenderSettings.SSAO.Enabled)
+		{
+			ImGui::SliderFloat("Radius", &RenderSettings.SSAO.SampleRadius, 0.0f, 2.0f);
+			ImGui::SliderFloat("Power", &RenderSettings.SSAO.Power, 0.0f, 4.0f);
+			ImGui::SliderFloat("Depth bias", &RenderSettings.SSAO.DepthBias, 0.001f, 0.25f);
+		}
 	}
 }
 

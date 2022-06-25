@@ -10,12 +10,7 @@ cbuffer Constants : register(b0)
 }
 
 StructuredBuffer<Light> Lights : register(t0);
-
-#ifdef MULTISAMPLE_DEPTH
-Texture2DMS<float> DepthTexture : register(t1);
-#else
 Texture2D<float> DepthTexture : register(t1);
-#endif
 
 RWStructuredBuffer<uint> VisibleLights : register(u0);
 
@@ -81,12 +76,7 @@ void CS(uint3 threadID : SV_DispatchThreadID, uint3 groupID : SV_GroupID, uint3 
 	// Step 2: Min and max Z
 
 	const uint3 readPixelCoord = uint3(min(pixelCoord.x, SceneInfoData.ScreenSize.x - 1), min(pixelCoord.y, SceneInfoData.ScreenSize.y - 1), 0);
-
-#ifdef MULTISAMPLE_DEPTH
-	const float depth = DepthTexture.Load(readPixelCoord, 0);
-#else
 	const float depth = DepthTexture.Load(readPixelCoord);
-#endif
 	
 	const uint ZUint = asuint(depth);
 	InterlockedMin(gsMinZ, ZUint);

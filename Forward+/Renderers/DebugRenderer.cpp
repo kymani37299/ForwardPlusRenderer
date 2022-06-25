@@ -6,7 +6,7 @@
 #include <Engine/Render/Device.h>
 #include <Engine/Utility/Random.h>
 
-#include "Gui/GUI_Implementations.h"
+#include "Globals.h"
 #include "Renderers/Util/ConstantManager.h"
 #include "Scene/SceneGraph.h"
 

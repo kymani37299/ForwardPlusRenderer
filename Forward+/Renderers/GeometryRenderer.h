@@ -9,7 +9,7 @@ class GeometryRenderer
 public:
 	void Init(ID3D11DeviceContext* context);
 	void DepthPrepass(ID3D11DeviceContext* context);
-	void Draw(ID3D11DeviceContext* context, TextureID shadowMask, BufferID visibleLights, TextureID irradianceMap);
+	void Draw(ID3D11DeviceContext* context, TextureID shadowMask, BufferID visibleLights, TextureID irradianceMap, TextureID ambientOcclusion);
 
 private:
 	ShaderID m_DepthPrepassShader;

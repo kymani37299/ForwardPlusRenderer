@@ -8,7 +8,7 @@ class PostprocessingRenderer
 {
 public:
 	void Init(ID3D11DeviceContext* context);
-	TextureID Process(ID3D11DeviceContext* context, TextureID colorInput, TextureID depthInput, TextureID motionVectorInput);
+	TextureID Process(ID3D11DeviceContext* context, TextureID colorInput, TextureID motionVectorInput);
 	void ReloadTextureResources(ID3D11DeviceContext* context);
 
 private:

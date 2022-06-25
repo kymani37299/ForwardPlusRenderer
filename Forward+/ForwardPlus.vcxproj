@@ -28,6 +28,7 @@
     <ClCompile Include="Renderers\PostprocessingRenderer.cpp" />
     <ClCompile Include="Renderers\ShadowRenderer.cpp" />
     <ClCompile Include="Renderers\SkyboxRenderer.cpp" />
+    <ClCompile Include="Renderers\SSAORenderer.cpp" />
     <ClCompile Include="Renderers\Util\ConstantManager.cpp" />
     <ClCompile Include="Renderers\Util\SamplerManager.cpp" />
     <ClCompile Include="Renderers\Util\VertexPipeline.cpp" />
@@ -37,6 +38,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ForwardPlus.h" />
+    <ClInclude Include="Globals.h" />
     <ClInclude Include="Gui\GUI_Implementations.h" />
     <ClInclude Include="Renderers\Culling.h" />
     <ClInclude Include="Renderers\DebugRenderer.h" />
@@ -44,6 +46,7 @@
     <ClInclude Include="Renderers\PostprocessingRenderer.h" />
     <ClInclude Include="Renderers\ShadowRenderer.h" />
     <ClInclude Include="Renderers\SkyboxRenderer.h" />
+    <ClInclude Include="Renderers\SSAORenderer.h" />
     <ClInclude Include="Renderers\Util\ConstantManager.h" />
     <ClInclude Include="Renderers\Util\SamplerManager.h" />
     <ClInclude Include="Renderers\Util\VertexPipeline.h" />

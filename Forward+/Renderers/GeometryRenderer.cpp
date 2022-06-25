@@ -2,7 +2,7 @@
 
 #include <Engine/Render/Commands.h>
 
-#include "Gui/GUI_Implementations.h"
+#include "Globals.h"
 #include "Renderers/Util/ConstantManager.h"
 #include "Renderers/Util/SamplerManager.h"
 #include "Renderers/Util/VertexPipeline.h"
@@ -16,7 +16,7 @@ void GeometryRenderer::Init(ID3D11DeviceContext* context)
 
 void GeometryRenderer::DepthPrepass(ID3D11DeviceContext* context)
 {
-	const bool drawMotionVectors = PostprocessSettings.AntialiasingMode == AntiAliasingMode::TAA;
+	const bool drawMotionVectors = RenderSettings.AntialiasingMode == AntiAliasingMode::TAA;
 
 	GFX::Cmd::MarkerBegin(context, "Depth Prepass");
 
@@ -51,7 +51,7 @@ void GeometryRenderer::DepthPrepass(ID3D11DeviceContext* context)
 	GFX::Cmd::MarkerEnd(context);
 }
 
-void GeometryRenderer::Draw(ID3D11DeviceContext* context, TextureID shadowMask, BufferID visibleLights, TextureID irradianceMap)
+void GeometryRenderer::Draw(ID3D11DeviceContext* context, TextureID shadowMask, BufferID visibleLights, TextureID irradianceMap, TextureID ambientOcclusion)
 {
 	GFX::Cmd::MarkerBegin(context, "Geometry");
 
@@ -76,6 +76,7 @@ void GeometryRenderer::Draw(ID3D11DeviceContext* context, TextureID shadowMask, 
 	GFX::Cmd::BindSRV<PS>(context, visibleLights, 1);
 	GFX::Cmd::BindSRV<PS>(context, shadowMask, 2);
 	GFX::Cmd::BindSRV<PS>(context, irradianceMap, 3);
+	GFX::Cmd::BindSRV<PS>(context, ambientOcclusion, 4);
 
 	for (uint32_t i = 0; i < EnumToInt(RenderGroupType::Count); i++)
 	{

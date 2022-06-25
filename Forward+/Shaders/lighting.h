@@ -15,6 +15,7 @@ struct MaterialInput
 	float3 F0;
 	float Roughness;
 	float Metallic;
+	float AO;
 };
 
 // Linear falloff.
@@ -105,7 +106,7 @@ float3 ComputeDirectionalLight(Light light, MaterialInput mat, float3 normal, fl
 {
 	const float3 radiance = light.Radiance;
 	const float3 toLight = -light.Direction;
-	return LIGHT_FUNCTION(radiance, toLight, normal, toEye, mat);
+	return LIGHT_FUNCTION(radiance, toLight, normal, toEye, mat) * mat.AO;
 }
 
 float3 ComputePointLight(Light light, MaterialInput mat, float3 worldPos, float3 normal, float3 toEye)
@@ -132,7 +133,7 @@ float3 ComputeSpotLight(Light light, MaterialInput mat, float3 pos, float3 norma
 
 float3 ComputeAmbientLight(Light light, MaterialInput mat)
 {
-	return light.Radiance * mat.Albedo;
+	return light.Radiance * mat.Albedo * mat.AO;
 }
 
 float3 ComputeIrradianceEffect(float3 irradiance, MaterialInput mat, float3 normal, float3 view)
@@ -140,6 +141,6 @@ float3 ComputeIrradianceEffect(float3 irradiance, MaterialInput mat, float3 norm
 	const float3 specularFactor = FresnelSchlickRoughness(mat.F0, max(dot(normal, view), 0.0), mat.Roughness);
 	const float3 diffuseFactor = 1.0f - specularFactor;
 	const float3 diffuse = irradiance * mat.Albedo.rgb;
-	const float ao = 1.0f; // TODO: Ambient occlusion
+	const float ao = mat.AO;
 	return diffuseFactor * diffuse * ao;
 }

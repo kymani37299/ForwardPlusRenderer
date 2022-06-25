@@ -26,6 +26,7 @@ StructuredBuffer<Light> Lights : register(t0);
 StructuredBuffer<uint> VisibleLights : register(t1);
 Texture2D<float> Shadowmask : register(t2);
 TextureCube IrradianceMap : register(t3);
+Texture2D<float> AmbientOcclusion : register(t4);
 
 VertexOut VS(VertexPipelineInput IN)
 {
@@ -65,6 +66,8 @@ float4 PS(VertexOut IN) : SV_TARGET
 		clip(-1.0f);
 #endif // ALPHA_DISCARD
 
+	const float2 screenUV = IN.Position.xy / SceneInfoData.ScreenSize;
+
 	float2 metallicRoughness = Textures.Sample(s_LinearWrap, float3(IN.UV, matParams.MetallicRoughness)).rg;
 
 	MaterialInput mat;
@@ -75,6 +78,7 @@ float4 PS(VertexOut IN) : SV_TARGET
 	mat.Roughness = metallicRoughness.g * matParams.RoughnessFactor;
 	mat.Roughness = min(0.99f, mat.Roughness);
 	mat.F0 = lerp(matParams.FresnelR0, albedo.rgb, mat.Metallic);
+	mat.AO = AmbientOcclusion.Sample(s_LinearWrap, screenUV);
 
 	const float3x3 TBN = float3x3(normalize(IN.Tangent), normalize(IN.Bitangent), normalize(IN.Normal));
 	const float3 normalValue = 2.0f * Textures.Sample(s_LinearWrap, float3(IN.UV, matParams.Normal)).rgb - 1.0f;
@@ -83,7 +87,7 @@ float4 PS(VertexOut IN) : SV_TARGET
 	const float3 view = normalize(MainCamera.Position - IN.WorldPosition);
 
 	float4 litColor = float4(0.0f, 0.0f, 0.0f, 0.0f);
-	const float2 shadowMaskUV = IN.Position.xy / SceneInfoData.ScreenSize;
+	const float2 shadowMaskUV = screenUV;
 	const float shadowFactor = Shadowmask.Sample(s_LinearWrap, shadowMaskUV);
 
 #ifdef DISABLE_LIGHT_CULLING
@@ -125,6 +129,7 @@ float4 PS(VertexOut IN) : SV_TARGET
 	litColor.rgb += ComputeIrradianceEffect(irradiance, mat, normal, view);
 #endif // USE_IBL
 
+	// Distance fog
 	litColor.rgb = ApplyFog(litColor.rgb, IN.Position.z / IN.Position.w);
 
 #ifdef ALPHA_BLEND

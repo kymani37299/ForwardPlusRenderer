@@ -1,8 +1,10 @@
 #include "SceneLoading.h"
 
 #pragma warning (disable : 4996)
+#ifndef CGLTF_IMPLEMENTATION
 #define CGLTF_IMPLEMENTATION
 #include <cgltf.h>
+#endif
 
 #include <Engine/Render/Device.h>
 #include <Engine/Render/Buffer.h>
@@ -12,13 +14,9 @@
 #include <Engine/System/ApplicationConfiguration.h>
 
 #include "Scene/TextureLoading.h"
+#include "Shaders/shared_definitions.h"
 
 #define CGTF_CALL(X) { cgltf_result result = X; ASSERT(result == cgltf_result_success, "CGTF_CALL_FAIL") }
-
-// TMP_HACK
-// Meshlets
-#define MESHLET_TRIANGLE_COUNT 128
-#define MESHLET_INDEX_COUNT (3 * MESHLET_TRIANGLE_COUNT)
 
 // TMP_HACK
 #undef min

@@ -2,6 +2,8 @@
 
 #include <Engine/Gui/GUI.h>
 
+#include "Globals.h"
+
 class DebugToolsGUI : public GUIElement
 {
 public:
@@ -19,10 +21,10 @@ public:
 	virtual void Render(ID3D11DeviceContext* context);
 };
 
-class PostprocessingGUI : public GUIElement
+class RenderSettingsGUI : public GUIElement
 {
 public:
-	PostprocessingGUI(bool shown = false) : GUIElement("Postprocessing", shown) {}
+	RenderSettingsGUI(bool shown = false) : GUIElement("Render settings", shown) {}
 
 	virtual void Update(float dt) {}
 	virtual void Render(ID3D11DeviceContext* context);
@@ -62,47 +64,3 @@ public:
 	virtual void Update(float dt) {}
 	virtual void Render(ID3D11DeviceContext* context);
 };
-
-
-struct DebugToolsConfiguration
-{
-	bool DisableGeometryCulling = false;
-	bool FreezeGeometryCulling = false;
-	bool DrawBoundingSpheres = false;
-
-	bool DisableLightCulling = false;
-	bool FreezeLightCulling = false;
-	bool LightHeatmap = false;
-	bool DrawLightSpheres = false;
-
-	bool UsePBR = true;
-	bool UseIBL = true;
-};
-
-enum class AntiAliasingMode
-{
-	None,
-	TAA,
-	MSAA,
-	Count,
-};
-
-struct PostprocessingSettings
-{
-	AntiAliasingMode AntialiasingMode = AntiAliasingMode::MSAA;
-	float Exposure = 1.0f;
-	bool EnableBloom = true;
-	float BloomTreshold = 1.0f;
-	float BloomKnee = 0.4f;
-	Float4 BloomSampleScale{ 1.0f, 1.0f, 1.0f, 1.0f };
-};
-
-struct RenderStatistics
-{
-	uint32_t TotalDrawables;
-	uint32_t VisibleDrawables;
-};
-
-extern RenderStatistics RenderStats;
-extern PostprocessingSettings PostprocessSettings;
-extern DebugToolsConfiguration DebugToolsConfig;

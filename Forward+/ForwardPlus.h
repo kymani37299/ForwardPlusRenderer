@@ -9,6 +9,7 @@
 #include "Renderers/PostprocessingRenderer.h"
 #include "Renderers/ShadowRenderer.h"
 #include "Renderers/GeometryRenderer.h"
+#include "Renderers/SSAORenderer.h"
 
 class ForwardPlus : public Application
 {
@@ -30,9 +31,13 @@ private:
 	PostprocessingRenderer m_PostprocessingRenderer;
 	ShadowRenderer m_ShadowRenderer;
 	GeometryRenderer m_GeometryRenderer;
+	SSAORenderer m_SSAORenderer;
+
+	ShaderID m_DepthResolveShader;
 
 	// GFX Resources
 	TextureID m_MainRT_HDR;
+	TextureID m_MainRT_DepthMS;
 	TextureID m_MainRT_Depth;
 	TextureID m_MotionVectorRT;
 };

@@ -72,3 +72,10 @@ Implementation of the bloom is inspired by Unity implementation. It works by 12 
 
 Renderer is using phisically based rendering. The formulas for PBR are inspired by [LearnOpenGL](https://learnopengl.com) site. <br>
 It is also using IBL(Image based lighting) which means that the color of the skybox is also affecting overall color of the scene. This is an better alternative for ambient lights.
+
+## Screen Space Ambient Occlusion (SSAO)
+
+Calculating ambient occlusion in forward fashion only based on depth data. From the depth data we can get world position and reconstruct normals. <br>
+The algorithm is based on sampling random directions from the position read from depth in the direction of the normal.<br> 
+If there is some geometry in some specified radius we count it as a occluded for that sample. We are using multiple samples (usually 64) and averaging results. <br>
+After initial sampling ssao texture goes through blur fiter for better results.

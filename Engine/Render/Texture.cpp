@@ -66,6 +66,9 @@ namespace GFX
 			case DXGI_FORMAT_R8G8B8A8_UNORM: return 4;
 			case DXGI_FORMAT_R24G8_TYPELESS:  return 4;
 			case DXGI_FORMAT_R32_FLOAT:  return 4;
+			case DXGI_FORMAT_R16_FLOAT:  return 2;
+			case DXGI_FORMAT_R16_UINT:  return 2;
+			case DXGI_FORMAT_R16_UNORM:  return 2;
 			default: NOT_IMPLEMENTED;
 			}
 			return 0;

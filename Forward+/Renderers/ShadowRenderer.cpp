@@ -4,7 +4,7 @@
 #include <Engine/Render/Commands.h>
 #include <Engine/System/ApplicationConfiguration.h>
 
-#include "Gui/GUI_Implementations.h"
+#include "Globals.h"
 #include "Renderers/Util/ConstantManager.h"
 #include "Renderers/Util/SamplerManager.h"
 #include "Renderers/Util/VertexPipeline.h"
@@ -64,15 +64,12 @@ TextureID ShadowRenderer::CalculateShadowMask(ID3D11DeviceContext* context, Text
 		CBManager.Add(MainSceneGraph.ShadowCamera.CameraData);
 		CBManager.Add(MainSceneGraph.SceneInfoData, true);
 
-		std::vector<std::string> config;
-		if (PostprocessSettings.AntialiasingMode == AntiAliasingMode::MSAA) config.push_back("MULTISAMPLE_DEPTH");
-
 		GFX::Cmd::MarkerBegin(context, "Shadowmask");
 		SSManager.Bind(context);
 		GFX::Cmd::BindRenderTarget(context, m_Shadowmask);
 		GFX::Cmd::BindSRV<PS>(context, depth, 0);
 		GFX::Cmd::BindSRV<PS>(context, m_Shadowmap, 1);
-		GFX::Cmd::BindShader<VS | PS>(context, m_ShadowmaskShader, config);
+		GFX::Cmd::BindShader<VS | PS>(context, m_ShadowmaskShader);
 		GFX::Cmd::DrawFC(context);
 		GFX::Cmd::BindSRV<PS>(context, nullptr, 0);
 		GFX::Cmd::MarkerEnd(context);

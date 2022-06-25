@@ -12,12 +12,7 @@ cbuffer Constants : register(b0)
 	SceneInfo SceneInfoData;
 }
 
-#ifdef MULTISAMPLE_DEPTH
-Texture2DMS<float> DepthTexture : register(t0);
-#else
 Texture2D<float> DepthTexture : register(t0);
-#endif
-
 Texture2D<float> Shadowmap : register(t1);
 
 float CalculateShadowFactor(float3 worldPosition)
@@ -42,12 +37,10 @@ float CalculateShadowFactor(float3 worldPosition)
 
 float4 PS(FCVertex IN) : SV_Target
 {
+	// TODO: Sample this instead of load
 	const uint3 pixelCoord = uint3(IN.uv * SceneInfoData.ScreenSize, 0);
-#ifdef MULTISAMPLE_DEPTH
-	const float depth = DepthTexture.Load(pixelCoord, 0);
-#else
 	const float depth = DepthTexture.Load(pixelCoord);
-#endif
+
 	const float3 worldPosition = GetWorldPositionFromDepth(depth, IN.uv, MainCamera);
 	return CalculateShadowFactor(worldPosition);
 }

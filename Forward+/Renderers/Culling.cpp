@@ -5,8 +5,8 @@
 #include <Engine/Render/Shader.h>
 #include <Engine/System/ApplicationConfiguration.h>
 
+#include "Globals.h"
 #include "Renderers/Util/ConstantManager.h"
-#include "Gui/GUI_Implementations.h"
 #include "Scene/SceneGraph.h"
 #include "Shaders/shared_definitions.h"
 
@@ -77,16 +77,13 @@ void Culling::CullLights(ID3D11DeviceContext* context, TextureID depth)
 {
 	if (!DebugToolsConfig.FreezeLightCulling && !DebugToolsConfig.DisableLightCulling)
 	{
-		std::vector<std::string> config{};
-		if (PostprocessSettings.AntialiasingMode == AntiAliasingMode::MSAA) config.push_back("MULTISAMPLE_DEPTH");
-
 		CBManager.Clear();
 		CBManager.Add(MainSceneGraph.SceneInfoData);
 		CBManager.Add(MainSceneGraph.MainCamera.CameraData, true);
 
 		GFX::Cmd::BindRenderTarget(context, TextureID{}, TextureID{});
 		GFX::Cmd::MarkerBegin(context, "Light Culling");
-		GFX::Cmd::BindShader<CS>(context, m_LightCullingShader, config);
+		GFX::Cmd::BindShader<CS>(context, m_LightCullingShader);
 		GFX::Cmd::BindSRV<CS>(context, MainSceneGraph.Lights.GetBuffer(), 0);
 		GFX::Cmd::BindSRV<CS>(context, depth, 1);
 		GFX::Cmd::BindUAV<CS>(context, m_VisibleLightsBuffer, 0);

@@ -3,7 +3,7 @@
 #include <Engine/Render/Buffer.h>
 #include <Engine/Render/Commands.h>
 
-#include "Gui/GUI_Implementations.h"
+#include "Globals.h"
 #include "Scene/SceneGraph.h"
 #include "Shaders/shared_definitions.h"
 

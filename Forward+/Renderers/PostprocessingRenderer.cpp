@@ -7,10 +7,10 @@
 #include <Engine/Render/Texture.h>
 #include <Engine/System/ApplicationConfiguration.h>
 
+#include "Globals.h"
 #include "Renderers/Util/ConstantManager.h"
 #include "Renderers/Util/SamplerManager.h"
 #include "Scene/SceneGraph.h"
-#include "Gui/GUI_Implementations.h"
 
 static const Float2 HaltonSequence[16] = { {0.500000,0.333333},
 						{0.250000,0.666667},
@@ -42,9 +42,9 @@ static BloomInputRenderData GetBloomInput(ID3D11DeviceContext* context, TextureI
 	const Texture& tex = GFX::Storage::GetTexture(targetTex);
 
 	BloomInputRenderData input{};
-	input.SampleScale = PostprocessSettings.BloomSampleScale.ToXMF();
-	input.Treshold = PostprocessSettings.BloomTreshold;
-	input.Knee = PostprocessSettings.BloomKnee;
+	input.SampleScale = RenderSettings.Bloom.SamplingScale.ToXMF();
+	input.Treshold = RenderSettings.Bloom.FTheshold;
+	input.Knee = RenderSettings.Bloom.FKnee;
 	input.TexelSize.x = 1.0f / tex.Width;
 	input.TexelSize.y = 1.0f / tex.Height;
 
@@ -57,7 +57,7 @@ void PostprocessingRenderer::Init(ID3D11DeviceContext* context)
 	m_BloomShader = GFX::CreateShader("Forward+/Shaders/bloom.hlsl");
 }
 
-TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureID colorInput, TextureID depthInput, TextureID motionVectorInput)
+TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureID colorInput, TextureID motionVectorInput)
 {
 	GFX::Cmd::MarkerBegin(context, "Postprocessing");
 
@@ -65,14 +65,14 @@ TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureI
 
 	TextureID hdrRT = colorInput;
 
-	if (PostprocessSettings.AntialiasingMode == AntiAliasingMode::MSAA)
+	if (RenderSettings.AntialiasingMode == AntiAliasingMode::MSAA)
 	{
 		GFX::Cmd::ResolveTexture(context, hdrRT, m_ResolvedColor);
 		hdrRT = m_ResolvedColor;
 	}
 
 	// Bloom
-	if(PostprocessSettings.EnableBloom)
+	if(RenderSettings.Bloom.Enabled)
 	{
 		GFX::Cmd::MarkerBegin(context, "Bloom");
 
@@ -86,7 +86,7 @@ TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureI
 			
 			CBManager.Clear();
 			CBManager.Add(GetBloomInput(context, hdrRT));
-			CBManager.Add(PostprocessSettings.Exposure, true);
+			CBManager.Add(RenderSettings.Exposure, true);
 			
 			GFX::Cmd::BindRenderTarget(context, m_BloomTexturesDownsample[0]);
 			GFX::Cmd::BindShader<VS | PS>(context, m_BloomShader, { "PREFILTER" });
@@ -103,7 +103,7 @@ TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureI
 			{
 				CBManager.Clear();
 				CBManager.Add(GetBloomInput(context, m_BloomTexturesDownsample[i - 1]));
-				CBManager.Add(PostprocessSettings.Exposure, true);
+				CBManager.Add(RenderSettings.Exposure, true);
 
 				GFX::Cmd::BindRenderTarget(context, m_BloomTexturesDownsample[i]);
 				GFX::Cmd::BindSRV<PS>(context, m_BloomTexturesDownsample[i-1], 0);
@@ -119,7 +119,7 @@ TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureI
 
 			CBManager.Clear();
 			CBManager.Add(GetBloomInput(context, m_BloomTexturesDownsample[BLOOM_NUM_SAMPLES - 1]));
-			CBManager.Add(PostprocessSettings.Exposure, true);
+			CBManager.Add(RenderSettings.Exposure, true);
 
 			GFX::Cmd::BindRenderTarget(context, m_BloomTexturesUpsample[BLOOM_NUM_SAMPLES - 2]);
 			GFX::Cmd::BindSRV<PS>(context, m_BloomTexturesDownsample[BLOOM_NUM_SAMPLES - 1], 0);
@@ -130,7 +130,7 @@ TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureI
 			{
 				CBManager.Clear();
 				CBManager.Add(GetBloomInput(context, m_BloomTexturesDownsample[i]));
-				CBManager.Add(PostprocessSettings.Exposure, true);
+				CBManager.Add(RenderSettings.Exposure, true);
 
 				GFX::Cmd::BindRenderTarget(context, m_BloomTexturesUpsample[i]);
 				GFX::Cmd::BindSRV<PS>(context, m_BloomTexturesUpsample[i+1], 0);
@@ -147,12 +147,12 @@ TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureI
 	// Tonemapping
 	{
 		CBManager.Clear();
-		CBManager.Add(PostprocessSettings.Exposure, true);
+		CBManager.Add(RenderSettings.Exposure, true);
 
 		std::vector<std::string> config{};
 		config.push_back("TONEMAPPING");
 
-		if (PostprocessSettings.EnableBloom) config.push_back("APPLY_BLOOM");
+		if (RenderSettings.Bloom.Enabled) config.push_back("APPLY_BLOOM");
 
 		GFX::Cmd::MarkerBegin(context, "Tonemapping");
 		SSManager.Bind(context);
@@ -167,7 +167,7 @@ TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureI
 	}
 
 	// TAA
-	if (PostprocessSettings.AntialiasingMode == AntiAliasingMode::TAA)
+	if (RenderSettings.AntialiasingMode == AntiAliasingMode::TAA)
 	{
 		// TAA History
 		GFX::Cmd::CopyToTexture(context, m_TAAHistory[0], m_TAAHistory[1]);
@@ -222,7 +222,7 @@ void PostprocessingRenderer::ReloadTextureResources(ID3D11DeviceContext* context
 	}
 
 	// Camera
-	MainSceneGraph.MainCamera.UseJitter = PostprocessSettings.AntialiasingMode == AntiAliasingMode::TAA;
+	MainSceneGraph.MainCamera.UseJitter = RenderSettings.AntialiasingMode == AntiAliasingMode::TAA;
 	for (uint32_t i = 0; i < 16; i++)
 	{
 		MainSceneGraph.MainCamera.Jitter[i] = 2.0f * ((HaltonSequence[i] - Float2{ 0.5f, 0.5f }) / Float2(AppConfig.WindowWidth, AppConfig.WindowHeight));

@@ -1,3 +1,5 @@
+#include "scene.h"
+
 float4 GetClipPos(float3 worldPos, Camera camera)
 {
 	const float4 viewPos = mul(float4(worldPos, 1.0f), camera.WorldToView);

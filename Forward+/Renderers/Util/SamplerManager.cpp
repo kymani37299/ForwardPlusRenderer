@@ -16,7 +16,7 @@ void SamplerManager::Init()
 {
 	ID3D11Device* device = Device::Get()->GetHandle();
 
-	m_Samplers.resize(5);
+	m_Samplers.resize(6);
 
 	D3D11_SAMPLER_DESC samplerDesc{};
 	D3D11_SAMPLER_DESC defaultSamplerDesc{};
@@ -73,6 +73,14 @@ void SamplerManager::Init()
 	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_BORDER;
 	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_BORDER;
 	device->CreateSamplerState(&samplerDesc, &m_Samplers[4]);
+
+	// s_PointClamp
+	samplerDesc = defaultSamplerDesc;
+	samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+	device->CreateSamplerState(&samplerDesc, &m_Samplers[5]);
 }
 
 void SamplerManager::Bind(ID3D11DeviceContext* context)
