@@ -255,13 +255,13 @@ namespace SceneLoading
 				texturePath = context.RelativePath + "/" + textureURI;
 			}
 
-			if (AppConfig.Settings.contains("NO_BG_LOADING"))
+			if (AppConfig.Settings.contains("MTR_LOADING"))
 			{
-				Device::Get()->GetTaskExecutor().Submit(new TextureLoadingTask(texturePath, alloc, context.LoadingRG->TextureData, defaultColor));
+				RenderThreadPool::Get()->Submit(new TextureLoadingTask(texturePath, alloc, context.LoadingRG->TextureData, defaultColor));
 			}
 			else
 			{
-				RenderThreadPool::Get()->Submit(new TextureLoadingTask(texturePath, alloc, context.LoadingRG->TextureData, defaultColor));
+				Device::Get()->GetTaskExecutor().Submit(new TextureLoadingTask(texturePath, alloc, context.LoadingRG->TextureData, defaultColor));
 			}
 			
 			return alloc.TextureIndex;
