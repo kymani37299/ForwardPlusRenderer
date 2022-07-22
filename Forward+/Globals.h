@@ -5,6 +5,7 @@ struct DebugToolsConfiguration
 	bool DisableGeometryCulling = false;
 	bool FreezeGeometryCulling = false;
 	bool DrawBoundingSpheres = false;
+	bool UseMeshletCulling = true;
 
 	bool DisableLightCulling = false;
 	bool FreezeLightCulling = false;

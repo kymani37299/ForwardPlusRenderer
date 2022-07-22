@@ -1,5 +1,6 @@
 #include "RenderThread.h"
 
+#include "Render/Context.h"
 #include "Render/Commands.h"
 
 RenderThreadPool* RenderThreadPool::s_Instance = nullptr;
@@ -24,21 +25,21 @@ void RenderThread::Submit(RenderTask* task)
 void RenderThread::Run()
 {
 	m_Running = true;
-	ID3D11DeviceContext* context = GFX::Cmd::CreateDeferredContext();
+	ScopedRef<GraphicsContext> context = ScopedRef<GraphicsContext>(GFX::Cmd::CreateGraphicsContext());
 	while (m_Running)
 	{
-		GFX::Cmd::ResetContext(context);
 		m_CurrentTask = m_TaskQueue.Pop();
 		if (m_CurrentTask.load() == &m_ThreadKiller) break;
 		m_CurrentTask.load()->SetRunning(true);
-		m_CurrentTask.load()->Run(context);
+		m_CurrentTask.load()->Run(*context);
 		m_CurrentTask.load()->SetRunning(false);
-		GFX::Cmd::SubmitDeferredContext(context);
+		GFX::Cmd::SubmitContext(*context);
+		GFX::Cmd::FlushContext(*context);
+		GFX::Cmd::ResetContext(*context.get());
 
 		RenderTask* lastTask = m_CurrentTask.exchange(nullptr);
 		delete lastTask;
 	}
-	context->Release();
 }
 
 void RenderThread::ResetAndWait()

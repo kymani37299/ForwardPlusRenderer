@@ -1,23 +1,39 @@
 #pragma once
 
 #include "Render/RenderAPI.h"
-#include "Render/ResourceID.h"
+#include "Render/Resource.h"
 
-struct ID3D11ShaderResourceView;
+struct GraphicsContext;
+
+struct Texture : public Resource
+{
+	DXGI_FORMAT Format;
+	uint32_t Width;
+	uint32_t Height;
+	uint32_t NumMips;
+	uint32_t NumElements;
+
+	uint32_t RowPitch;
+	uint32_t SlicePitch;
+};
+
+struct TextureSubresource : public Texture
+{
+	uint32_t FirstMip;
+	uint32_t MipCount;
+
+	uint32_t FirstElement;
+	uint32_t ElementCount;
+};
 
 namespace GFX
 {
-	static constexpr uint32_t MAX_MIPS = 0;
+	Texture* CreateTexture(uint32_t width, uint32_t height, uint64_t creationFlags, uint32_t numMips = 1, DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM, ResourceInitData* initData = nullptr);
+	Texture* CreateTextureArray(uint32_t width, uint32_t height, uint32_t numElements, uint64_t creationFlags, uint32_t numMips = 1, DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM, std::vector<ResourceInitData*> initData = {});
 
-	// Loading
-	TextureID LoadTextureHDR(const std::string& path, uint64_t creationFlags);
-	TextureID LoadTexture(ID3D11DeviceContext* context, const std::string& path, uint64_t creationFlags, uint32_t numMips = 1);
-	TextureID LoadCubemap(const std::string& path, uint64_t creationFlags);
-	
-	// Creation
-	TextureID CreateTexture(uint32_t width, uint32_t height, uint64_t creationFlags, uint32_t numMips = 1, DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM, const void* initData = nullptr);
-	TextureID CreateTextureArray(uint32_t width, uint32_t height, uint32_t arraySize, uint64_t creationFlags, uint32_t numMips = 1, DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM, std::vector<const void*> initData = {});
+	Texture* LoadTextureHDR(const std::string& path, uint64_t creationFlags);
+	Texture* LoadTexture(GraphicsContext& context, const std::string& path, uint64_t creationFlags, uint32_t numMips = 1);
+	Texture* LoadCubemap(const std::string& path, uint64_t creationFlags);
 
-	// Info
-	uint32_t GetNumMips(TextureID textureID);
+	TextureSubresource* CreateTextureSubresource(Texture* resource, uint32_t mipBegin, uint32_t mipCount, uint32_t firstElement, uint32_t elementCount);
 }

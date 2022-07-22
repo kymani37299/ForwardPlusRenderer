@@ -2,12 +2,15 @@
 
 #include <Engine/Render/Device.h>
 #include <Engine/Render/Commands.h>
+#include <Engine/Render/Context.h>
 #include <Engine/Render/Buffer.h>
+#include <Engine/Render/Texture.h>
+#include <Engine/Render/Shader.h>
 #include <Engine/System/ApplicationConfiguration.h>
 
 #include "Renderers/Util/SamplerManager.h"
 
-SceneGraph MainSceneGraph;
+SceneGraph* MainSceneGraph = nullptr;
 
 namespace
 {
@@ -90,7 +93,7 @@ void ViewFrustum::Update(const Camera& c)
 	Planes[5] = FrustumPlane{ ftr, ftl, fbl };	// Far
 }
 
-void Material::UpdateBuffer(ID3D11DeviceContext* context, RenderGroup& renderGroup)
+void Material::UpdateBuffer(GraphicsContext& context, RenderGroup& renderGroup)
 {
 	using namespace DirectX;
 	
@@ -107,7 +110,7 @@ void Material::UpdateBuffer(ID3D11DeviceContext* context, RenderGroup& renderGro
 	GFX::Cmd::UploadToBuffer(context, renderGroup.Materials.GetBuffer(), MaterialIndex * sizeof(MaterialSB), &matSB, 0, sizeof(MaterialSB));
 }
 
-void Mesh::UpdateBuffer(ID3D11DeviceContext* context, RenderGroup& renderGroup)
+void Mesh::UpdateBuffer(GraphicsContext& context, RenderGroup& renderGroup)
 {
 	using namespace DirectX;
 
@@ -134,7 +137,7 @@ BoundingSphere Entity::GetBoundingVolume(BoundingSphere bv) const
 	return bs;
 }
 
-void Entity::UpdateBuffer(ID3D11DeviceContext* context)
+void Entity::UpdateBuffer(GraphicsContext& context)
 {
 	using namespace DirectX;
 	
@@ -144,10 +147,10 @@ void Entity::UpdateBuffer(ID3D11DeviceContext* context)
 
 	EntitySB entitySB{};
 	entitySB.ModelToWorld = XMUtility::ToHLSLFloat4x4(modelToWorld);
-	GFX::Cmd::UploadToBuffer(context, MainSceneGraph.Entities.GetBuffer(), sizeof(EntitySB) * EntityIndex, &entitySB, 0, sizeof(EntitySB));
+	GFX::Cmd::UploadToBuffer(context, MainSceneGraph->Entities.GetBuffer(), sizeof(EntitySB) * EntityIndex, &entitySB, 0, sizeof(EntitySB));
 }
 
-void Drawable::UpdateBuffer(ID3D11DeviceContext* context, RenderGroup& renderGroup)
+void Drawable::UpdateBuffer(GraphicsContext& context, RenderGroup& renderGroup)
 {
 	using namespace DirectX;
 
@@ -158,7 +161,7 @@ void Drawable::UpdateBuffer(ID3D11DeviceContext* context, RenderGroup& renderGro
 	GFX::Cmd::UploadToBuffer(context, renderGroup.Drawables.GetBuffer(), sizeof(DrawableSB) * DrawableIndex, &drawableSB, 0, sizeof(DrawableSB));
 }
 
-void Light::UpdateBuffer(ID3D11DeviceContext* context)
+void Light::UpdateBuffer(GraphicsContext& context)
 {
 	using namespace DirectX;
 
@@ -169,7 +172,7 @@ void Light::UpdateBuffer(ID3D11DeviceContext* context)
 	lightSB.Falloff = Falloff.ToXMF();
 	lightSB.Direction = Direction.ToXMF();
 	lightSB.SpotPower = SpotPower;
-	GFX::Cmd::UploadToBuffer(context, MainSceneGraph.Lights.GetBuffer(), sizeof(LightSB) * LightIndex, &lightSB, 0, sizeof(LightSB));
+	GFX::Cmd::UploadToBuffer(context, MainSceneGraph->Lights.GetBuffer(), sizeof(LightSB) * LightIndex, &lightSB, 0, sizeof(LightSB));
 }
 
 Camera Camera::CreatePerspective(float fov, float aspect, float znear, float zfar)
@@ -240,7 +243,7 @@ void Camera::UpdateRenderData()
 	UpdateRenderDataForTransform(LastTransform, LastCameraData);
 }
 
-void Camera::FrameUpdate(ID3D11DeviceContext* context)
+void Camera::FrameUpdate(GraphicsContext& context)
 {
 	LastTransform = CurrentTranform;
 	CurrentTranform = NextTransform;
@@ -257,16 +260,16 @@ RenderGroup::RenderGroup():
 
 }
 
-void RenderGroup::Initialize(ID3D11DeviceContext* context)
+void RenderGroup::Initialize(GraphicsContext& context)
 {
-	Materials.Initialize();
-	Meshes.Initialize();
-	Drawables.Initialize();
+	Materials.Initialize("ElementBuffer::Materials");
+	Meshes.Initialize("ElementBuffer::Meshes");
+	Drawables.Initialize("ElementBuffer::Drawables");
 	MeshData.Initialize();
 	TextureData.Initialize();
 }
 
-uint32_t RenderGroup::AddMaterial(ID3D11DeviceContext* context, Material& material)
+uint32_t RenderGroup::AddMaterial(GraphicsContext& context, Material& material)
 {
 	const uint32_t index = Materials.Next();
 	material.MaterialIndex = index;
@@ -283,7 +286,7 @@ uint32_t RenderGroup::AddMaterial(ID3D11DeviceContext* context, Material& materi
 	return index;
 }
 
-uint32_t RenderGroup::AddMesh(ID3D11DeviceContext* context, Mesh& mesh)
+uint32_t RenderGroup::AddMesh(GraphicsContext& context, Mesh& mesh)
 {
 	const uint32_t index = Meshes.Next();
 	mesh.MeshIndex = index;
@@ -301,7 +304,7 @@ uint32_t RenderGroup::AddMesh(ID3D11DeviceContext* context, Mesh& mesh)
 	return index;
 }
 
-void RenderGroup::AddDraw(ID3D11DeviceContext* context, uint32_t materialIndex, uint32_t meshIndex, uint32_t entityIndex, const BoundingSphere& boundingSphere)
+void RenderGroup::AddDraw(GraphicsContext& context, uint32_t materialIndex, uint32_t meshIndex, uint32_t entityIndex, const BoundingSphere& boundingSphere)
 {
 	const uint32_t index = Drawables.Next();
 	
@@ -323,15 +326,17 @@ void RenderGroup::AddDraw(ID3D11DeviceContext* context, uint32_t materialIndex, 
 	}
 }
 
-void RenderGroup::SetupPipelineInputs(ID3D11DeviceContext* context)
+void RenderGroup::SetupPipelineInputs(GraphicsState& state)
 {
-	GFX::Cmd::BindSRV<VS|PS>(context, TextureData.GetBuffer(), 120);
-	GFX::Cmd::BindSRV<VS|PS>(context, MeshData.GetVertexBuffer(), 121);
-	GFX::Cmd::BindSRV<VS|PS>(context, MeshData.GetIndexBuffer(), 122);
-	GFX::Cmd::BindSRV<VS|PS>(context, Meshes.GetBuffer(), 123);
-	GFX::Cmd::BindSRV<VS|PS>(context, MainSceneGraph.Entities.GetBuffer(), 124);
-	GFX::Cmd::BindSRV<VS|PS>(context, Materials.GetBuffer(), 125);
-	GFX::Cmd::BindSRV<VS|PS>(context, Drawables.GetBuffer(), 126);
+	if(state.Table.SRVs.size() < 127) state.Table.SRVs.resize(127);
+
+	state.Table.SRVs[120] = TextureData.GetBuffer();
+	state.Table.SRVs[121] = MeshData.GetVertexBuffer();
+	state.Table.SRVs[122] = MeshData.GetIndexBuffer();
+	state.Table.SRVs[123] = Meshes.GetBuffer();
+	state.Table.SRVs[124] = MainSceneGraph->Entities.GetBuffer();
+	state.Table.SRVs[125] = Materials.GetBuffer();
+	state.Table.SRVs[126] = Drawables.GetBuffer();
 }
 
 SceneGraph::SceneGraph() :
@@ -341,7 +346,7 @@ SceneGraph::SceneGraph() :
 
 }
 
-void SceneGraph::InitRenderData(ID3D11DeviceContext* context)
+void SceneGraph::InitRenderData(GraphicsContext& context)
 {
 	MainCamera = Camera::CreatePerspective(75.0f, (float) AppConfig.WindowWidth / AppConfig.WindowHeight, 0.1f, 1000.0f);
 	ShadowCamera = Camera::CreateOrtho(500.0f, 500.0f, -500.0f, 500.0f);
@@ -351,11 +356,11 @@ void SceneGraph::InitRenderData(ID3D11DeviceContext* context)
 	{
 		RenderGroups[i].Initialize(context);
 	}
-	Entities.Initialize();
-	Lights.Initialize();
+	Entities.Initialize("ElementBuffer::Entities");
+	Lights.Initialize("ElementBuffer::Lights");
 }
 
-void SceneGraph::FrameUpdate(ID3D11DeviceContext* context)
+void SceneGraph::FrameUpdate(GraphicsContext& context)
 {
 	MainCamera.FrameUpdate(context);
 
@@ -375,7 +380,7 @@ void SceneGraph::FrameUpdate(ID3D11DeviceContext* context)
 	}
 }
 
-uint32_t SceneGraph::AddEntity(ID3D11DeviceContext* context, Entity entity)
+uint32_t SceneGraph::AddEntity(GraphicsContext& context, Entity entity)
 {
 	const uint32_t index = Entities.Next();
 	entity.EntityIndex = index;
@@ -393,7 +398,7 @@ uint32_t SceneGraph::AddEntity(ID3D11DeviceContext* context, Entity entity)
 	return index;
 }
 
-Light SceneGraph::CreateDirectionalLight(ID3D11DeviceContext* context, Float3 direction, Float3 color)
+Light SceneGraph::CreateDirectionalLight(GraphicsContext& context, Float3 direction, Float3 color)
 {
 	ASSERT(DirLightIndex == UINT32_MAX, "Only one directional light is supported per scene!");
 
@@ -407,7 +412,7 @@ Light SceneGraph::CreateDirectionalLight(ID3D11DeviceContext* context, Float3 di
 	return l;
 }
 
-Light SceneGraph::CreateAmbientLight(ID3D11DeviceContext* context, Float3 color)
+Light SceneGraph::CreateAmbientLight(GraphicsContext& context, Float3 color)
 {
 	Light l{};
 	l.Type = LT_Ambient;
@@ -415,7 +420,7 @@ Light SceneGraph::CreateAmbientLight(ID3D11DeviceContext* context, Float3 color)
 	return CreateLight(context, l);
 }
 
-Light SceneGraph::CreatePointLight(ID3D11DeviceContext* context, Float3 position, Float3 color, Float2 falloff)
+Light SceneGraph::CreatePointLight(GraphicsContext& context, Float3 position, Float3 color, Float2 falloff)
 {
 	Light l{};
 	l.Type = LT_Point;
@@ -425,7 +430,7 @@ Light SceneGraph::CreatePointLight(ID3D11DeviceContext* context, Float3 position
 	return CreateLight(context, l);
 }
 
-Light SceneGraph::CreateLight(ID3D11DeviceContext* context, Light light)
+Light SceneGraph::CreateLight(GraphicsContext& context, Light light)
 {
 	const uint32_t lightIndex = Lights.Next();
 	light.LightIndex = lightIndex;
@@ -445,17 +450,34 @@ Light SceneGraph::CreateLight(ID3D11DeviceContext* context, Light light)
 
 namespace ElementBufferHelp
 {
-	BufferID CreateBuffer(uint32_t numElements, uint32_t stride) { return GFX::CreateBuffer(numElements * stride, stride, RCF_Bind_SB | RCF_CPU_Write_Persistent); }
-	void DeleteBuffer(BufferID buffer) { GFX::Storage::Free(buffer); }
+	Buffer* CreateBuffer(uint32_t numElements, uint32_t stride, const std::string& debugName) 
+	{
+		Buffer* buffer = GFX::CreateBuffer(numElements * stride, stride, RCF_None);
+		GFX::SetDebugName(buffer, debugName);
+		return buffer;
+	}
+
+	void DeleteBuffer(Buffer* buffer) { delete buffer; }
+}
+
+MeshStorage::MeshStorage()
+{
+}
+
+MeshStorage::~MeshStorage()
+{
 }
 
 void MeshStorage::Initialize()
 {
-	m_VertexBuffer = GFX::CreateBuffer(GetVertexBufferStride(), GetVertexBufferStride(), RCF_Bind_SB | RCF_CopyDest);
-	m_IndexBuffer = GFX::CreateBuffer(GetIndexBufferStride(), GetIndexBufferStride(), RCF_Bind_SB | RCF_CopyDest);
+	m_VertexBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(GetVertexBufferStride(), GetVertexBufferStride(), RCF_None));
+	m_IndexBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(GetIndexBufferStride(), GetIndexBufferStride(), RCF_None));
+
+	GFX::SetDebugName(m_VertexBuffer.get(), "MeshStorage::VertexBuffer");
+	GFX::SetDebugName(m_IndexBuffer.get(), "MeshStorage::IndexBuffer");
 }
 
-MeshStorage::Allocation MeshStorage::Allocate(ID3D11DeviceContext* context, uint32_t vertexCount, uint32_t indexCount)
+MeshStorage::Allocation MeshStorage::Allocate(GraphicsContext& context, uint32_t vertexCount, uint32_t indexCount)
 {
 	MeshStorage::Allocation alloc{};
 	alloc.VertexOffset = m_VertexCount.fetch_add(vertexCount);
@@ -464,59 +486,73 @@ MeshStorage::Allocation MeshStorage::Allocate(ID3D11DeviceContext* context, uint
 	const uint32_t wantedVBSize = vertexCount + alloc.VertexOffset;
 	const uint32_t wantedIBSize = indexCount + alloc.IndexOffset;
 
-	GFX::ExpandBuffer(context, m_VertexBuffer, wantedVBSize * GetVertexBufferStride());
-	GFX::ExpandBuffer(context, m_IndexBuffer, wantedIBSize * GetIndexBufferStride());
+	GFX::ExpandBuffer(context, m_VertexBuffer.get(), wantedVBSize * GetVertexBufferStride());
+	GFX::ExpandBuffer(context, m_IndexBuffer.get(), wantedIBSize * GetIndexBufferStride());
 
 	return alloc;
 }
 
-void TextureStorage::Initialize()
+TextureStorage::TextureStorage()
 {
-	m_Data = GFX::CreateTextureArray(TEXTURE_SIZE, TEXTURE_SIZE, MAX_TEXTURES, RCF_Bind_SRV | RCF_CopyDest, TEXTURE_MIPS);
-	m_StagingTexture = GFX::CreateTexture(TEXTURE_SIZE, TEXTURE_SIZE, RCF_Bind_RTV | RCF_GenerateMips | RCF_Bind_SRV, TEXTURE_MIPS);
+
 }
 
-TextureStorage::Allocation TextureStorage::AddTexture(ID3D11DeviceContext* context, TextureID texture)
+TextureStorage::~TextureStorage()
+{
+
+}
+
+void TextureStorage::Initialize()
+{
+	m_Data = ScopedRef<Texture>(GFX::CreateTextureArray(TEXTURE_SIZE, TEXTURE_SIZE, MAX_TEXTURES, RCF_None, TEXTURE_MIPS));
+	m_StagingTexture = ScopedRef<Texture>(GFX::CreateTexture(TEXTURE_SIZE, TEXTURE_SIZE, RCF_Bind_RTV | RCF_GenerateMips, TEXTURE_MIPS));
+}
+
+TextureStorage::Allocation TextureStorage::AddTexture(GraphicsContext& context, Texture* texture)
 {
 	Allocation alloc = AllocTexture(context);
 	UpdateTexture(context, alloc, texture);
 	return alloc;
 }
 
-TextureStorage::Allocation TextureStorage::AllocTexture(ID3D11DeviceContext* context)
+TextureStorage::Allocation TextureStorage::AllocTexture(GraphicsContext& context)
 {
 	const uint32_t textureIndex = m_NextAllocation++;
 	ASSERT(textureIndex < MAX_TEXTURES, "textureIndex < SceneGraph::MAX_TEXTURES");
 	return { textureIndex };
 }
 
-void TextureStorage::UpdateTexture(ID3D11DeviceContext* context, Allocation alloc, TextureID texture)
+void TextureStorage::UpdateTexture(GraphicsContext& context, Allocation alloc, Texture* texture)
 {
-	const Texture& stagingTex = GFX::Storage::GetTexture(m_StagingTexture);
+	GraphicsState updateState{};
 
 	// Resize texture and generate mips
-	ID3D11DeviceContext* c = context;
-
-	GFX::Cmd::MarkerBegin(c, "CopyTexture");
-	SSManager.Bind(context);
-	GFX::Cmd::BindShader<VS | PS>(c, Device::Get()->GetCopyShader());
-	c->OMSetRenderTargets(1, stagingTex.RTV.GetAddressOf(), nullptr);
-	GFX::Cmd::SetViewport(c, TEXTURE_SIZE, TEXTURE_SIZE);
-	GFX::Cmd::BindSRV<PS>(c, texture, 0);
-	GFX::Cmd::DrawFC(context);
-	GFX::Cmd::MarkerEnd(c);
-
-	c->GenerateMips(stagingTex.SRV.Get());
+	GFX::Cmd::MarkerBegin(context, "CopyTexture");
+	SSManager.Bind(updateState);
+	updateState.Table.SRVs.push_back(texture);
+	GFX::Cmd::BindShader(updateState, Device::Get()->GetCopyShader(), VS | PS);
+	GFX::Cmd::BindRenderTarget(updateState, m_StagingTexture.get());
+	GFX::Cmd::DrawFC(context, updateState);
+	GFX::Cmd::MarkerEnd(context);
+	GFX::Cmd::GenerateMips(context, m_StagingTexture.get());
 
 	// Copy to the array
-	const Texture& dataTex = GFX::Storage::GetTexture(m_Data);
+	ASSERT(m_StagingTexture->Format == texture->Format, "m_StagingTexture->Format == texture->Format");
 
-	ASSERT(stagingTex.Format == dataTex.Format, "stagingTex.Format == tex.Format");
-
-	for (uint32_t mip = 0; mip < dataTex.NumMips; mip++)
+	GFX::Cmd::TransitionResource(context, m_StagingTexture.get(), D3D12_RESOURCE_STATE_COPY_SOURCE);
+	GFX::Cmd::TransitionResource(context, m_Data.get(), D3D12_RESOURCE_STATE_COPY_DEST);
+	for (uint32_t mip = 0; mip < TEXTURE_MIPS; mip++)
 	{
-		uint32_t srcSubresource = D3D11CalcSubresource(mip, 0, stagingTex.NumMips);
-		uint32_t dstSubresource = D3D11CalcSubresource(mip, alloc.TextureIndex, dataTex.NumMips);
-		c->CopySubresourceRegion(dataTex.Handle.Get(), dstSubresource, 0, 0, 0, stagingTex.Handle.Get(), srcSubresource, nullptr);
+		D3D12_TEXTURE_COPY_LOCATION srcCopy{};
+		srcCopy.pResource = m_StagingTexture->Handle.Get();
+		srcCopy.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+		srcCopy.SubresourceIndex = D3D12CalcSubresource(mip, 0, 0, m_StagingTexture->NumMips, m_StagingTexture->NumElements);
+
+		D3D12_TEXTURE_COPY_LOCATION dstCopy{};
+		dstCopy.pResource = m_Data->Handle.Get();
+		dstCopy.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+		dstCopy.SubresourceIndex = D3D12CalcSubresource(mip, alloc.TextureIndex, 0, m_Data->NumMips, m_Data->NumElements);
+
+		context.CmdList->CopyTextureRegion(&dstCopy, 0, 0, 0, &srcCopy, nullptr);
 	}
 }

@@ -1,7 +1,7 @@
 #pragma once
 
+#include <Engine/Common.h>
 #include <Engine/Core/Application.h>
-#include <Engine/Render/ResourceID.h>
 
 #include "Renderers/Culling.h"
 #include "Renderers/DebugRenderer.h"
@@ -11,17 +11,25 @@
 #include "Renderers/GeometryRenderer.h"
 #include "Renderers/SSAORenderer.h"
 
+struct GraphicsContext;
+struct Texture;
+struct Buffer;
+struct Shader;
+
 class ForwardPlus : public Application
 {
 public:
-	void OnInit(ID3D11DeviceContext* context);
-	void OnDestroy(ID3D11DeviceContext* context);
+	ForwardPlus();
+	~ForwardPlus();
 
-	TextureID OnDraw(ID3D11DeviceContext* context);
-	void OnUpdate(ID3D11DeviceContext* context, float dt);
+	void OnInit(GraphicsContext& context);
+	void OnDestroy(GraphicsContext& context);
 
-	void OnShaderReload(ID3D11DeviceContext* context);
-	void OnWindowResize(ID3D11DeviceContext* context);
+	Texture* OnDraw(GraphicsContext& context);
+	void OnUpdate(GraphicsContext& context, float dt);
+
+	void OnShaderReload(GraphicsContext& context);
+	void OnWindowResize(GraphicsContext& context);
 
 private:
 
@@ -33,11 +41,11 @@ private:
 	GeometryRenderer m_GeometryRenderer;
 	SSAORenderer m_SSAORenderer;
 
-	ShaderID m_DepthResolveShader;
+	ScopedRef<Shader> m_DepthResolveShader;
 
 	// GFX Resources
-	TextureID m_MainRT_HDR;
-	TextureID m_MainRT_DepthMS;
-	TextureID m_MainRT_Depth;
-	TextureID m_MotionVectorRT;
+	ScopedRef<Texture> m_MainRT_HDR;
+	Ref<Texture> m_MainRT_DepthMS;
+	Ref<Texture> m_MainRT_Depth;
+	ScopedRef<Texture> m_MotionVectorRT;
 };

@@ -5,6 +5,8 @@
 
 #include "Scene/SceneGraph.h"
 
+struct GraphicsContext;
+
 class TextureLoadingTask : public RenderTask
 {
 public:
@@ -14,7 +16,7 @@ public:
 		m_TextureStorage(textureStorage),
 		m_DefaultColor(defaultColor) {}
 
-	void Run(ID3D11DeviceContext* context) override;
+	void Run(GraphicsContext& context) override;
 
 private:
 	std::string m_TexturePath;

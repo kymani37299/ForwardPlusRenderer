@@ -3,10 +3,12 @@
 #include <vector>
 
 #include <Engine/Common.h>
-#include <Engine/Render/ResourceID.h>
 #include <Engine/Utility/Multithreading.h>
 
-struct ID3D11DeviceContext;
+struct GraphicsState;
+struct GraphicsContext;
+struct Buffer;
+struct Texture;
 
 namespace DirectX
 {
@@ -73,7 +75,7 @@ struct ViewFrustum
 	}
 };
 
-class RenderGroup;
+struct RenderGroup;
 
 struct Material
 {
@@ -90,7 +92,7 @@ struct Material
 	uint32_t MetallicRoughness;
 	uint32_t Normal;
 
-	void UpdateBuffer(ID3D11DeviceContext* context, RenderGroup& renderGroup);
+	void UpdateBuffer(GraphicsContext& context, RenderGroup& renderGroup);
 };
 
 struct Mesh
@@ -105,7 +107,7 @@ struct Mesh
 	
 	std::vector<DirectX::CullData> MeshletCullData;
 
-	void UpdateBuffer(ID3D11DeviceContext* context, RenderGroup& renderGroup);
+	void UpdateBuffer(GraphicsContext& context, RenderGroup& renderGroup);
 };
 
 struct Drawable
@@ -120,7 +122,7 @@ struct Drawable
 
 	BoundingSphere BoundingVolume;
 
-	void UpdateBuffer(ID3D11DeviceContext* context, RenderGroup& renderGroup);
+	void UpdateBuffer(GraphicsContext& context, RenderGroup& renderGroup);
 };
 
 struct Entity
@@ -134,7 +136,7 @@ struct Entity
 
 	BoundingSphere GetBoundingVolume(BoundingSphere bv) const;
 
-	void UpdateBuffer(ID3D11DeviceContext* context);
+	void UpdateBuffer(GraphicsContext& context);
 };
 
 enum LightType : uint32_t
@@ -157,7 +159,7 @@ struct Light
 	Float3 Direction = { 0.0f, 0.0f, 0.0f };	// Dir/Spot
 	float SpotPower = 0.0f;						// Spot
 
-	void UpdateBuffer(ID3D11DeviceContext* context);
+	void UpdateBuffer(GraphicsContext& context);
 };
 
 struct Camera
@@ -189,7 +191,7 @@ struct Camera
 	static Camera CreatePerspective(float fov, float aspect, float znear, float zfar);
 	static Camera CreateOrtho(float rectWidth, float rectHeight, float znear, float zfar);
 
-	void FrameUpdate(ID3D11DeviceContext* context);
+	void FrameUpdate(GraphicsContext& context);
 	void UpdateRenderData();
 	void UpdateRenderDataForTransform(CameraTransform& transform, CameraRenderData& destData);
 
@@ -224,8 +226,8 @@ struct Camera
 
 namespace ElementBufferHelp
 {
-	BufferID CreateBuffer(uint32_t numElements, uint32_t stride);
-	void DeleteBuffer(BufferID buffer);
+	Buffer* CreateBuffer(uint32_t numElements, uint32_t stride, const std::string& debugName);
+	void DeleteBuffer(Buffer* buffer);
 }
 
 template<typename T>
@@ -237,10 +239,10 @@ public:
 		m_GpuStride(gpuBufferStride)
 	{ }
 
-	void Initialize()
+	void Initialize(const std::string& debugName = "ElementBuffer::Unnamed")
 	{
 		m_Storage.resize(m_MaxElements);
-		if(m_GpuStride != 0) m_Buffer = ElementBufferHelp::CreateBuffer(m_MaxElements, m_GpuStride);
+		if(m_GpuStride != 0) m_Buffer = ElementBufferHelp::CreateBuffer(m_MaxElements, m_GpuStride, debugName);
 	}
 
 	~ElementBuffer()
@@ -257,7 +259,7 @@ public:
 		ASSERT(index < m_MaxElements, "index < m_MaxElements");
 		return index; 
 	}
-	BufferID GetBuffer() const { ASSERT(m_GpuStride != 0, "m_GpuStride != 0");  return m_Buffer; }
+	Buffer* GetBuffer() const { ASSERT(m_GpuStride != 0, "m_GpuStride != 0");  return m_Buffer; }
 
 private:
 	uint32_t m_MaxElements;
@@ -265,7 +267,7 @@ private:
 	std::atomic<uint32_t> m_NextIndex;
 
 	std::vector<T> m_Storage;
-	BufferID m_Buffer;
+	Buffer* m_Buffer;
 };
 
 class MeshStorage
@@ -285,12 +287,15 @@ public:
 		uint32_t IndexOffset;
 	};
 
+	MeshStorage();
+	~MeshStorage();
+
 	void Initialize();
 
-	Allocation Allocate(ID3D11DeviceContext* context, uint32_t vertexCount, uint32_t indexCount);
+	Allocation Allocate(GraphicsContext& context, uint32_t vertexCount, uint32_t indexCount);
 
-	BufferID GetVertexBuffer() const { return m_VertexBuffer; }
-	BufferID GetIndexBuffer() const { return m_IndexBuffer; }
+	Buffer* GetVertexBuffer() const { return m_VertexBuffer.get(); }
+	Buffer* GetIndexBuffer() const { return m_IndexBuffer.get(); }
 
 	uint32_t GetVertexCount() const { return m_VertexCount; }
 	uint32_t GetIndexCount() const { return m_IndexCount; }
@@ -302,8 +307,8 @@ private:
 	std::atomic<uint32_t> m_VertexCount = 0;
 	std::atomic<uint32_t> m_IndexCount = 0;
 
-	BufferID m_VertexBuffer;
-	BufferID m_IndexBuffer;
+	ScopedRef<Buffer> m_VertexBuffer;
+	ScopedRef<Buffer> m_IndexBuffer;
 };
 
 class TextureStorage
@@ -318,15 +323,18 @@ public:
 	static constexpr uint32_t TEXTURE_MIPS = 8;
 	static constexpr uint32_t TEXTURE_SIZE = 1024;
 
+	TextureStorage();
+	~TextureStorage();
+
 	void Initialize();
-	Allocation AddTexture(ID3D11DeviceContext* context, TextureID texture);
-	Allocation AllocTexture(ID3D11DeviceContext* context);
-	void UpdateTexture(ID3D11DeviceContext* context, Allocation alloc,  TextureID texture);
-	TextureID GetBuffer() const { return m_Data; }
+	Allocation AddTexture(GraphicsContext& context, Texture* texture);
+	Allocation AllocTexture(GraphicsContext& context);
+	void UpdateTexture(GraphicsContext& context, Allocation alloc,  Texture* texture);
+	Texture* GetBuffer() const { return m_Data.get(); }
 
 private:
-	TextureID m_Data;
-	TextureID m_StagingTexture;
+	ScopedRef<Texture> m_Data;
+	ScopedRef<Texture> m_StagingTexture;
 	std::atomic<uint32_t> m_NextAllocation = 0;
 };
 
@@ -336,12 +344,12 @@ struct RenderGroup
 	static constexpr uint32_t MAX_DRAWABLES = 200000;
 
 	RenderGroup();
-	void Initialize(ID3D11DeviceContext* context);
-	uint32_t AddMaterial(ID3D11DeviceContext* context, Material& material);
-	uint32_t AddMesh(ID3D11DeviceContext* context, Mesh& mesh);
-	void AddDraw(ID3D11DeviceContext* context, uint32_t materialIndex, uint32_t meshIndex, uint32_t entityIndex, const BoundingSphere& boundingSphere);
+	void Initialize(GraphicsContext& context);
+	uint32_t AddMaterial(GraphicsContext& context, Material& material);
+	uint32_t AddMesh(GraphicsContext& context, Mesh& mesh);
+	void AddDraw(GraphicsContext& context, uint32_t materialIndex, uint32_t meshIndex, uint32_t entityIndex, const BoundingSphere& boundingSphere);
 
-	void SetupPipelineInputs(ID3D11DeviceContext* context);
+	void SetupPipelineInputs(GraphicsState& state);
 
 	ElementBuffer<Material> Materials;
 	ElementBuffer<Mesh> Meshes;
@@ -375,15 +383,15 @@ struct SceneGraph
 	};
 
 	SceneGraph();
-	void InitRenderData(ID3D11DeviceContext* context);
+	void InitRenderData(GraphicsContext& context);
 
-	void FrameUpdate(ID3D11DeviceContext* context);
-	uint32_t AddEntity(ID3D11DeviceContext* context, Entity entity);
+	void FrameUpdate(GraphicsContext& context);
+	uint32_t AddEntity(GraphicsContext& context, Entity entity);
 
-	Light CreateDirectionalLight(ID3D11DeviceContext* context, Float3 direction, Float3 color);
-	Light CreateAmbientLight(ID3D11DeviceContext* context, Float3 color);
-	Light CreatePointLight(ID3D11DeviceContext* context, Float3 position, Float3 color, Float2 falloff);
-	Light CreateLight(ID3D11DeviceContext* context, Light light);
+	Light CreateDirectionalLight(GraphicsContext& context, Float3 direction, Float3 color);
+	Light CreateAmbientLight(GraphicsContext& context, Float3 color);
+	Light CreatePointLight(GraphicsContext& context, Float3 position, Float3 color, Float2 falloff);
+	Light CreateLight(GraphicsContext& context, Light light);
 
 	Camera MainCamera;
 	Camera ShadowCamera;
@@ -396,4 +404,4 @@ struct SceneGraph
 	SceneInfoRenderData SceneInfoData;
 };
 
-extern SceneGraph MainSceneGraph;
+extern SceneGraph* MainSceneGraph;

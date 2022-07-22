@@ -44,22 +44,21 @@ VertexOut VS(VertexPipelineInput IN)
 	return OUT;
 }
 
-float3 ApplyFog(float3 color, float depth)
+float3 ApplyFog(float3 color, float depth, float3 fogColor)
 {
-	const float3 FogColor = float3(0.6f, 0.67f, 0.73f);
 	const float FogStart = 0.99f;
 	const float FogEnd = 1.0f;
 
 	const float distance = 1.0f - depth;
 	const float fogFactor = smoothstep(FogStart, FogEnd, distance);
 
-	return lerp(color, FogColor, fogFactor);
+	return lerp(color, fogColor, fogFactor);
 }
 
 float4 PS(VertexOut IN) : SV_TARGET
 {
 	const Material matParams = Materials[IN.MaterialIndex];
-	const float4 albedo = Textures.Sample(s_AnisoWrap, float3(IN.UV, matParams.Albedo) );
+	const float4 albedo = Textures.Sample(s_AnisoWrap, float3(IN.UV, matParams.Albedo));
 
 #ifdef ALPHA_DISCARD
 	if (albedo.a < 0.05f)
@@ -90,13 +89,19 @@ float4 PS(VertexOut IN) : SV_TARGET
 	const float2 shadowMaskUV = screenUV;
 	const float shadowFactor = Shadowmask.Sample(s_LinearWrap, shadowMaskUV);
 
+	uint dirLightIndex = -1;
+	float3 fogColor = float3(0.6f, 0.67f, 0.73f);
+
 #ifdef DISABLE_LIGHT_CULLING
+	[loop]
 	for(uint i=0; i < SceneInfoData.NumLights; i++)
 	{
 		const Light l = Lights[i];
 #else
 	const uint2 tileIndex = GetTileIndexFromPosition(IN.Position.xyz);
 	const uint visibleLightOffset = GetOffsetFromTileIndex(SceneInfoData, tileIndex);
+
+	[loop]
 	for (uint i = visibleLightOffset; VisibleLights[i] != VISIBLE_LIGHT_END; i++)
 	{
 		const uint lightIndex = VisibleLights[i];
@@ -106,6 +111,7 @@ float4 PS(VertexOut IN) : SV_TARGET
 		switch (l.Type)
 		{
 		case LIGHT_TYPE_DIRECTIONAL:
+			dirLightIndex = lightIndex;
 			litColor.rgb += shadowFactor * ComputeDirectionalLight(l, mat, normal, view);
 			break;
 		case LIGHT_TYPE_POINT:
@@ -127,10 +133,16 @@ float4 PS(VertexOut IN) : SV_TARGET
 #ifdef USE_IBL
 	const float3 irradiance = IrradianceMap.Sample(s_LinearWrap, normal).rgb;
 	litColor.rgb += ComputeIrradianceEffect(irradiance, mat, normal, view);
+
+	if (dirLightIndex != -1)
+	{
+		fogColor = IrradianceMap.Sample(s_LinearWrap, Lights[dirLightIndex].Direction).rgb;
+	}
+	
 #endif // USE_IBL
 
 	// Distance fog
-	litColor.rgb = ApplyFog(litColor.rgb, IN.Position.z / IN.Position.w);
+	litColor.rgb = ApplyFog(litColor.rgb, IN.Position.z / IN.Position.w, fogColor);
 
 #ifdef ALPHA_BLEND
 	litColor.a = mat.Albedo.a;

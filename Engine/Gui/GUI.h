@@ -4,8 +4,8 @@
 
 #include "Common.h"
 
-struct ID3D11Device;
-struct ID3D11DeviceContext;
+struct GraphicsContext;
+struct Texture;
 
 class GUIElement
 {
@@ -15,13 +15,13 @@ public:
 
 	virtual void Reset() {}
 	virtual void Update(float dt) = 0;
-	void RenderElement(ID3D11DeviceContext* context);
+	void RenderElement();
 
 	std::string GetName() const { return m_Name; }
 	bool& GetShownRef() { return m_Shown; }
 
 protected:
-	virtual void Render(ID3D11DeviceContext* context) = 0;
+	virtual void Render() = 0;
 
 private:
 	std::string m_Name = "";
@@ -47,13 +47,14 @@ public:
 	bool HandleWndProc(void* hwnd, unsigned int msg, unsigned int wparam, long lparam);
 
 	void Update(float dt);
-	void Render(ID3D11DeviceContext* context);
+	void Render(GraphicsContext& context, Texture* renderTarget);
 	void Reset();
 
 	inline void SetVisible(bool value) { m_Visible = value; }
 	inline bool ToggleVisible() { return m_Visible = !m_Visible; }
 
 private:
+	bool m_Initialized = false;
 	bool m_Visible = true;
 	std::vector<GUIElement*> m_Elements;
 };

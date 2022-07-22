@@ -53,6 +53,56 @@
     <ClInclude Include="Scene\SceneGraph.h" />
     <ClInclude Include="Scene\SceneLoading.h" />
     <ClInclude Include="Scene\TextureLoading.h" />
+    <None Include="Shaders\culling.h" />
+    <None Include="Shaders\full_screen.h" />
+    <None Include="Shaders\lighting.h" />
+    <None Include="Shaders\light_culling.h" />
+    <None Include="Shaders\pipeline.h" />
+    <None Include="Shaders\samplers.h" />
+    <None Include="Shaders\scene.h" />
+    <None Include="Shaders\shared_definitions.h" />
+    <None Include="Shaders\util.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Shaders\bloom.hlsl">
+      <FileType>Document</FileType>
+    </None>
+    <None Include="Shaders\calculate_irradiance.hlsl">
+      <FileType>Document</FileType>
+    </None>
+    <None Include="Shaders\debug_geometry.hlsl">
+      <FileType>Document</FileType>
+    </None>
+    <None Include="Shaders\depth.hlsl">
+      <FileType>Document</FileType>
+    </None>
+    <None Include="Shaders\geometry.hlsl">
+      <FileType>Document</FileType>
+    </None>
+    <None Include="Shaders\light_culling.hlsl">
+      <FileType>Document</FileType>
+    </None>
+    <None Include="Shaders\light_heatmap.hlsl">
+      <FileType>Document</FileType>
+    </None>
+    <None Include="Shaders\postprocessing.hlsl">
+      <FileType>Document</FileType>
+    </None>
+    <None Include="Shaders\quadrilateral2cubemap.hlsl">
+      <FileType>Document</FileType>
+    </None>
+    <None Include="Shaders\resolve_depth.hlsl">
+      <FileType>Document</FileType>
+    </None>
+    <None Include="Shaders\shadowmask.hlsl">
+      <FileType>Document</FileType>
+    </None>
+    <None Include="Shaders\skybox.hlsl">
+      <FileType>Document</FileType>
+    </None>
+    <None Include="Shaders\ssao.hlsl">
+      <FileType>Document</FileType>
+    </None>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
@@ -66,14 +116,14 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
     <EnableUnitySupport>true</EnableUnitySupport>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
     <EnableUnitySupport>true</EnableUnitySupport>
@@ -81,14 +131,14 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
     <EnableUnitySupport>true</EnableUnitySupport>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
     <EnableUnitySupport>true</EnableUnitySupport>
@@ -143,8 +193,8 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;dxguid.lib;Engine.lib;DirectXMesh_x86_d.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)\Build\Engine\$(Platform)\$(Configuration)\;$(SolutionDir)\External\DirectXMesh\Lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>d3d12.lib;d3dcompiler.lib;dxguid.lib;dxgi.lib;Engine.lib;DirectXMesh_x86_d.lib;D3D12MAd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)\Build\Engine\$(Platform)\$(Configuration)\;$(SolutionDir)\External\DirectXMesh\Lib;$(SolutionDir)\External\D3D12MemoryAllocator\bin;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -163,8 +213,8 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;dxguid.lib;Engine.lib;DirectXMesh_x86.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)\Build\Engine\$(Platform)\$(Configuration)\;$(SolutionDir)\External\DirectXMesh\Lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>d3d12.lib;d3dcompiler.lib;dxguid.lib;dxgi.lib;Engine.lib;DirectXMesh_x86.lib;D3D12MA.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)\Build\Engine\$(Platform)\$(Configuration)\;$(SolutionDir)\External\DirectXMesh\Lib;$(SolutionDir)\External\D3D12MemoryAllocator\bin;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -179,8 +229,8 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;dxguid.lib;Engine.lib;DirectXMesh_d.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)\Build\Engine\$(Platform)\$(Configuration)\;$(SolutionDir)\External\DirectXMesh\Lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>d3d12.lib;d3dcompiler.lib;dxguid.lib;dxgi.lib;Engine.lib;DirectXMesh_d.lib;D3D12MAd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)\Build\Engine\$(Platform)\$(Configuration)\;$(SolutionDir)\External\DirectXMesh\Lib;$(SolutionDir)\External\D3D12MemoryAllocator\bin;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -199,8 +249,8 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;dxguid.lib;Engine.lib;DirectXMesh.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)\Build\Engine\$(Platform)\$(Configuration)\;$(SolutionDir)\External\DirectXMesh\Lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>d3d12.lib;d3dcompiler.lib;dxguid.lib;dxgi.lib;Engine.lib;DirectXMesh.lib;D3D12MA.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)\Build\Engine\$(Platform)\$(Configuration)\;$(SolutionDir)\External\DirectXMesh\Lib;$(SolutionDir)\External\D3D12MemoryAllocator\bin;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

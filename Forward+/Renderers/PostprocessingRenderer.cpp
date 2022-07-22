@@ -37,77 +37,85 @@ struct BloomInputRenderData
 	float Knee;
 };
 
-static BloomInputRenderData GetBloomInput(ID3D11DeviceContext* context, TextureID targetTex)
+static BloomInputRenderData GetBloomInput(Texture* texture)
 {
-	const Texture& tex = GFX::Storage::GetTexture(targetTex);
-
 	BloomInputRenderData input{};
 	input.SampleScale = RenderSettings.Bloom.SamplingScale.ToXMF();
 	input.Treshold = RenderSettings.Bloom.FTheshold;
 	input.Knee = RenderSettings.Bloom.FKnee;
-	input.TexelSize.x = 1.0f / tex.Width;
-	input.TexelSize.y = 1.0f / tex.Height;
-
+	input.TexelSize.x = 1.0f / texture->Width;
+	input.TexelSize.y = 1.0f / texture->Height;
 	return input;
 }
 
-void PostprocessingRenderer::Init(ID3D11DeviceContext* context)
+PostprocessingRenderer::PostprocessingRenderer()
 {
-	m_PostprocessShader = GFX::CreateShader("Forward+/Shaders/postprocessing.hlsl");
-	m_BloomShader = GFX::CreateShader("Forward+/Shaders/bloom.hlsl");
+
 }
 
-TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureID colorInput, TextureID motionVectorInput)
+PostprocessingRenderer::~PostprocessingRenderer()
+{
+
+}
+
+void PostprocessingRenderer::Init(GraphicsContext& context)
+{
+	m_PostprocessShader = ScopedRef<Shader>(new Shader("Forward+/Shaders/postprocessing.hlsl"));
+	m_BloomShader = ScopedRef<Shader>(new Shader("Forward+/Shaders/bloom.hlsl"));
+}
+
+Texture* PostprocessingRenderer::Process(GraphicsContext& context, Texture* colorInput, Texture* motionVectorInput)
 {
 	GFX::Cmd::MarkerBegin(context, "Postprocessing");
 
-	
-
-	TextureID hdrRT = colorInput;
+	Texture* hdrRT = colorInput;
 
 	if (RenderSettings.AntialiasingMode == AntiAliasingMode::MSAA)
 	{
-		GFX::Cmd::ResolveTexture(context, hdrRT, m_ResolvedColor);
-		hdrRT = m_ResolvedColor;
+		GFX::Cmd::ResolveTexture(context, hdrRT, m_ResolvedColor.get());
+		hdrRT = m_ResolvedColor.get();
 	}
 
+	GraphicsState state;
+	state.Table.SRVs.resize(3);
+	state.Table.CBVs.resize(1);
+	SSManager.Bind(state);
+
 	// Bloom
-	if(RenderSettings.Bloom.Enabled)
+	if (RenderSettings.Bloom.Enabled)
 	{
 		GFX::Cmd::MarkerBegin(context, "Bloom");
-
-
-
-		SSManager.Bind(context);
 
 		// Prefilter
 		{
 			GFX::Cmd::MarkerBegin(context, "Prefilter");
-			
+
 			CBManager.Clear();
-			CBManager.Add(GetBloomInput(context, hdrRT));
-			CBManager.Add(RenderSettings.Exposure, true);
-			
-			GFX::Cmd::BindRenderTarget(context, m_BloomTexturesDownsample[0]);
-			GFX::Cmd::BindShader<VS | PS>(context, m_BloomShader, { "PREFILTER" });
-			GFX::Cmd::BindSRV<PS>(context, hdrRT, 0);
-			GFX::Cmd::DrawFC(context);
+			CBManager.Add(GetBloomInput(hdrRT));
+			CBManager.Add(RenderSettings.Exposure);
+			state.Table.CBVs[0] = CBManager.GetBuffer();
+			state.Table.SRVs[0] = hdrRT;
+
+			GFX::Cmd::BindRenderTarget(state, m_BloomTexturesDownsample[0].get());
+			GFX::Cmd::BindShader(state, m_BloomShader.get(), VS | PS, {"PREFILTER"});
+			GFX::Cmd::DrawFC(context, state);
 			GFX::Cmd::MarkerEnd(context);
 		}
 
 		// Downsample
 		{
 			GFX::Cmd::MarkerBegin(context, "Downsample");
-			GFX::Cmd::BindShader<VS | PS>(context, m_BloomShader, { "DOWNSAMPLE" });
+			GFX::Cmd::BindShader(state, m_BloomShader.get(), VS | PS, {"DOWNSAMPLE"});
 			for (uint32_t i = 1; i < BLOOM_NUM_SAMPLES; i++)
 			{
 				CBManager.Clear();
-				CBManager.Add(GetBloomInput(context, m_BloomTexturesDownsample[i - 1]));
-				CBManager.Add(RenderSettings.Exposure, true);
+				CBManager.Add(GetBloomInput(m_BloomTexturesDownsample[i - 1].get()));
+				CBManager.Add(RenderSettings.Exposure);
+				state.Table.CBVs[0] = CBManager.GetBuffer();
+				state.Table.SRVs[0] = m_BloomTexturesDownsample[i - 1].get();
 
-				GFX::Cmd::BindRenderTarget(context, m_BloomTexturesDownsample[i]);
-				GFX::Cmd::BindSRV<PS>(context, m_BloomTexturesDownsample[i-1], 0);
-				GFX::Cmd::DrawFC(context);
+				GFX::Cmd::BindRenderTarget(state, m_BloomTexturesDownsample[i].get());
+				GFX::Cmd::DrawFC(context, state);
 			}
 			GFX::Cmd::MarkerEnd(context);
 		}
@@ -115,27 +123,29 @@ TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureI
 		// Upsample
 		{
 			GFX::Cmd::MarkerBegin(context, "Upsample");
-			GFX::Cmd::BindShader<VS | PS>(context, m_BloomShader, { "UPSAMPLE" });
+			GFX::Cmd::BindShader(state, m_BloomShader.get(), VS | PS, {"UPSAMPLE"});
 
 			CBManager.Clear();
-			CBManager.Add(GetBloomInput(context, m_BloomTexturesDownsample[BLOOM_NUM_SAMPLES - 1]));
-			CBManager.Add(RenderSettings.Exposure, true);
+			CBManager.Add(GetBloomInput(m_BloomTexturesDownsample[BLOOM_NUM_SAMPLES - 1].get()));
+			CBManager.Add(RenderSettings.Exposure);
+			state.Table.CBVs[0] = CBManager.GetBuffer();
+			state.Table.SRVs[0] = m_BloomTexturesDownsample[BLOOM_NUM_SAMPLES - 1].get();
+			state.Table.SRVs[1] = m_BloomTexturesDownsample[BLOOM_NUM_SAMPLES - 2].get();
 
-			GFX::Cmd::BindRenderTarget(context, m_BloomTexturesUpsample[BLOOM_NUM_SAMPLES - 2]);
-			GFX::Cmd::BindSRV<PS>(context, m_BloomTexturesDownsample[BLOOM_NUM_SAMPLES - 1], 0);
-			GFX::Cmd::BindSRV<PS>(context, m_BloomTexturesDownsample[BLOOM_NUM_SAMPLES - 2], 1);
-			GFX::Cmd::DrawFC(context);
+			GFX::Cmd::BindRenderTarget(state, m_BloomTexturesUpsample[BLOOM_NUM_SAMPLES - 2].get());
+			GFX::Cmd::DrawFC(context, state);
 
 			for (int32_t i = BLOOM_NUM_SAMPLES - 3; i >= 0; i--)
 			{
 				CBManager.Clear();
-				CBManager.Add(GetBloomInput(context, m_BloomTexturesDownsample[i]));
-				CBManager.Add(RenderSettings.Exposure, true);
+				CBManager.Add(GetBloomInput(m_BloomTexturesDownsample[i].get()));
+				CBManager.Add(RenderSettings.Exposure);
+				state.Table.CBVs[0] = CBManager.GetBuffer();
+				state.Table.SRVs[0] = m_BloomTexturesDownsample[i + 1].get();
+				state.Table.SRVs[1] = m_BloomTexturesDownsample[i].get();
 
-				GFX::Cmd::BindRenderTarget(context, m_BloomTexturesUpsample[i]);
-				GFX::Cmd::BindSRV<PS>(context, m_BloomTexturesUpsample[i+1], 0);
-				GFX::Cmd::BindSRV<PS>(context, m_BloomTexturesDownsample[i], 1);
-				GFX::Cmd::DrawFC(context);
+				GFX::Cmd::BindRenderTarget(state, m_BloomTexturesUpsample[i].get());
+				GFX::Cmd::DrawFC(context, state);
 			}
 
 			GFX::Cmd::MarkerEnd(context);
@@ -146,21 +156,21 @@ TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureI
 
 	// Tonemapping
 	{
+		GFX::Cmd::MarkerBegin(context, "Tonemapping");
+
 		CBManager.Clear();
-		CBManager.Add(RenderSettings.Exposure, true);
+		CBManager.Add(RenderSettings.Exposure);
+		state.Table.CBVs[0] = CBManager.GetBuffer();
+		state.Table.SRVs[0] = hdrRT;
+		state.Table.SRVs[1] = m_BloomTexturesUpsample[0].get();
 
 		std::vector<std::string> config{};
 		config.push_back("TONEMAPPING");
-
 		if (RenderSettings.Bloom.Enabled) config.push_back("APPLY_BLOOM");
 
-		GFX::Cmd::MarkerBegin(context, "Tonemapping");
-		SSManager.Bind(context);
-		GFX::Cmd::BindRenderTarget(context, GetOutputTexture());
-		GFX::Cmd::BindShader<PS | VS>(context, m_PostprocessShader, config);
-		GFX::Cmd::BindSRV<PS>(context, hdrRT, 0);
-		GFX::Cmd::BindSRV<PS>(context, m_BloomTexturesUpsample[0], 1);
-		GFX::Cmd::DrawFC(context);
+		GFX::Cmd::BindRenderTarget(state, GetOutputTexture());
+		GFX::Cmd::BindShader(state, m_PostprocessShader.get(), PS | VS, config);
+		GFX::Cmd::DrawFC(context, state);
 		GFX::Cmd::MarkerEnd(context);
 
 		Step();
@@ -170,17 +180,17 @@ TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureI
 	if (RenderSettings.AntialiasingMode == AntiAliasingMode::TAA)
 	{
 		// TAA History
-		GFX::Cmd::CopyToTexture(context, m_TAAHistory[0], m_TAAHistory[1]);
-		GFX::Cmd::CopyToTexture(context, GetInputTexture(), m_TAAHistory[0]);
+		GFX::Cmd::CopyToTexture(context, m_TAAHistory[0].get(), m_TAAHistory[1].get());
+		GFX::Cmd::CopyToTexture(context, GetInputTexture(), m_TAAHistory[0].get());
+
+		state.Table.SRVs[0] = m_TAAHistory[0].get();
+		state.Table.SRVs[1] = m_TAAHistory[1].get();
+		state.Table.SRVs[2] = motionVectorInput;
 
 		GFX::Cmd::MarkerBegin(context, "TAA");
-		GFX::Cmd::BindRenderTarget(context, GetOutputTexture());
-		GFX::Cmd::BindShader<VS | PS>(context, m_PostprocessShader, { "TAA" });
-		SSManager.Bind(context);
-		GFX::Cmd::BindSRV<PS>(context, m_TAAHistory[0], 0);
-		GFX::Cmd::BindSRV<PS>(context, m_TAAHistory[1], 1);
-		GFX::Cmd::BindSRV<PS>(context, motionVectorInput, 2);
-		GFX::Cmd::DrawFC(context);
+		GFX::Cmd::BindRenderTarget(state, GetOutputTexture());
+		GFX::Cmd::BindShader(state, m_PostprocessShader.get(), VS | PS, {"TAA"});
+		GFX::Cmd::DrawFC(context, state);
 		GFX::Cmd::MarkerEnd(context);
 
 		Step();
@@ -191,42 +201,41 @@ TextureID PostprocessingRenderer::Process(ID3D11DeviceContext* context, TextureI
 	return GetInputTexture();
 }
 
-void PostprocessingRenderer::ReloadTextureResources(ID3D11DeviceContext* context)
+void PostprocessingRenderer::ReloadTextureResources(GraphicsContext& context)
 {
-	if (m_ResolvedColor.Valid())
-	{
-		GFX::Storage::Free(m_ResolvedColor);
-		GFX::Storage::Free(m_TAAHistory[0]);
-		GFX::Storage::Free(m_TAAHistory[1]);
-		GFX::Storage::Free(m_PostprocessRT[0]);
-		GFX::Storage::Free(m_PostprocessRT[1]);
-	}
-
 	const uint32_t size[2] = { AppConfig.WindowWidth, AppConfig.WindowHeight };
-	m_ResolvedColor = GFX::CreateTexture(size[0], size[1], RCF_Bind_RTV | RCF_Bind_SRV, 1, DXGI_FORMAT_R16G16B16A16_FLOAT);
-	m_TAAHistory[0] = GFX::CreateTexture(size[0], size[1], RCF_Bind_SRV | RCF_CopyDest);
-	m_TAAHistory[1] = GFX::CreateTexture(size[0], size[1], RCF_Bind_SRV | RCF_CopyDest);
-	m_PostprocessRT[0] = GFX::CreateTexture(size[0], size[1], RCF_Bind_RTV | RCF_Bind_SRV);
-	m_PostprocessRT[1] = GFX::CreateTexture(size[0], size[1], RCF_Bind_RTV | RCF_Bind_SRV);
+	m_ResolvedColor = ScopedRef<Texture>(GFX::CreateTexture(size[0], size[1], RCF_Bind_RTV, 1, DXGI_FORMAT_R16G16B16A16_FLOAT));
+	m_TAAHistory[0] = ScopedRef<Texture>(GFX::CreateTexture(size[0], size[1], RCF_None));
+	m_TAAHistory[1] = ScopedRef<Texture>(GFX::CreateTexture(size[0], size[1], RCF_None));
+	m_PostprocessRT[0] = ScopedRef<Texture>(GFX::CreateTexture(size[0], size[1], RCF_Bind_RTV));
+	m_PostprocessRT[1] = ScopedRef<Texture>(GFX::CreateTexture(size[0], size[1], RCF_Bind_RTV));
+
+	GFX::SetDebugName(m_ResolvedColor.get(), "PostprocessingRenderer::ResolvedColor");
+	GFX::SetDebugName(m_TAAHistory[0].get(), "PostprocessingRenderer::TAAHistory0");
+	GFX::SetDebugName(m_TAAHistory[1].get(), "PostprocessingRenderer::TAAHistory1");
+	GFX::SetDebugName(m_PostprocessRT[1].get(), "PostprocessingRenderer::PostprocessRT0");
+	GFX::SetDebugName(m_PostprocessRT[1].get(), "PostprocessingRenderer::PostprocessRT1");
 
 	// Bloom
 	const float aspect = (float)size[0] / size[1];
 	uint32_t bloomTexSize[2] = { 512 * aspect, 512 };
 	for (uint32_t i = 0; i < BLOOM_NUM_SAMPLES; i++)
 	{
-		m_BloomTexturesDownsample[i] = GFX::CreateTexture(bloomTexSize[0], bloomTexSize[1], RCF_Bind_RTV | RCF_Bind_SRV, 1, DXGI_FORMAT_R16G16B16A16_FLOAT);
-		m_BloomTexturesUpsample[i] = GFX::CreateTexture(bloomTexSize[0], bloomTexSize[1], RCF_Bind_RTV | RCF_Bind_SRV, 1, DXGI_FORMAT_R16G16B16A16_FLOAT);
+		m_BloomTexturesDownsample[i] = ScopedRef<Texture>(GFX::CreateTexture(bloomTexSize[0], bloomTexSize[1], RCF_Bind_RTV, 1, DXGI_FORMAT_R16G16B16A16_FLOAT));
+		m_BloomTexturesUpsample[i] = ScopedRef<Texture>(GFX::CreateTexture(bloomTexSize[0], bloomTexSize[1], RCF_Bind_RTV, 1, DXGI_FORMAT_R16G16B16A16_FLOAT));
+
+		GFX::SetDebugName(m_BloomTexturesDownsample[i].get(), "PostprocessingRenderer::BloomTexturesDownsample" + std::to_string(i));
+		GFX::SetDebugName(m_BloomTexturesUpsample[i].get(), "PostprocessingRenderer::BloomTexturesUpsample" + std::to_string(i));
 
 		bloomTexSize[0] /= 2;
 		bloomTexSize[1] /= 2;
 	}
 
 	// Camera
-	MainSceneGraph.MainCamera.UseJitter = RenderSettings.AntialiasingMode == AntiAliasingMode::TAA;
+	MainSceneGraph->MainCamera.UseJitter = RenderSettings.AntialiasingMode == AntiAliasingMode::TAA;
 	for (uint32_t i = 0; i < 16; i++)
 	{
-		MainSceneGraph.MainCamera.Jitter[i] = 2.0f * ((HaltonSequence[i] - Float2{ 0.5f, 0.5f }) / Float2(AppConfig.WindowWidth, AppConfig.WindowHeight));
+		MainSceneGraph->MainCamera.Jitter[i] = 2.0f * ((HaltonSequence[i] - Float2{ 0.5f, 0.5f }) / Float2(AppConfig.WindowWidth, AppConfig.WindowHeight));
 	}
-
 }
 

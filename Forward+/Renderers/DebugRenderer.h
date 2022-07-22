@@ -1,8 +1,12 @@
 #pragma once
 
-#include <Engine/Render/ResourceID.h>
+#include <Engine/Common.h>
 
-struct ID3D11DeviceContext;
+struct GraphicsContext;
+struct GraphicsState;
+struct Texture;
+struct Buffer;
+struct Shader;
 
 class DebugRenderer
 {
@@ -21,8 +25,8 @@ class DebugRenderer
 	};
 
 public:
-	void Init(ID3D11DeviceContext* context);
-	void Draw(ID3D11DeviceContext* context, TextureID colorTarget, TextureID depthTarget, BufferID visibleLights);
+	void Init(GraphicsContext& context);
+	void Draw(GraphicsContext& context, Texture* colorTarget, Texture* depthTarget, Buffer* visibleLights);
 
 	void DrawCube(Float3 position, Float4 color, Float3 scale)
 	{
@@ -45,15 +49,15 @@ public:
 	}
 
 private:
-	void UpdateStats(ID3D11DeviceContext* context);
-	void DrawGeometries(ID3D11DeviceContext* context);
+	void UpdateStats(GraphicsContext& context);
+	void DrawGeometries(GraphicsContext& context, GraphicsState& state);
 
 private:
 	std::vector<DebugGeometry> m_GeometriesToRender;
 
-	ShaderID m_DebugGeometryShader;
-	ShaderID m_LightHeatmapShader;
+	ScopedRef<Shader> m_DebugGeometryShader;
+	ScopedRef<Shader> m_LightHeatmapShader;
 
-	BufferID m_CubeVB;
-	BufferID m_SphereVB;
+	ScopedRef<Buffer> m_CubeVB;
+	ScopedRef<Buffer> m_SphereVB;
 };

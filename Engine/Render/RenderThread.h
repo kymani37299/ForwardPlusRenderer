@@ -3,13 +3,13 @@
 #include "Common.h"
 #include "Utility/Multithreading.h"
 
-struct ID3D11DeviceContext;
+struct GraphicsContext;
 
 class RenderTask
 {
 public:
 	virtual ~RenderTask() {}
-	virtual void Run(ID3D11DeviceContext* context) = 0;
+	virtual void Run(GraphicsContext& context) = 0;
 
 	inline bool ShouldStop() const { return !m_Running; }
 	inline bool IsRunning() const { return m_Running; }
@@ -22,7 +22,7 @@ private:
 class RenderTaskKiller : public RenderTask
 {
 public:
-	void Run(ID3D11DeviceContext*) override {}
+	void Run(GraphicsContext&) override {}
 };
 
 class RenderThread

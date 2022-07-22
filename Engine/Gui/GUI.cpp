@@ -2,10 +2,13 @@
 
 #include <Windows.h>
 
-#include "Render/Commands.h"
 #include "Render/Device.h"
+#include "Render/Memory.h"
+#include "Render/Context.h"
+#include "Render/Commands.h"
+#include "Render/Texture.h"
 #include "GUI/ImGui/imgui.h"
-#include "GUI/ImGui/imgui_impl_dx11.h"
+#include "GUI/ImGui/imgui_impl_dx12.h"
 #include "GUI/ImGui/imgui_impl_win32.h"
 #include "System/ApplicationConfiguration.h"
 #include "System/Window.h"
@@ -14,13 +17,13 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
 
 GUI* GUI::s_Instance = nullptr;
 
-void GUIElement::RenderElement(ID3D11DeviceContext* context)
+void GUIElement::RenderElement()
 {
 	if (m_Shown)
 	{
 		if (ImGui::Begin(m_Name.c_str(), &m_Shown))
 		{
-			Render(context);
+			Render();
 		}
 		ImGui::End();
 	}
@@ -34,12 +37,11 @@ GUI::GUI()
 	ImGui::StyleColorsDark();
 
 	ImGui_ImplWin32_Init(Window::Get()->GetHandle());
-	ImGui_ImplDX11_Init(Device::Get()->GetHandle(), Device::Get()->GetContext());
 }
 
 GUI::~GUI()
 {
-	ImGui_ImplDX11_Shutdown();
+	ImGui_ImplDX12_Shutdown();
 	ImGui_ImplWin32_Shutdown();
 	ImGui::DestroyContext();
 }
@@ -57,13 +59,40 @@ void GUI::Update(float dt)
 	}
 }
 
-void GUI::Render(ID3D11DeviceContext* context)
+void GUI::Render(GraphicsContext& context, Texture* renderTarget)
 {
 	if (!m_Visible) return;
 
+	if (!m_Initialized)
+	{
+		// NOTE: If we are having multiple contexts make sure that context that initialized ImGui is used for imgui draw
+		Device* device = Device::Get();
+		MemoryContext& memContext = device->GetContext().MemContext;
+		DescriptorHeapGPU& srvHeap = memContext.SRVHeap;
+		DescriptorHeapGPU::Allocation alloc = srvHeap.Alloc(memContext.SRVPersistentPage);
+		ImGui_ImplDX12_Init(device->GetHandle(), Device::SWAPCHAIN_BUFFER_COUNT, renderTarget->Format, srvHeap.Heap.Get(), alloc.CPUHandle, alloc.GPUHandle);
+
+		m_Initialized = true;
+	}
+
 	GFX::Cmd::MarkerBegin(context, "ImGUI");
-	
-	ImGui_ImplDX11_NewFrame();
+
+	// Prepare imgui context
+	{
+		// Bind Descriptor heaps
+		ID3D12DescriptorHeap* descriptorHeaps[] = { context.MemContext.SRVHeap.Heap.Get() };
+		context.CmdList->SetDescriptorHeaps(1, descriptorHeaps);
+
+		// Bind render target
+		GFX::Cmd::TransitionResource(context, renderTarget, D3D12_RESOURCE_STATE_RENDER_TARGET);
+		D3D12_VIEWPORT viewport = { 0.0f, 0.0f, (float)renderTarget->Width, (float)renderTarget->Height, 0.0f, 1.0f };
+		D3D12_RECT scissor = { 0,0, (long)renderTarget->Width, (long)renderTarget->Height };
+		context.CmdList->OMSetRenderTargets(1, &renderTarget->RTV, false, nullptr);
+		context.CmdList->RSSetViewports(1, &viewport);
+		context.CmdList->RSSetScissorRects(1, &scissor);
+	}
+
+	ImGui_ImplDX12_NewFrame();
 	ImGui_ImplWin32_NewFrame();
 	ImGui::NewFrame();
 
@@ -84,11 +113,11 @@ void GUI::Render(ID3D11DeviceContext* context)
 	// Draw elements
 	for (GUIElement* element : m_Elements)
 	{
-		element->RenderElement(context);
+		element->RenderElement();
 	}
 
 	ImGui::Render();
-	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+	ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), context.CmdList.Get());
 
 	GFX::Cmd::MarkerEnd(context);
 }

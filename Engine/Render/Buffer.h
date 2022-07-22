@@ -1,48 +1,43 @@
 #pragma once
 
-#include "Render/ResourceID.h"
+#include "Render/Resource.h"
 
-struct ID3D11Buffer;
-struct ID3D11ShaderResourceView;
-struct ID3D11DeviceContext;
+struct Buffer : public Resource 
+{
+	uint64_t ByteSize;
+	uint64_t Stride;
+	D3D12_GPU_VIRTUAL_ADDRESS GPUAddress;
+};
 
 namespace GFX
 {
-	// Creation
-	BufferID CreateBuffer(uint32_t byteSize, uint32_t elementStride, uint64_t creationFlags, const void* initData = nullptr);
-	void ResizeBuffer(ID3D11DeviceContext* context, BufferID bufferID, uint32_t byteSize);
+	Buffer* CreateBuffer(uint64_t byteSize, uint64_t elementStride, uint64_t creationFlags, ResourceInitData* initData = nullptr);
+	void ResizeBuffer(GraphicsContext& context, Buffer* buffer, uint64_t byteSize);
 
-	inline void ExpandBuffer(ID3D11DeviceContext* context, BufferID bufferID, uint32_t byteSize)
+	inline void ExpandBuffer(GraphicsContext& context, Buffer* buffer, uint64_t byteSize)
 	{
-		const Buffer& buffer = Storage::GetBuffer(bufferID);
-		if (byteSize > buffer.ByteSize)
+		if (byteSize > buffer->ByteSize)
 		{
-			ResizeBuffer(context, bufferID, byteSize);
+			ResizeBuffer(context, buffer, byteSize);
 		}
 	}
 
-	inline BufferID CreateIndexBuffer(uint32_t byteSize, uint32_t elementStride, const void* initData)
+	inline Buffer* CreateIndexBuffer(uint32_t byteSize, uint32_t elementStride, ResourceInitData* initData)
 	{
-		const uint64_t creationFlags = RCF_Bind_IB | (initData != nullptr ? 0 : RCF_CopyDest);
-		return CreateBuffer(byteSize, elementStride, creationFlags, initData);
+		return CreateBuffer(byteSize, elementStride, RCF_None, initData);
 	}
 
-	template<typename VertexType> 
-	BufferID CreateVertexBuffer(uint32_t numElements, const VertexType* initData)
+	template<typename VertexType>
+	Buffer* CreateVertexBuffer(uint32_t numElements, ResourceInitData* initData)
 	{
 		constexpr uint32_t vertStride = sizeof(VertexType);
-		const uint64_t creationFlags = RCF_Bind_VB | (initData != nullptr ? 0 : RCF_CopyDest);
-		return CreateBuffer(vertStride * numElements, vertStride, creationFlags, initData);
+		return CreateBuffer(vertStride * numElements, vertStride, RCF_None, initData);
 	}
 
 	template<typename ConstantType>
-	BufferID CreateConstantBuffer()
+	Buffer* CreateConstantBuffer()
 	{
 		constexpr uint32_t stride = (sizeof(ConstantType) + 255) & ~255;
-		return CreateBuffer(stride, stride, RCF_Bind_CB | RCF_CPU_Write);
+		return CreateBuffer(stride, stride, RCF_Bind_CBV | RCF_CPU_Access);
 	}
-
-	// Info
-	uint32_t GetNumElements(BufferID bufferID);
-
 }

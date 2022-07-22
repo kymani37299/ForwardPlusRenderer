@@ -39,7 +39,10 @@ float4 PS(FCVertex IN) : SV_Target
 	hdrColor += BloomTexture.Sample(s_LinearWrap, IN.uv).rgb;
 #endif // APPLY_BLOOM
 
-	const float3 color = float3(1.0f, 1.0f, 1.0f) - exp(-hdrColor * Exposure);
+	float3 color = float3(1.0f, 1.0f, 1.0f) - exp(-hdrColor * Exposure);
+
+	const float gamma = 2.2f;
+	color = pow(color, 1.0f / gamma);
 
 	return float4(color, 1.0f);
 }

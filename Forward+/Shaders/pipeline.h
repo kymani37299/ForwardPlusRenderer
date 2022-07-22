@@ -25,7 +25,7 @@ Vertex GetWorldSpaceVertex(VertexPipelineInput input)
 
     const float4x4 modelToWorld = Entities[d.EntityIndex].ModelToWorld;
 
-    vert.Position = mul(float4(vert.Position, 1.0f), modelToWorld);
+    vert.Position = mul(float4(vert.Position, 1.0f), modelToWorld).xyz;
     vert.Normal = mul(vert.Normal, (float3x3)modelToWorld); // Assumes nonuniform scaling; otherwise, need to use inverse-transpose of world matrix.
 
     return vert;

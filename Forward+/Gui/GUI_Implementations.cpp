@@ -8,12 +8,13 @@
 #include "Scene/SceneGraph.h"
 
 // --------------------------------------------------
-void DebugToolsGUI::Render(ID3D11DeviceContext* context)
+void DebugToolsGUI::Render()
 {
 	ImGui::Text("Geometry culling");
 	ImGui::Checkbox("Disable geometry culling", &DebugToolsConfig.DisableGeometryCulling);
 	ImGui::Checkbox("Freeze geometry culling", &DebugToolsConfig.FreezeGeometryCulling);
 	ImGui::Checkbox("Draw bounding boxes", &DebugToolsConfig.DrawBoundingSpheres);
+	ImGui::Checkbox("Use meshlet culling", &DebugToolsConfig.UseMeshletCulling);
 	ImGui::Separator();
 	ImGui::Text("Light culling");
 	ImGui::Checkbox("Freeze light culling", &DebugToolsConfig.FreezeLightCulling);
@@ -27,9 +28,9 @@ void DebugToolsGUI::Render(ID3D11DeviceContext* context)
 }
 
 // --------------------------------------------------
-void PositionInfoGUI::Render(ID3D11DeviceContext* context)
+void PositionInfoGUI::Render()
 {
-	Camera::CameraTransform t = MainSceneGraph.MainCamera.CurrentTranform;
+	Camera::CameraTransform t = MainSceneGraph->MainCamera.CurrentTranform;
 	
 	ImGui::Text("Position: (%.2f, %.2f, %.2f)", t.Position.x, t.Position.y, t.Position.z);
 	ImGui::Text("Rotation: (%.2f, %.2f, %.2f)", t.Rotation.x, t.Rotation.y, t.Rotation.z);
@@ -51,7 +52,7 @@ std::string ToString(AntiAliasingMode aaMode)
 	return "";
 }
 
-void RenderSettingsGUI::Render(ID3D11DeviceContext* context)
+void RenderSettingsGUI::Render()
 {
 	if (ImGui::BeginCombo("Antialiasing mode", ToString(RenderSettings.AntialiasingMode).c_str()))
 	{
@@ -102,7 +103,7 @@ void RenderSettingsGUI::Render(ID3D11DeviceContext* context)
 		{
 			ImGui::SliderFloat("Radius", &RenderSettings.SSAO.SampleRadius, 0.0f, 2.0f);
 			ImGui::SliderFloat("Power", &RenderSettings.SSAO.Power, 0.0f, 4.0f);
-			ImGui::SliderFloat("Depth bias", &RenderSettings.SSAO.DepthBias, 0.001f, 0.25f);
+			ImGui::InputFloat("Depth bias", &RenderSettings.SSAO.DepthBias);
 		}
 	}
 }
@@ -131,37 +132,38 @@ void RenderStatsGUI::Update(float dt)
 }
 
 // --------------------------------------------------
-void RenderStatsGUI::Render(ID3D11DeviceContext* context)
+void RenderStatsGUI::Render()
 {
 	ImGui::Text("Frame: %.2f ms", m_CurrentDT);
 	ImGui::Text("FPS:   %u", static_cast<uint32_t>(1000.0f / m_CurrentDT));
 	ImGui::Separator();
-	ImGui::Text("Num lights:  %u", MainSceneGraph.Lights.GetSize());
+	ImGui::Text("Num lights:  %u", MainSceneGraph->Lights.GetSize());
 	ImGui::Text("Drawables:   %u / %u", RenderStats.VisibleDrawables, RenderStats.TotalDrawables);
 }
 
 // --------------------------------------------------
-void TextureVisualizerGUI::Render(ID3D11DeviceContext* context)
+void TextureVisualizerGUI::Render()
 {
-	int val = m_SelectedTexture;
-	ImGui::InputInt("Texture ID", &val);
-	m_SelectedTexture = MIN((uint32_t) val, GFX::Storage::TEXTURE_STORAGE_SIZE);
-
-	ImGui::SliderFloat("Texture size", &m_ScaleFactor, 0.0f, 1.0f);
-
-	TextureID texture{ m_SelectedTexture };
-	if (texture.Valid())
-	{
-		const Texture& tex = GFX::Storage::GetTexture(texture);
-		if (tex.SRV.Get())
-		{
-			ImGui::Image(tex.SRV.Get(), { tex.Width * m_ScaleFactor, tex.Height * m_ScaleFactor });
-		}
-	}
+	// TODO
+	// int val = m_SelectedTexture;
+	// ImGui::InputInt("Texture ID", &val);
+	// m_SelectedTexture = MIN((uint32_t) val, GFX::Storage::TEXTURE_STORAGE_SIZE);
+	// 
+	// ImGui::SliderFloat("Texture size", &m_ScaleFactor, 0.0f, 1.0f);
+	// 
+	// TextureID texture{ m_SelectedTexture };
+	// if (texture.Valid())
+	// {
+	// 	const Texture& tex = GFX::Storage::GetTexture(texture);
+	// 	if (tex.SRV.Get())
+	// 	{
+	// 		ImGui::Image(tex.SRV.Get(), { tex.Width * m_ScaleFactor, tex.Height * m_ScaleFactor });
+	// 	}
+	// }
 }
 
 // --------------------------------------------------
-void LightsGUI::Render(ID3D11DeviceContext* context)
+void LightsGUI::Render()
 {
 	if (ImGui::Button("Generate 1k lights"))
 	{
@@ -171,15 +173,15 @@ void LightsGUI::Render(ID3D11DeviceContext* context)
 			const Float3 position = Float3(1000.0f, 80.0f, 1000.0f) * Float3(Random::UNorm(), Random::UNorm(), Random::UNorm());
 			const Float3 color = strength * Float3(Random::UNorm(), Random::UNorm(), Random::UNorm());
 			const Float2 falloff = strength * Float2(0.5f + 2.0f * Random::UNorm(), 3.0f + 2.0f * Random::UNorm());
-			MainSceneGraph.CreatePointLight(context, position, color, falloff);
+			MainSceneGraph->CreatePointLight(Device::Get()->GetContext(), position, color, falloff);
 		}
 	}
 
 	ImGui::Separator();
 
-	if (MainSceneGraph.DirLightIndex != UINT32_MAX)
+	if (MainSceneGraph->DirLightIndex != UINT32_MAX)
 	{
-		Light& dirLight = MainSceneGraph.Lights[MainSceneGraph.DirLightIndex];
+		Light& dirLight = MainSceneGraph->Lights[MainSceneGraph->DirLightIndex];
 
 		float direction[3];
 		direction[0] = dirLight.Direction.x;
@@ -201,7 +203,7 @@ void LightsGUI::Render(ID3D11DeviceContext* context)
 
 		if (changed)
 		{
-			dirLight.UpdateBuffer(context);
+			dirLight.UpdateBuffer(Device::Get()->GetContext());
 		}
 	}
 }

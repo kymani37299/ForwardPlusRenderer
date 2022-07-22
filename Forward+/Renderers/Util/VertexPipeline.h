@@ -1,20 +1,25 @@
 #pragma once
 
-#include <Engine/Render/ResourceID.h>
+#include <Engine/Common.h>
 
-class RenderGroup;
-struct ID3D11DeviceContext;
+struct RenderGroup;
+struct GraphicsContext;
+struct GraphicsState;
+struct Buffer;
 
 struct VertexPipeline
 {
-	void Init(ID3D11DeviceContext* context);
-	void Draw(ID3D11DeviceContext* context, RenderGroup& renderGroup, bool skipCulling = false);
+	VertexPipeline();
+	~VertexPipeline();
+
+	void Init(GraphicsContext& context);
+	void Draw(GraphicsContext& context, GraphicsState& state, RenderGroup& renderGroup, bool skipCulling = false);
 
 	uint32_t InstanceCount = 0;
 	uint32_t IndexCount = 0;
-	BufferID MeshletIndexBuffer;
-	BufferID DrawableInstanceBuffer;
-	BufferID MeshletInstanceBuffer;
+	ScopedRef<Buffer> MeshletIndexBuffer;
+	ScopedRef<Buffer> DrawableInstanceBuffer;
+	ScopedRef<Buffer> MeshletInstanceBuffer;
 };
 
-extern VertexPipeline VertPipeline;
+extern VertexPipeline* VertPipeline;

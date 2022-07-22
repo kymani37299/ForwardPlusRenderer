@@ -1,24 +1,30 @@
 #pragma once
 
 #include <vector>
+#include <Engine/Common.h>
 
-#include <Engine/Render/ResourceID.h>
-
-struct ID3D11DeviceContext;
+struct GraphicsContext;
+struct GraphicsState;
+struct Texture;
+struct Buffer;
+struct Shader;
 
 class SSAORenderer
 {
 public:
-	void Init(ID3D11DeviceContext* context);
-	TextureID Draw(ID3D11DeviceContext* context, TextureID depth);
+	SSAORenderer();
+	~SSAORenderer();
 
-	void UpdateResources(ID3D11DeviceContext* context);
+	void Init(GraphicsContext& context);
+	Texture* Draw(GraphicsContext& context, Texture* depth);
+
+	void UpdateResources(GraphicsContext& context);
 
 private:
 	std::vector<Float4> m_Kernel;
-	TextureID m_NoiseTexture;
-	ShaderID m_Shader;
-	TextureID m_SSAOSampleTexture;
-	TextureID m_SSAOTexture;
-	TextureID m_NoSSAOTexture;
+	ScopedRef<Texture> m_NoiseTexture;
+	ScopedRef<Shader> m_Shader;
+	ScopedRef<Texture> m_SSAOSampleTexture;
+	ScopedRef<Texture> m_SSAOTexture;
+	ScopedRef<Texture> m_NoSSAOTexture;
 };

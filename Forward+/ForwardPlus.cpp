@@ -2,6 +2,7 @@
 
 #include <Engine/Common.h>
 #include <Engine/Render/Commands.h>
+#include <Engine/Render/Context.h>
 #include <Engine/Render/Texture.h>
 #include <Engine/Render/Buffer.h>
 #include <Engine/Render/Shader.h>
@@ -30,12 +31,12 @@ RenderStatistics RenderStats;
 
 namespace ForwardPlusPrivate
 {
-	void PrepareScene(ID3D11DeviceContext* context)
+	void PrepareScene(GraphicsContext& context)
 	{
 		const Float3 dirLight = Float3(-0.2f, -1.0f, -0.2f);
 
-		MainSceneGraph.CreateAmbientLight(context, Float3(0.05f, 0.05f, 0.2f));
-		MainSceneGraph.CreateDirectionalLight(context, dirLight, Float3(3.7f, 2.0f, 0.9f));
+		MainSceneGraph->CreateAmbientLight(context, Float3(0.05f, 0.05f, 0.2f));
+		MainSceneGraph->CreateDirectionalLight(context, dirLight, Float3(3.7f, 2.0f, 0.9f));
 
 		if (AppConfig.Settings.contains("SIMPLE_SCENE"))
 		{
@@ -76,9 +77,8 @@ namespace ForwardPlusPrivate
 				}
 			}
 
-			MainSceneGraph.MainCamera.NextTransform.Position += Float3(2 * CASTLE_OFFSET[0], 0.0f, 2 * CASTLE_OFFSET[1]);
+			MainSceneGraph->MainCamera.NextTransform.Position += Float3(2 * CASTLE_OFFSET[0], 0.0f, 2 * CASTLE_OFFSET[1]);
 		}
-
 	}
 
 	void UpdateInput(float dt, Application* app)
@@ -87,9 +87,8 @@ namespace ForwardPlusPrivate
 
 		if (Input::IsKeyJustPressed('R'))
 		{
-			GFX::Storage::ReloadAllShaders();
+			GFX::ReloadAllShaders();
 			app->OnShaderReload(Device::Get()->GetContext());
-			//m_Renderer->OnShaderReload(); TODO
 		}
 
 		if (Input::IsKeyJustPressed(VK_TAB))
@@ -127,13 +126,13 @@ namespace ForwardPlusPrivate
 		}
 
 		Float4 moveDir4{ moveDir.x, moveDir.y, moveDir.z, 1.0f };
-		Float4 relativeDir = Float4(DirectX::XMVector4Transform(moveDir4.ToXM(), MainSceneGraph.MainCamera.WorldToView));
-		MainSceneGraph.MainCamera.NextTransform.Position += Float3(relativeDir.x, relativeDir.y, relativeDir.z);
+		Float4 relativeDir = Float4(DirectX::XMVector4Transform(moveDir4.ToXM(), MainSceneGraph->MainCamera.WorldToView));
+		MainSceneGraph->MainCamera.NextTransform.Position += Float3(relativeDir.x, relativeDir.y, relativeDir.z);
 
 		if (!Window::Get()->IsCursorShown())
 		{
 			Float2 mouseDelta = Input::GetMouseDelta();
-			Float3& cameraRot = MainSceneGraph.MainCamera.NextTransform.Rotation;
+			Float3& cameraRot = MainSceneGraph->MainCamera.NextTransform.Rotation;
 			cameraRot.y -= dtSec * mouse_speed * mouseDelta.x;
 			cameraRot.x -= dtSec * mouse_speed * mouseDelta.y;
 			cameraRot.x = std::clamp(cameraRot.x, -1.5f, 1.5f);
@@ -150,7 +149,7 @@ namespace ForwardPlusPrivate
 				cameraDir += dtSec * mouse_speed * camera_effects[i];
 		}
 
-		Float3& cameraRot = MainSceneGraph.MainCamera.NextTransform.Rotation;
+		Float3& cameraRot = MainSceneGraph->MainCamera.NextTransform.Rotation;
 		cameraRot.y += dtSec * mouse_speed * 0.0001f * cameraDir.y;
 		cameraRot.x += dtSec * mouse_speed * 0.0001f * cameraDir.x;
 		cameraRot.x = std::clamp(cameraRot.x, -1.5f, 1.5f);
@@ -158,7 +157,17 @@ namespace ForwardPlusPrivate
 
 }
 
-void ForwardPlus::OnInit(ID3D11DeviceContext* context)
+ForwardPlus::ForwardPlus()
+{
+
+}
+
+ForwardPlus::~ForwardPlus()
+{
+
+}
+
+void ForwardPlus::OnInit(GraphicsContext& context)
 {
 	using namespace ForwardPlusPrivate;
 	
@@ -179,11 +188,13 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 
 	// Initialize GFX resources
 	{
-		SSManager.Init();
-		MainSceneGraph.InitRenderData(context);
-		VertPipeline.Init(context);
+		MainSceneGraph = new SceneGraph{};
+		MainSceneGraph->InitRenderData(context);
 
-		m_DepthResolveShader = GFX::CreateShader("Forward+/Shaders/resolve_depth.hlsl");
+		VertPipeline = new VertexPipeline{};
+		VertPipeline->Init(context);
+
+		m_DepthResolveShader = ScopedRef<Shader>(new Shader("Forward+/Shaders/resolve_depth.hlsl"));
 
 		m_Culling.Init(context);
 		m_SkyboxRenderer.Init(context);
@@ -199,108 +210,122 @@ void ForwardPlus::OnInit(ID3D11DeviceContext* context)
 	PrepareScene(context);
 }
 
-void ForwardPlus::OnDestroy(ID3D11DeviceContext* context)
+void ForwardPlus::OnDestroy(GraphicsContext& context)
 {
-
+	delete MainSceneGraph;
+	delete VertPipeline;
 }
 
-TextureID ForwardPlus::OnDraw(ID3D11DeviceContext* context)
+Texture* ForwardPlus::OnDraw(GraphicsContext& context)
 {
 	using namespace ForwardPlusPrivate;
 
 	// Prepare render targets
 	{
-		GFX::Cmd::ClearRenderTarget(context, m_MainRT_HDR);
-		GFX::Cmd::ClearRenderTarget(context, m_MotionVectorRT);
-		GFX::Cmd::ClearDepthStencil(context, m_MainRT_Depth);
-		GFX::Cmd::ClearDepthStencil(context, m_MainRT_DepthMS);
+		GFX::Cmd::ClearRenderTarget(context, m_MainRT_HDR.get());
+		GFX::Cmd::ClearRenderTarget(context, m_MotionVectorRT.get());
+		GFX::Cmd::ClearDepthStencil(context, m_MainRT_Depth.get());
+		GFX::Cmd::ClearDepthStencil(context, m_MainRT_DepthMS.get());
 		
 	}
 
-	MainSceneGraph.FrameUpdate(context);
-	CBManager.Bind(context);
+	MainSceneGraph->FrameUpdate(context);
 
 	// Geometry culling
 	m_Culling.CullGeometries(context);
 
 	// Depth prepass
 	const bool drawMotionVectors = RenderSettings.AntialiasingMode == AntiAliasingMode::TAA;
-	GFX::Cmd::BindRenderTarget(context, drawMotionVectors ? m_MotionVectorRT : TextureID{}, m_MainRT_DepthMS);
-	m_GeometryRenderer.DepthPrepass(context);
+	GraphicsState depthPrepassState{};
+	GFX::Cmd::BindRenderTarget(depthPrepassState, drawMotionVectors ? m_MotionVectorRT.get() : nullptr);
+	GFX::Cmd::BindDepthStencil(depthPrepassState, m_MainRT_DepthMS.get());
+	m_GeometryRenderer.DepthPrepass(context, depthPrepassState);
 	
 	// Resolve depth
 	if (RenderSettings.AntialiasingMode == AntiAliasingMode::MSAA)
 	{
-		GFX::Cmd::MarkerBegin(context, "Resolve depth");
-		GFX::Cmd::BindRenderTarget(context, TextureID{}, m_MainRT_Depth);
-		GFX::Cmd::BindShader<VS|PS>(context, m_DepthResolveShader);
-		GFX::Cmd::BindSRV<PS>(context, m_MainRT_DepthMS, 0);
+		GraphicsState resolveState{};
+		resolveState.Pipeline.DepthStencilState.DepthEnable = true;
+		resolveState.Pipeline.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+
 		CBManager.Clear();
 		CBManager.Add(AppConfig.WindowWidth);
-		CBManager.Add(AppConfig.WindowHeight, true);
-		GFX::Cmd::DrawFC(context);
+		CBManager.Add(AppConfig.WindowHeight);
+	
+		resolveState.Table.SRVs.push_back(m_MainRT_DepthMS.get());
+		resolveState.Table.CBVs.push_back(CBManager.GetBuffer());
+	
+		GFX::Cmd::MarkerBegin(context, "Resolve depth");
+		GFX::Cmd::BindDepthStencil(resolveState, m_MainRT_Depth.get());
+		GFX::Cmd::BindShader(resolveState, m_DepthResolveShader.get(), VS | PS);
+	
+		GFX::Cmd::DrawFC(context, resolveState);
 		GFX::Cmd::MarkerEnd(context);
 	}
 
 	// SSAO
-	TextureID ssaoTexture = m_SSAORenderer.Draw(context, m_MainRT_Depth);
+	Texture* ssaoTexture = m_SSAORenderer.Draw(context, m_MainRT_Depth.get());
 
 	// Shadow mask
-	TextureID shadowMask = m_ShadowRenderer.CalculateShadowMask(context, m_MainRT_Depth);
+	Texture* shadowMask = m_ShadowRenderer.CalculateShadowMask(context, m_MainRT_Depth.get());
 
 	// Light culling
-	m_Culling.CullLights(context, m_MainRT_Depth);
+	m_Culling.CullLights(context, m_MainRT_Depth.get());
+
+	// Irradiance map
+	Texture* irradianceMap = m_SkyboxRenderer.GetIrradianceMap();
 
 	// Geometry
-	GFX::Cmd::BindRenderTarget(context, m_MainRT_HDR, m_MainRT_DepthMS);
-	m_GeometryRenderer.Draw(context, shadowMask, m_Culling.GetVisibleLightsBuffer(), m_SkyboxRenderer.GetIrradianceMap(), ssaoTexture);
+	GraphicsState geometryState;
+	GFX::Cmd::BindRenderTarget(geometryState, m_MainRT_HDR.get());
+	GFX::Cmd::BindDepthStencil(geometryState, m_MainRT_DepthMS.get());
+	m_GeometryRenderer.Draw(context, geometryState, shadowMask, m_Culling.GetVisibleLightsBuffer(), irradianceMap, ssaoTexture);
 	
 	// Skybox
-	GFX::Cmd::BindRenderTarget(context, m_MainRT_HDR, m_MainRT_DepthMS);
-	m_SkyboxRenderer.Draw(context);
+	GraphicsState skyboxState{};
+	GFX::Cmd::BindRenderTarget(skyboxState, m_MainRT_HDR.get());
+	GFX::Cmd::BindDepthStencil(skyboxState, m_MainRT_DepthMS.get());
+	m_SkyboxRenderer.Draw(context, skyboxState);
 
 	// Debug
-	m_DebugRenderer.Draw(context, m_MainRT_HDR, m_MainRT_DepthMS, m_Culling.GetVisibleLightsBuffer());
+	m_DebugRenderer.Draw(context, m_MainRT_HDR.get(), m_MainRT_DepthMS.get(), m_Culling.GetVisibleLightsBuffer());
 
 	// Postprocessing
-	TextureID ppResult = m_PostprocessingRenderer.Process(context, m_MainRT_HDR, m_MotionVectorRT);
-
+	Texture* ppResult = m_PostprocessingRenderer.Process(context, m_MainRT_HDR.get(), m_MotionVectorRT.get());
+	
 	return ppResult;
 }
 
-void ForwardPlus::OnUpdate(ID3D11DeviceContext* context, float dt)
+void ForwardPlus::OnUpdate(GraphicsContext& context, float dt)
 {
 	using namespace ForwardPlusPrivate;
 	UpdateInput(dt, this);
 }
 
-void ForwardPlus::OnShaderReload(ID3D11DeviceContext* context)
+void ForwardPlus::OnShaderReload(GraphicsContext& context)
 {
 	m_SkyboxRenderer.OnShaderReload(context);
 }
 
-void ForwardPlus::OnWindowResize(ID3D11DeviceContext* context)
+void ForwardPlus::OnWindowResize(GraphicsContext& context)
 {
-	if (m_MainRT_HDR.Valid())
-	{
-		GFX::Storage::Free(m_MainRT_HDR);
-		GFX::Storage::Free(m_MainRT_DepthMS);
-		GFX::Storage::Free(m_MainRT_Depth);
-		GFX::Storage::Free(m_MotionVectorRT);
-	}
-
 	const uint32_t sampleFlags = RenderSettings.AntialiasingMode == AntiAliasingMode::MSAA ? RCF_MSAA_X8 : 0;
 
 	const uint32_t size[2] = { AppConfig.WindowWidth, AppConfig.WindowHeight };
-	m_MainRT_HDR = GFX::CreateTexture(size[0], size[1], RCF_Bind_RTV | RCF_Bind_SRV | sampleFlags, 1, DXGI_FORMAT_R16G16B16A16_FLOAT);
-	m_MotionVectorRT = GFX::CreateTexture(size[0], size[1], RCF_Bind_RTV | RCF_Bind_SRV | sampleFlags, 1, DXGI_FORMAT_R16G16_UNORM);
-	m_MainRT_DepthMS = GFX::CreateTexture(size[0], size[1], RCF_Bind_DSV | RCF_Bind_SRV | sampleFlags);
-	m_MainRT_Depth = RenderSettings.AntialiasingMode == AntiAliasingMode::MSAA  ? GFX::CreateTexture(size[0], size[1], RCF_Bind_DSV | RCF_Bind_SRV) : m_MainRT_DepthMS;
+	m_MainRT_HDR = ScopedRef<Texture>(GFX::CreateTexture(size[0], size[1], RCF_Bind_RTV | sampleFlags, 1, DXGI_FORMAT_R16G16B16A16_FLOAT));
+	m_MotionVectorRT = ScopedRef<Texture>(GFX::CreateTexture(size[0], size[1], RCF_Bind_RTV | sampleFlags, 1, DXGI_FORMAT_R16G16_UNORM));
+	m_MainRT_DepthMS = ScopedRef<Texture>(GFX::CreateTexture(size[0], size[1], RCF_Bind_DSV | sampleFlags));
+	m_MainRT_Depth = RenderSettings.AntialiasingMode == AntiAliasingMode::MSAA  ? Ref<Texture>(GFX::CreateTexture(size[0], size[1], RCF_Bind_DSV)) : Ref<Texture>(m_MainRT_DepthMS);
 	m_PostprocessingRenderer.ReloadTextureResources(context);
 	m_ShadowRenderer.ReloadTextureResources(context);
 	m_Culling.UpdateResources(context);
 	m_SSAORenderer.UpdateResources(context);
 
-	MainSceneGraph.MainCamera.AspectRatio = (float)AppConfig.WindowWidth / AppConfig.WindowHeight;
+	MainSceneGraph->MainCamera.AspectRatio = (float)AppConfig.WindowWidth / AppConfig.WindowHeight;
+
+	GFX::SetDebugName(m_MainRT_HDR.get(), "ForwardPlus::MainRT_HDR");
+	GFX::SetDebugName(m_MotionVectorRT.get(), "ForwardPlus::MotionVectorRT");
+	GFX::SetDebugName(m_MainRT_DepthMS.get(), "ForwardPlus::MainRT_DepthMS");
+	GFX::SetDebugName(m_MainRT_Depth.get(), "ForwardPlus::MainRT_Depth");
 
 }

@@ -133,7 +133,7 @@ float3 ComputeSpotLight(Light light, MaterialInput mat, float3 pos, float3 norma
 
 float3 ComputeAmbientLight(Light light, MaterialInput mat)
 {
-	return light.Radiance * mat.Albedo * mat.AO;
+	return light.Radiance * mat.Albedo.rgb * mat.AO;
 }
 
 float3 ComputeIrradianceEffect(float3 irradiance, MaterialInput mat, float3 normal, float3 view)

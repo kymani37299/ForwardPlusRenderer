@@ -1,17 +1,24 @@
 #pragma once
 
-#include <Engine/Render/ResourceID.h>
+#include <Engine/Common.h>
 
-struct ID3D11DeviceContext;
+struct GraphicsContext;
+struct GraphicsState;
+struct Texture;
+struct Buffer;
+struct Shader;
 
 class GeometryRenderer
 {
 public:
-	void Init(ID3D11DeviceContext* context);
-	void DepthPrepass(ID3D11DeviceContext* context);
-	void Draw(ID3D11DeviceContext* context, TextureID shadowMask, BufferID visibleLights, TextureID irradianceMap, TextureID ambientOcclusion);
+	GeometryRenderer();
+	~GeometryRenderer();
+
+	void Init(GraphicsContext& context);
+	void DepthPrepass(GraphicsContext& context, GraphicsState& state);
+	void Draw(GraphicsContext& context, GraphicsState& state, Texture* shadowMask, Buffer* visibleLights, Texture* irradianceMap, Texture* ambientOcclusion);
 
 private:
-	ShaderID m_DepthPrepassShader;
-	ShaderID m_GeometryShader;
+	ScopedRef<Shader> m_DepthPrepassShader;
+	ScopedRef<Shader> m_GeometryShader;
 };

@@ -1,66 +1,87 @@
 #pragma once
 
-#include <vector>
+#include <queue>
 
 #include "Common.h"
-
 #include "Render/RenderAPI.h"
-#include "Render/ResourceID.h"
-#include "Utility/Multithreading.h"
+
+struct RenderTask;
+struct GraphicsContext;
+struct DescriptorHeapCPU;
+struct Texture;
+struct Shader;
+struct Buffer;
+
+struct DeviceMemory
+{
+	ScopedRef<DescriptorHeapCPU> SRVHeap;
+	ScopedRef<DescriptorHeapCPU> RTVHeap;
+	ScopedRef<DescriptorHeapCPU> DSVHeap;
+};
+
+class DeferredTaskExecutor
+{
+public:
+	DeferredTaskExecutor(uint32_t maxTasksPerFrame) :
+		m_MaxTasksPerFrame(maxTasksPerFrame) {}
+
+	~DeferredTaskExecutor();
+
+	void Submit(RenderTask* task) { m_Tasks.push(task); }
+	void Run(GraphicsContext& context);
+
+private:
+	uint32_t m_MaxTasksPerFrame;
+	std::queue<RenderTask*> m_Tasks;
+};
 
 class Device
 {
-public:
-	static void Init() { s_Instance = new Device(); s_Instance->DeferredInit(); }
-	static Device* Get() { return s_Instance; }
-	static void Destroy() 
-	{
-		ID3D11Device* device = s_Instance->m_Device;
-		SAFE_DELETE(s_Instance);
-
-#ifdef DEBUG
-		ID3D11Debug* d3dDebug = nullptr;
-		device->QueryInterface(__uuidof(ID3D11Debug), (void**)&d3dDebug);
-		d3dDebug->ReportLiveDeviceObjects(D3D11_RLDO_IGNORE_INTERNAL | D3D11_RLDO_DETAIL);
-#endif
-		device->Release();
-	}
-
 private:
 	static Device* s_Instance;
 
 public:
+	static constexpr uint8_t SWAPCHAIN_BUFFER_COUNT = 2;
+	static constexpr DXGI_FORMAT SWAPCHAIN_DEFAULT_FORMAT = DXGI_FORMAT_R8G8B8A8_UNORM;
+
+	static void Init() { s_Instance = new Device(); s_Instance->InitDevice(); }
+	static Device* Get() { return s_Instance; }
+	static void Destroy() { if (s_Instance) { s_Instance->DeinitDevice(); delete s_Instance; } }
+
+private:
 	Device();
 	~Device();
+	void InitDevice();
+	void DeinitDevice();
 
-	void EndFrame(TextureID finalImage);
-	void CreateSwapchain();
+public:
+	void RecreateSwapchain();
+	void EndFrame(Texture* texture);
+	ID3D12Device* GetHandle() const { return m_Handle.Get(); }
+	D3D12MA::Allocator* GetAllocator() const { return m_Allocator.Get(); }
+	GraphicsContext& GetContext() { return *m_Context; }
+	DeviceMemory& GetMemory() { return m_Memory; }
+	DeferredTaskExecutor& GetTaskExecutor() { return m_TaskExecutor; }
 
-	ID3D11Device* GetHandle() const { return m_Device; }
-	ID3D11DeviceContext1* GetContext() const { return m_Context.Get(); }
-	bool IsMainContext(ID3D11DeviceContext* context) const { return context == m_Context.Get(); }
+	bool IsMainContext(GraphicsContext& context) { return true; } // TODO
 
-	void SubmitDeferredContext(ID3D11DeviceContext* context);
-
-	// Hack
-	ShaderID GetCopyShader() const { return m_CopyShader; }
-	BufferID GetQuadBuffer() const { return m_QuadBuffer; }
-	//
+	Shader* GetCopyShader() const { return m_CopyShader.get(); }
+	Buffer* GetQuadBuffer() const { return m_QuadBuffer.get(); }
 
 private:
-	// Initialize components that will use Device::Get()
-	void DeferredInit();
-private:
-	ID3D11Device* m_Device;
-	ComPtr<ID3D11DeviceContext1> m_Context;
+	ComPtr<IDXGIFactory4> m_DXGIFactory;
+	ComPtr<ID3D12Device> m_Handle;
+	ComPtr<D3D12MA::Allocator> m_Allocator;
 
-	ComPtr<IDXGISwapChain1> m_Swapchain;
-	ComPtr<ID3D11Texture2D> m_SwapchainTexture;
-	ComPtr<ID3D11RenderTargetView> m_SwapchainView;
+	ComPtr<IDXGISwapChain> m_SwapchainHandle;
+	ScopedRef<Texture> m_SwapchainBuffers[SWAPCHAIN_BUFFER_COUNT];
+	uint8_t m_CurrentSwapchainBuffer = 0;
 
-	ID3D11SamplerState* m_CopySampler;
-	ShaderID m_CopyShader;
-	BufferID m_QuadBuffer;
+	DeviceMemory m_Memory;
+	ScopedRef<GraphicsContext> m_Context;
+	ScopedRef<Shader> m_CopyShader;
+	ScopedRef<Buffer> m_QuadBuffer;
 
-	MTR::MutexVector<ID3D11CommandList*> m_PendingCommandLists;
+	static constexpr uint32_t MAX_DEFERRED_TASKS = 5;
+	DeferredTaskExecutor m_TaskExecutor{ MAX_DEFERRED_TASKS };
 };

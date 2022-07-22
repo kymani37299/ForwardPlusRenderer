@@ -1,20 +1,27 @@
 #pragma once
 
-#include <Engine/Render/ResourceID.h>
+#include <Engine/Common.h>
 
-struct ID3D11DeviceContext;
+struct GraphicsContext;
+struct GraphicsState;
+struct Texture;
+struct Buffer;
+struct Shader;
 
 class ShadowRenderer
 {
 public:
-	void Init(ID3D11DeviceContext* context);
-	TextureID CalculateShadowMask(ID3D11DeviceContext* context, TextureID depth);
-	void ReloadTextureResources(ID3D11DeviceContext* context);
+	ShadowRenderer();
+	~ShadowRenderer();
+
+	void Init(GraphicsContext& context);
+	Texture* CalculateShadowMask(GraphicsContext& context, Texture* depth);
+	void ReloadTextureResources(GraphicsContext& context);
 
 private:
-	ShaderID m_ShadowmapShader;
-	ShaderID m_ShadowmaskShader;
+	ScopedRef<Shader> m_ShadowmapShader;
+	ScopedRef<Shader> m_ShadowmaskShader;
 
-	TextureID m_Shadowmap;
-	TextureID m_Shadowmask;
+	ScopedRef<Texture> m_Shadowmap;
+	ScopedRef<Texture> m_Shadowmask;
 };

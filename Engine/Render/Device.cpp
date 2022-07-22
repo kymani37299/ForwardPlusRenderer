@@ -1,188 +1,214 @@
 #include "Device.h"
 
-#include <vector>
-
-#include "Render/Shader.h"
-#include "Render/Buffer.h"
-#include "Render/Texture.h"
 #include "Render/Commands.h"
+#include "Render/Context.h"
+#include "Render/Buffer.h"
+#include "Render/Shader.h"
+#include "Render/Memory.h"
+#include "Render/Resource.h"
+#include "Render/Texture.h"
+#include "Render/RenderThread.h"
 #include "System/ApplicationConfiguration.h"
 #include "System/Window.h"
-
-#ifdef DEBUG
-#include <dxgidebug.h>
-#endif // DEBUG
 
 Device* Device::s_Instance = nullptr;
 
 Device::Device()
 {
-    ID3D11Device* baseDevice;
-    ID3D11DeviceContext* baseDeviceContext;
-    D3D_FEATURE_LEVEL featureLevels[] = { D3D_FEATURE_LEVEL_11_0 };
-    UINT creationFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
-#ifdef DEBUG
-    creationFlags |= D3D11_CREATE_DEVICE_DEBUG;
-#endif
-
-    HRESULT hr = D3D11CreateDevice(0, D3D_DRIVER_TYPE_HARDWARE,
-        0, creationFlags,
-        featureLevels, ARRAYSIZE(featureLevels),
-        D3D11_SDK_VERSION, &baseDevice,
-        0, &baseDeviceContext);
-
-    if (FAILED(hr)) {
-        std::cout << "FATAL ERROR: D3D11CreateDevice() failed" << std::endl;
-        FORCE_CRASH;
-    }
-
-    API_CALL(baseDevice->QueryInterface(IID_PPV_ARGS(&m_Device)));
-    baseDevice->Release();
-
-    API_CALL(baseDeviceContext->QueryInterface(IID_PPV_ARGS(m_Context.GetAddressOf())));
-    baseDeviceContext->Release();
-
-#ifdef DEBUG
-    ID3D11Debug* d3dDebug = nullptr;
-    m_Device->QueryInterface(__uuidof(ID3D11Debug), (void**)&d3dDebug);
-    if (d3dDebug)
-    {
-        ID3D11InfoQueue* d3dInfoQueue = nullptr;
-        if (SUCCEEDED(d3dDebug->QueryInterface(__uuidof(ID3D11InfoQueue), (void**)&d3dInfoQueue)))
-        {
-            d3dInfoQueue->SetBreakOnSeverity(D3D11_MESSAGE_SEVERITY_CORRUPTION, true);
-            d3dInfoQueue->SetBreakOnSeverity(D3D11_MESSAGE_SEVERITY_ERROR, true);
-            d3dInfoQueue->Release();
-        }
-        d3dDebug->Release();
-    }
-#endif // DEBUG
 }
 
 Device::~Device()
 {
-
 }
 
-void Device::SubmitDeferredContext(ID3D11DeviceContext* context)
+void Device::InitDevice()
 {
-    ID3D11CommandList* cmdList;
-    context->FinishCommandList(false, &cmdList);
-    m_PendingCommandLists.Add(cmdList);
+#ifdef DEBUG
+	// Enable the D3D12 debug layer.
+	{
+		ComPtr<ID3D12Debug> debugController;
+		API_CALL(D3D12GetDebugInterface(IID_PPV_ARGS(debugController.GetAddressOf())));
+		debugController->EnableDebugLayer();
+	}
+#endif // DEBUG
+
+	// DXGI Factory
+	API_CALL(CreateDXGIFactory1(IID_PPV_ARGS(m_DXGIFactory.GetAddressOf())));
+
+	// Adapter
+	ComPtr<IDXGIAdapter1> dxgiAdapter;
+	m_DXGIFactory->EnumAdapters1(0, &dxgiAdapter);
+
+	// Handle
+	HRESULT hardwareResult = D3D12CreateDevice(nullptr, D3D_FEATURE_LEVEL_12_1, IID_PPV_ARGS(m_Handle.GetAddressOf()));
+
+	// Fallback to WARP device.
+	if (FAILED(hardwareResult))
+	{
+		API_CALL(m_DXGIFactory->EnumWarpAdapter(IID_PPV_ARGS(&dxgiAdapter)));
+		API_CALL(D3D12CreateDevice(dxgiAdapter.Get(), D3D_FEATURE_LEVEL_12_1, IID_PPV_ARGS(m_Handle.GetAddressOf())));
+	}
+
+	// Allocator
+	D3D12MA::ALLOCATOR_DESC allocatorDesc = {};
+	allocatorDesc.pDevice = m_Handle.Get();
+	allocatorDesc.pAdapter = dxgiAdapter.Get();
+	API_CALL(D3D12MA::CreateAllocator(&allocatorDesc, &m_Allocator));
+
+	// Context
+	m_Context = ScopedRef<GraphicsContext>(GFX::Cmd::CreateGraphicsContext());
+
+	// Memory
+	m_Memory.SRVHeap = ScopedRef<DescriptorHeapCPU>(new DescriptorHeapCPU{ D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 20 * 1024u });
+	m_Memory.RTVHeap = ScopedRef<DescriptorHeapCPU>(new DescriptorHeapCPU{ D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 256u });
+	m_Memory.DSVHeap = ScopedRef<DescriptorHeapCPU>(new DescriptorHeapCPU{ D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 64u });
+
+	// Create swapchain
+	DXGI_SWAP_CHAIN_DESC desc;
+	desc.BufferDesc.Width = AppConfig.WindowWidth;
+	desc.BufferDesc.Height = AppConfig.WindowHeight;
+	desc.BufferDesc.RefreshRate.Numerator = 60;
+	desc.BufferDesc.RefreshRate.Denominator = 1;
+	desc.BufferDesc.Format = SWAPCHAIN_DEFAULT_FORMAT;
+	desc.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
+	desc.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
+	desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+	desc.BufferCount = SWAPCHAIN_BUFFER_COUNT;
+	desc.OutputWindow = Window::Get()->GetHandle();
+	desc.Windowed = true;
+	desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+	desc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+	desc.SampleDesc.Count = 1;
+	desc.SampleDesc.Quality = 0;
+	 
+	API_CALL(m_DXGIFactory->CreateSwapChain(m_Context->CmdQueue.Get(), &desc, m_SwapchainHandle.GetAddressOf()));
+
+	// Additional resources
+	m_CopyShader = ScopedRef<Shader>(new Shader{ "Engine/Render/copy.hlsl" });
+
+	struct FCVert
+	{
+		Float2 Position;
+		Float2 UV;
+	};
+
+	const std::vector<FCVert> fcVBData = {
+		FCVert{	{1.0,1.0},		{1.0,0.0}},
+		FCVert{	{-1.0,-1.0},	{0.0,1.0}},
+		FCVert{	{1.0,-1.0},		{1.0,1.0}},
+		FCVert{	{1.0,1.0},		{1.0,0.0}},
+		FCVert{ {-1.0,1.0},		{0.0,0.0}},
+		FCVert{	{-1.0,-1.0},	{0.0,1.0}}
+	};
+
+	ResourceInitData initData = { m_Context.get(), fcVBData.data()};
+	m_QuadBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(fcVBData.size() * sizeof(FCVert), sizeof(FCVert), RCF_None, &initData));
+	GFX::SetDebugName(m_QuadBuffer.get(), "Device::QuadBuffer");
+
+	GFX::Cmd::SubmitContext(*m_Context);
+
+	RecreateSwapchain();
 }
 
-void Device::DeferredInit()
+void Device::DeinitDevice()
 {
-    CreateSwapchain();
+	DeferredTrash::ClearAll();
 
-    struct FCVert
-    {
-        Float2 Position;
-        Float2 UV;
-    };
+	m_CopyShader = nullptr;
+	m_QuadBuffer = nullptr;
+	m_Context = nullptr;
 
-    const std::vector<FCVert> fcVBData = {
-        FCVert{	{1.0,1.0},		{1.0,0.0}},
-        FCVert{	{-1.0,-1.0},	{0.0,1.0}},
-        FCVert{	{1.0,-1.0},		{1.0,1.0}},
-        FCVert{	{1.0,1.0},		{1.0,0.0}},
-        FCVert{ {-1.0,1.0},		{0.0,0.0}},
-        FCVert{	{-1.0,-1.0},	{0.0,1.0}}
-    };
+	for (uint32_t i = 0; i < SWAPCHAIN_BUFFER_COUNT; i++)
+		m_SwapchainBuffers[i] = nullptr;
 
-    m_CopyShader = GFX::CreateShader("Engine/Render/copy.hlsl");
-    m_QuadBuffer = GFX::CreateVertexBuffer<FCVert>(fcVBData.size(), fcVBData.data());
+	m_SwapchainHandle = nullptr;
 
-	D3D11_SAMPLER_DESC copySamplerDesc{};
-	copySamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-	copySamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-	copySamplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-	copySamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-	copySamplerDesc.MipLODBias = 0;
-	copySamplerDesc.MaxAnisotropy = 16;
-	copySamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-	copySamplerDesc.MinLOD = 0.0f;
-	copySamplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
-    m_Device->CreateSamplerState(&copySamplerDesc, &m_CopySampler);
-
-    GFX::Cmd::ResetContext(m_Context.Get());
+	m_DXGIFactory = nullptr;
+	m_Allocator = nullptr;
+	m_Handle = nullptr;
 }
 
-void Device::EndFrame(TextureID finalImage)
+void Device::RecreateSwapchain()
 {
-    // Present
-    {
-        GFX::Cmd::MarkerBegin(m_Context.Get(), "Present");
-        GFX::Cmd::BindShader<VS|PS>(m_Context.Get(), m_CopyShader);
-        m_Context->PSSetSamplers(0, 1, &m_CopySampler);
-        m_Context->OMSetRenderTargets(1, m_SwapchainView.GetAddressOf(), nullptr);
-        GFX::Cmd::BindVertexBuffer(m_Context.Get(), m_QuadBuffer);
+	// Wait for GPU to finish before recreating swapchain resources and reset context
+	GFX::Cmd::FlushContext(*m_Context);
+	GFX::Cmd::ResetContext(*m_Context);
 
-        ID3D11ShaderResourceView* srv = GFX::Storage::GetTexture(finalImage).SRV.Get();
-        m_Context->PSSetShaderResources(0, 1, &srv);
-        m_Context->Draw(6, 0);
+	// Release swapchain resources
+	for (uint8_t i = 0; i < SWAPCHAIN_BUFFER_COUNT; i++) m_SwapchainBuffers[i] = nullptr;
 
-        srv = nullptr;
-        m_Context->PSSetShaderResources(0, 1, &srv);
+	// Resize/recreate resources
+	m_CurrentSwapchainBuffer = 0;
+	API_CALL(m_SwapchainHandle->ResizeBuffers(SWAPCHAIN_BUFFER_COUNT, AppConfig.WindowWidth, AppConfig.WindowHeight, SWAPCHAIN_DEFAULT_FORMAT, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH));
+	for (uint8_t i = 0; i < SWAPCHAIN_BUFFER_COUNT; i++)
+	{
+		m_SwapchainBuffers[i] = ScopedRef<Texture>(new Texture{});
+		m_SwapchainBuffers[i]->CreationFlags = RCF_Bind_RTV;
+		API_CALL(m_SwapchainHandle->GetBuffer(i, IID_PPV_ARGS(m_SwapchainBuffers[i]->Handle.GetAddressOf())));
+		m_SwapchainBuffers[i]->Width = AppConfig.WindowWidth;
+		m_SwapchainBuffers[i]->Height = AppConfig.WindowHeight;
+		m_SwapchainBuffers[i]->NumMips = 1;
+		m_SwapchainBuffers[i]->CurrState = D3D12_RESOURCE_STATE_COMMON;
+		m_SwapchainBuffers[i]->Format = SWAPCHAIN_DEFAULT_FORMAT;
+		// m_SwapchainBuffers[i]->RowPitch = TODO
+		// m_SwapchainBuffers[i]->SlicePitch = 
+		m_SwapchainBuffers[i]->RTV = m_Memory.RTVHeap->Alloc();
 
-        m_Swapchain->Present(AppConfig.VSyncEnabled ? 1 : 0, 0);
-        GFX::Cmd::MarkerEnd(m_Context.Get());
-    }
+		D3D12_RENDER_TARGET_VIEW_DESC rtViewDesc{};
+		rtViewDesc.Format = SWAPCHAIN_DEFAULT_FORMAT;
+		rtViewDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+		rtViewDesc.Texture2D.MipSlice = 0;
+		rtViewDesc.Texture2D.PlaneSlice = 0;
 
-    // Submit deferred contexts
-    if(!m_PendingCommandLists.Empty())
-    {
-        GFX::Cmd::MarkerBegin(m_Context.Get(), "Submit deferred contexts");
-
-        const auto func = [this](ID3D11CommandList* cmdList) {
-            this->GetContext()->ExecuteCommandList(cmdList, false);
-            cmdList->Release();
-        };
-        m_PendingCommandLists.ForEachAndClear(func);
-
-        GFX::Cmd::MarkerEnd(m_Context.Get());
-    }
+		m_Handle->CreateRenderTargetView(m_SwapchainBuffers[i]->Handle.Get(), &rtViewDesc, m_SwapchainBuffers[i]->RTV);
+	}
 }
 
-void Device::CreateSwapchain()
+void Device::EndFrame(Texture* texture)
 {
-    m_SwapchainView.Reset();
-    m_SwapchainTexture.Reset();
-    m_Swapchain.Reset();
+	const CompiledShader& copyShader = GFX::GetCompiledShader(m_CopyShader.get(), {}, VS | PS);
+	
+	// Copy to swapchain
+	GFX::Cmd::MarkerBegin(*m_Context, "Copy to swapchain");
+	GraphicsState copyState;
+	copyState.Table.SRVs.push_back(texture);
+	GFX::Cmd::BindSampler(copyState, 0, D3D12_TEXTURE_ADDRESS_MODE_CLAMP, D3D12_FILTER_MIN_MAG_MIP_POINT);
+	GFX::Cmd::BindRenderTarget(copyState, m_SwapchainBuffers[m_CurrentSwapchainBuffer].get());
+	GFX::Cmd::BindShader(copyState, m_CopyShader.get(), VS | PS);
+	GFX::Cmd::DrawFC(*m_Context, copyState);
+	GFX::Cmd::TransitionResource(*m_Context, m_SwapchainBuffers[m_CurrentSwapchainBuffer].get(), D3D12_RESOURCE_STATE_PRESENT);
+	GFX::Cmd::MarkerEnd(*m_Context);
 
-    IDXGIFactory2* dxgiFactory;
-    {
-        IDXGIDevice1* dxgiDevice;
-        API_CALL(m_Device->QueryInterface(__uuidof(IDXGIDevice1), (void**)&dxgiDevice));
+	// Deferred tasks
+	GFX::Cmd::MarkerBegin(*m_Context, "Deferred tasks");
+	m_TaskExecutor.Run(*m_Context);
+	GFX::Cmd::MarkerEnd(*m_Context);
 
-        IDXGIAdapter* dxgiAdapter;
-        API_CALL(dxgiDevice->GetAdapter(&dxgiAdapter));
-        dxgiDevice->Release();
+	// Submit context
+	GFX::Cmd::SubmitContext(*m_Context);
 
-        DXGI_ADAPTER_DESC adapterDesc;
-        dxgiAdapter->GetDesc(&adapterDesc);
+	// Present
+	m_SwapchainHandle->Present(0, 0);
+	m_CurrentSwapchainBuffer = (m_CurrentSwapchainBuffer + 1) % SWAPCHAIN_BUFFER_COUNT;
+}
 
-        API_CALL(dxgiAdapter->GetParent(__uuidof(IDXGIFactory2), (void**)&dxgiFactory));
-        dxgiAdapter->Release();
-    }
+DeferredTaskExecutor::~DeferredTaskExecutor()
+{
+	while (!m_Tasks.empty())
+	{
+		RenderTask* task = m_Tasks.front();
+		m_Tasks.pop();
+		delete task;
+	}
+}
 
-    DXGI_SWAP_CHAIN_DESC1 d3d11SwapChainDesc = {};
-    d3d11SwapChainDesc.Width = AppConfig.WindowWidth;
-    d3d11SwapChainDesc.Height = AppConfig.WindowHeight;
-    d3d11SwapChainDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
-    d3d11SwapChainDesc.SampleDesc.Count = 1;
-    d3d11SwapChainDesc.SampleDesc.Quality = 0;
-    d3d11SwapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    d3d11SwapChainDesc.BufferCount = 2;
-    d3d11SwapChainDesc.Scaling = DXGI_SCALING_STRETCH;
-    d3d11SwapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
-    d3d11SwapChainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
-    d3d11SwapChainDesc.Flags = 0;
-
-    API_CALL(dxgiFactory->CreateSwapChainForHwnd(m_Device, Window::Get()->GetHandle(), &d3d11SwapChainDesc, 0, 0, m_Swapchain.GetAddressOf()));
-
-    dxgiFactory->Release();
-
-    API_CALL(m_Swapchain->GetBuffer(0, IID_PPV_ARGS(m_SwapchainTexture.GetAddressOf())));
-    API_CALL(m_Device->CreateRenderTargetView(m_SwapchainTexture.Get(), 0, m_SwapchainView.GetAddressOf()));
+void DeferredTaskExecutor::Run(GraphicsContext& context)
+{
+	for (uint32_t i = 0; i < m_MaxTasksPerFrame && !m_Tasks.empty(); i++)
+	{
+		RenderTask* task = m_Tasks.front();
+		m_Tasks.pop();
+		task->Run(context);
+		delete task;
+	}
 }

@@ -10,7 +10,7 @@
 #include "Renderers/Util/ConstantManager.h"
 #include "Scene/SceneGraph.h"
 
-static BufferID GenerateSphereVB()
+static Buffer* GenerateSphereVB(GraphicsContext& context)
 {
 	constexpr uint32_t parallels = 11;
 	constexpr uint32_t meridians = 22;
@@ -75,26 +75,28 @@ static BufferID GenerateSphereVB()
 		vertices.push_back(verticesRaw[b]);
 	}
 
-	return GFX::CreateVertexBuffer<Float3>(vertices.size(), vertices.data());
+	ResourceInitData initData{ &context , vertices.data() };
+	return GFX::CreateVertexBuffer<Float3>(vertices.size(), &initData);
 }
 
-BufferID GenerateCubeVB()
+Buffer* GenerateCubeVB(GraphicsContext& context)
 {
 	static const float vbData[] = { -1.0f,-1.0f,-1.0f,-1.0f,-1.0f, 1.0f,-1.0f, 1.0f, 1.0f,1.0f, 1.0f,-1.0f,-1.0f,-1.0f,-1.0f,-1.0f, 1.0f,-1.0f,1.0f,-1.0f, 1.0f,-1.0f,-1.0f,-1.0f,1.0f,-1.0f,-1.0f,1.0f, 1.0f,-1.0f,1.0f,-1.0f,-1.0f,-1.0f,-1.0f,-1.0f,-1.0f,-1.0f,-1.0f,-1.0f, 1.0f, 1.0f,-1.0f, 1.0f,-1.0f,1.0f,-1.0f, 1.0f,-1.0f,-1.0f, 1.0f,-1.0f,-1.0f,-1.0f,-1.0f, 1.0f, 1.0f,-1.0f,-1.0f, 1.0f,1.0f,-1.0f, 1.0f,1.0f, 1.0f, 1.0f,1.0f,-1.0f,-1.0f,1.0f, 1.0f,-1.0f,1.0f,-1.0f,-1.0f,1.0f, 1.0f, 1.0f,1.0f,-1.0f, 1.0f,1.0f, 1.0f, 1.0f,1.0f, 1.0f,-1.0f,-1.0f, 1.0f,-1.0f,1.0f, 1.0f, 1.0f,-1.0f, 1.0f,-1.0f,-1.0f, 1.0f, 1.0f,1.0f, 1.0f, 1.0f,-1.0f, 1.0f, 1.0f,1.0f,-1.0f, 1.0f };
 	static uint32_t numVertices = STATIC_ARRAY_SIZE(vbData) / 3;
-	return GFX::CreateVertexBuffer<Float3>(numVertices, (Float3*)vbData);
+	ResourceInitData initData{ &context , vbData };
+	return GFX::CreateVertexBuffer<Float3>(numVertices, &initData);
 }
 
-void DebugRenderer::Init(ID3D11DeviceContext* context)
+void DebugRenderer::Init(GraphicsContext& context)
 {
-	m_CubeVB = GenerateCubeVB();
-	m_SphereVB = GenerateSphereVB();
+	m_CubeVB = ScopedRef<Buffer>(GenerateCubeVB(context));
+	m_SphereVB = ScopedRef<Buffer>(GenerateSphereVB(context));
 
-	m_DebugGeometryShader = GFX::CreateShader("Forward+/Shaders/debug_geometry.hlsl");
-	m_LightHeatmapShader = GFX::CreateShader("Forward+/Shaders/light_heatmap.hlsl");
+	m_DebugGeometryShader = ScopedRef<Shader>(new Shader("Forward+/Shaders/debug_geometry.hlsl"));
+	m_LightHeatmapShader = ScopedRef<Shader>(new Shader("Forward+/Shaders/light_heatmap.hlsl"));
 }
 
-void DebugRenderer::Draw(ID3D11DeviceContext* context, TextureID colorTarget, TextureID depthTarget, BufferID visibleLights)
+void DebugRenderer::Draw(GraphicsContext& context, Texture* colorTarget, Texture* depthTarget, Buffer* visibleLights)
 {
 	UpdateStats(context);
 
@@ -102,14 +104,14 @@ void DebugRenderer::Draw(ID3D11DeviceContext* context, TextureID colorTarget, Te
 	{
 		for (uint32_t rgType = 0; rgType < EnumToInt(RenderGroupType::Count); rgType++)
 		{
-			RenderGroup& rg = MainSceneGraph.RenderGroups[rgType];
+			RenderGroup& rg = MainSceneGraph->RenderGroups[rgType];
 			const uint32_t numDrawables = rg.Drawables.GetSize();
 			for (uint32_t i = 0; i < numDrawables; i++)
 			{
 				if (!rg.VisibilityMask.Get(i)) continue;
 
 				const Drawable& d = rg.Drawables[i];
-				const Entity& e = MainSceneGraph.Entities[d.EntityIndex];
+				const Entity& e = MainSceneGraph->Entities[d.EntityIndex];
 				const float maxScale = MAX(MAX(e.Scale.x, e.Scale.y), e.Scale.z);
 
 				BoundingSphere bs = e.GetBoundingVolume(d.BoundingVolume);
@@ -121,40 +123,43 @@ void DebugRenderer::Draw(ID3D11DeviceContext* context, TextureID colorTarget, Te
 
 	if (DebugToolsConfig.DrawLightSpheres)
 	{
-		const uint32_t numLights = MainSceneGraph.Lights.GetSize();
+		const uint32_t numLights = MainSceneGraph->Lights.GetSize();
 		for (uint32_t i = 0; i < numLights; i++)
 		{
-			const Light& l = MainSceneGraph.Lights[i];
+			const Light& l = MainSceneGraph->Lights[i];
 			DrawSphere(l.Position, Float4(l.Radiance.x, l.Radiance.y, l.Radiance.z, 0.2f), { l.Falloff.y, l.Falloff.y, l.Falloff.y });
 		}
 	}
 
-	GFX::Cmd::BindRenderTarget(context, colorTarget, depthTarget);
-	DrawGeometries(context);
+	GraphicsState geometriesState;
+	GFX::Cmd::BindRenderTarget(geometriesState, colorTarget);
+	GFX::Cmd::BindDepthStencil(geometriesState, depthTarget);
+	DrawGeometries(context, geometriesState);
 
 	if (DebugToolsConfig.LightHeatmap && !DebugToolsConfig.DisableLightCulling && !DebugToolsConfig.FreezeGeometryCulling)
 	{
 		CBManager.Clear();
-		CBManager.Add(MainSceneGraph.SceneInfoData, true);
+		CBManager.Add(MainSceneGraph->SceneInfoData);
 
-		PipelineState pso = GFX::DefaultPipelineState();
-		pso.BS.RenderTarget[0].BlendEnable = true;
-		pso.BS.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
-		pso.BS.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_MAX;
-		pso.BS.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
-		pso.BS.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
-		pso.BS.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
-		pso.BS.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
-		GFX::Cmd::SetPipelineState(context, pso);
+		GraphicsState heatmapState;
+		heatmapState.Table.CBVs.push_back(CBManager.GetBuffer());
+		heatmapState.Table.SRVs.push_back(visibleLights);
 
-		GFX::Cmd::BindRenderTarget(context, colorTarget);
-		GFX::Cmd::BindShader<VS | PS>(context, m_LightHeatmapShader);
-		GFX::Cmd::BindSRV<PS>(context, visibleLights, 0);
-		GFX::Cmd::DrawFC(context);
+		heatmapState.Pipeline.BlendState.RenderTarget[0].BlendEnable = true;
+		heatmapState.Pipeline.BlendState.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+		heatmapState.Pipeline.BlendState.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_MAX;
+		heatmapState.Pipeline.BlendState.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
+		heatmapState.Pipeline.BlendState.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+		heatmapState.Pipeline.BlendState.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_SRC_ALPHA;
+		heatmapState.Pipeline.BlendState.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
+		
+		GFX::Cmd::BindRenderTarget(heatmapState, colorTarget);
+		GFX::Cmd::BindShader(heatmapState, m_LightHeatmapShader.get(), VS | PS);
+		GFX::Cmd::DrawFC(context, heatmapState);
 	}
 }
 
-void DebugRenderer::UpdateStats(ID3D11DeviceContext* context)
+void DebugRenderer::UpdateStats(GraphicsContext& context)
 {
 	GFX::Cmd::MarkerBegin(context, "Update stats");
 
@@ -163,7 +168,7 @@ void DebugRenderer::UpdateStats(ID3D11DeviceContext* context)
 	RenderStats.VisibleDrawables = 0;
 	for (uint32_t i = 0; i < EnumToInt(RenderGroupType::Count); i++)
 	{
-		RenderGroup& rg = MainSceneGraph.RenderGroups[i];
+		RenderGroup& rg = MainSceneGraph->RenderGroups[i];
 		RenderStats.TotalDrawables += rg.Drawables.GetSize();
 		if (!DebugToolsConfig.FreezeGeometryCulling)
 		{
@@ -174,27 +179,28 @@ void DebugRenderer::UpdateStats(ID3D11DeviceContext* context)
 	GFX::Cmd::MarkerEnd(context);
 }
 
-void DebugRenderer::DrawGeometries(ID3D11DeviceContext* context)
+void DebugRenderer::DrawGeometries(GraphicsContext& context, GraphicsState& state)
 {
 	GFX::Cmd::MarkerBegin(context, "Debug Geometries");
 
 	// Prepare pipeline
-	PipelineState pso = GFX::DefaultPipelineState();
-	pso.DS.DepthEnable = true;
-	pso.DS.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
-	pso.BS.RenderTarget[0].BlendEnable = true;
-	pso.BS.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
-	pso.BS.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_MAX;
-	pso.BS.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
-	pso.BS.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
-	pso.BS.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
-	pso.BS.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
-	GFX::Cmd::SetPipelineState(context, pso);
-	GFX::Cmd::BindShader<PS|VS>(context, m_DebugGeometryShader);
+	state.Pipeline.DepthStencilState.DepthEnable = true;
+	state.Pipeline.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+	state.Pipeline.BlendState.RenderTarget[0].BlendEnable = true;
+	state.Pipeline.BlendState.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+	state.Pipeline.BlendState.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_MAX;
+	state.Pipeline.BlendState.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
+	state.Pipeline.BlendState.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+	state.Pipeline.BlendState.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_SRC_ALPHA;
+	state.Pipeline.BlendState.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
+	GFX::Cmd::BindShader(state, m_DebugGeometryShader.get(), VS | PS);
+
+	state.Table.CBVs.resize(1);
+	state.VertexBuffers.resize(1);
 
 	for (const DebugGeometry& dg : m_GeometriesToRender)
 	{
-		BufferID vertexBuffer;
+		Buffer* vertexBuffer = nullptr;
 
 		// Prepare data
 		{
@@ -206,29 +212,29 @@ void DebugRenderer::DrawGeometries(ID3D11DeviceContext* context)
 			{
 			case DebugGeometryType::CUBE:
 				modelToWorld = XMMatrixAffineTransformation(dg.Scale.ToXM(), Float3(0.0f, 0.0f, 0.0f).ToXM(), Float4(0.0f, 0.0f, 0.0f, 0.0f).ToXM(), dg.Position.ToXM());
-				vertexBuffer = m_CubeVB;
+				vertexBuffer = m_CubeVB.get();
 				break;
 			case DebugGeometryType::SPHERE:
 				modelToWorld = XMMatrixAffineTransformation(dg.Scale.ToXM(), Float3(0.0f, 0.0f, 0.0f).ToXM(), Float4(0.0f, 0.0f, 0.0f, 0.0f).ToXM(), dg.Position.ToXM());
-				vertexBuffer = m_SphereVB;
+				vertexBuffer = m_SphereVB.get();
 				break;
 			default: NOT_IMPLEMENTED;
 			}
 
 			CBManager.Clear();
-			CBManager.Add(MainSceneGraph.MainCamera.CameraData);
+			CBManager.Add(MainSceneGraph->MainCamera.CameraData);
 			CBManager.Add(XMUtility::ToHLSLFloat4x4(modelToWorld));
-			CBManager.Add(dg.Color.ToXMF(), true);
+			CBManager.Add(dg.Color.ToXMF());
+			state.Table.CBVs[0] = CBManager.GetBuffer();
 		}
 
 		// Draw
 		{
-			GFX::Cmd::BindVertexBuffer(context, vertexBuffer);
-			context->Draw(GFX::GetNumElements(vertexBuffer), 0);
+			state.VertexBuffers[0] = vertexBuffer;
+			GFX::Cmd::BindState(context, state);
+			context.CmdList->DrawInstanced(vertexBuffer->ByteSize / vertexBuffer->Stride, 1, 0, 0);
 		}
 	}
-
-	GFX::Cmd::SetPipelineState(context, GFX::DefaultPipelineState());
 
 	GFX::Cmd::MarkerEnd(context);
 

@@ -30,14 +30,14 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
     <EnableUnitySupport>true</EnableUnitySupport>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
     <EnableUnitySupport>true</EnableUnitySupport>
@@ -45,14 +45,14 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
     <EnableUnitySupport>true</EnableUnitySupport>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
     <EnableUnitySupport>true</EnableUnitySupport>
@@ -173,16 +173,16 @@
     <ClCompile Include="Gui\Imgui\imgui.cpp" />
     <ClCompile Include="Gui\Imgui\imgui_demo.cpp" />
     <ClCompile Include="Gui\Imgui\imgui_draw.cpp" />
-    <ClCompile Include="Gui\Imgui\imgui_impl_dx11.cpp" />
+    <ClCompile Include="Gui\Imgui\imgui_impl_dx12.cpp" />
     <ClCompile Include="Gui\Imgui\imgui_impl_win32.cpp" />
     <ClCompile Include="Gui\Imgui\imgui_tables.cpp" />
     <ClCompile Include="Gui\Imgui\imgui_widgets.cpp" />
     <ClCompile Include="Render\Buffer.cpp" />
     <ClCompile Include="Render\Commands.cpp" />
+    <ClCompile Include="Render\Context.cpp" />
     <ClCompile Include="Render\Device.cpp" />
-    <ClCompile Include="Render\PipelineState.cpp" />
+    <ClCompile Include="Render\Memory.cpp" />
     <ClCompile Include="Render\RenderThread.cpp" />
-    <ClCompile Include="Render\Resource.cpp" />
     <ClCompile Include="Render\Shader.cpp" />
     <ClCompile Include="Render\Texture.cpp" />
     <ClCompile Include="System\Input.cpp" />
@@ -195,7 +195,7 @@
     <ClInclude Include="Gui\GUI.h" />
     <ClInclude Include="Gui\Imgui\imconfig.h" />
     <ClInclude Include="Gui\Imgui\imgui.h" />
-    <ClInclude Include="Gui\Imgui\imgui_impl_dx11.h" />
+    <ClInclude Include="Gui\Imgui\imgui_impl_dx12.h" />
     <ClInclude Include="Gui\Imgui\imgui_impl_win32.h" />
     <ClInclude Include="Gui\Imgui\imgui_internal.h" />
     <ClInclude Include="Gui\Imgui\imstb_rectpack.h" />
@@ -203,12 +203,13 @@
     <ClInclude Include="Gui\Imgui\imstb_truetype.h" />
     <ClInclude Include="Render\Buffer.h" />
     <ClInclude Include="Render\Commands.h" />
+    <ClInclude Include="Render\Context.h" />
+    <ClInclude Include="Render\D3D12MemAlloc.h" />
     <ClInclude Include="Render\Device.h" />
-    <ClInclude Include="Render\PipelineState.h" />
+    <ClInclude Include="Render\Memory.h" />
     <ClInclude Include="Render\RenderAPI.h" />
     <ClInclude Include="Render\RenderThread.h" />
     <ClInclude Include="Render\Resource.h" />
-    <ClInclude Include="Render\ResourceID.h" />
     <ClInclude Include="Render\Shader.h" />
     <ClInclude Include="Render\Texture.h" />
     <ClInclude Include="System\ApplicationConfiguration.h" />
@@ -217,12 +218,18 @@
     <ClInclude Include="System\Window.h" />
     <ClInclude Include="Utility\DataTypes.h" />
     <ClInclude Include="Utility\Hash.h" />
+    <ClInclude Include="Utility\MemoryStrategies.h" />
     <ClInclude Include="Utility\Random.h" />
     <ClInclude Include="Utility\MathUtility.h" />
     <ClInclude Include="Utility\Multithreading.h" />
     <ClInclude Include="Utility\PathUtility.h" />
     <ClInclude Include="Utility\StringUtility.h" />
     <ClInclude Include="Utility\Timer.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Render\copy.hlsl">
+      <FileType>Document</FileType>
+    </None>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

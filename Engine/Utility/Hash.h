@@ -54,14 +54,25 @@ namespace Hash
 		};
 	}
 	
-	inline uint32_t Crc32(const uint8_t* bytes, uint32_t byteSize)
+	inline uint32_t Crc32(const uint32_t crc32, const uint8_t* bytes, uint32_t byteSize)
 	{
-		uint32_t crc = 0xFFFFFFFF;
+		uint32_t crc = crc32;
 		for (uint32_t i = 0; i < byteSize; i++)
 		{
 			crc = (crc >> 8) ^ Private::CRC32[(crc & 0xff) ^ *bytes++];
 		}
 		return crc ^ 0xFFFFFFFF;
+	}
+
+	inline uint32_t Crc32(const uint8_t* bytes, uint32_t byteSize)
+	{
+		return Crc32(0xFFFFFFFF, bytes, byteSize);
+	}
+
+	template<typename T>
+	uint32_t Crc32(const uint32_t crc32, const T& data)
+	{
+		return Crc32(crc32, reinterpret_cast<const uint8_t*>(&data), sizeof(T));
 	}
 
 	template<typename T>
@@ -75,5 +86,12 @@ namespace Hash
 	{
 		static_assert(sizeof(uint8_t) == sizeof(char));
 		return Crc32(reinterpret_cast<const uint8_t*>(data.c_str()), data.size());
+	}
+
+	template<>
+	uint32_t Crc32<std::string>(uint32_t crc32, const std::string& data)
+	{
+		static_assert(sizeof(uint8_t) == sizeof(char));
+		return Crc32(crc32, reinterpret_cast<const uint8_t*>(data.c_str()), data.size());
 	}
 }

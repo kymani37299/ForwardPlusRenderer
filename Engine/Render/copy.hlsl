@@ -11,7 +11,7 @@ VertOUT VS(float2 pos : SV_POSITION, float2 uv : TEXCOORD)
 {
 	VertOUT OUT;
 	OUT.pos = float4(pos, 0.0f, 1.0f);
-	OUT.uv = uv;	
+	OUT.uv = uv;
 	return OUT;
 }
 

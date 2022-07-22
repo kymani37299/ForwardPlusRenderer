@@ -7,19 +7,19 @@
 #include "Scene/SceneGraph.h"
 #include "Shaders/shared_definitions.h"
 
-VertexPipeline VertPipeline;
+VertexPipeline* VertPipeline = nullptr;
 
 bool IsMeshletVisible(const Drawable& drawable, uint32_t meshletIndex, RenderGroup& rg)
 {
-	if (DebugToolsConfig.DisableGeometryCulling) return true;
+	if (DebugToolsConfig.DisableGeometryCulling || !DebugToolsConfig.UseMeshletCulling) return true;
 
 	static ViewFrustum vf;
 
 	const Mesh& m = rg.Meshes[drawable.MeshIndex];
-	const Entity& e = MainSceneGraph.Entities[drawable.EntityIndex];
+	const Entity& e = MainSceneGraph->Entities[drawable.EntityIndex];
 
 	if (!DebugToolsConfig.FreezeGeometryCulling)
-		vf = MainSceneGraph.MainCamera.CameraFrustum;
+		vf = MainSceneGraph->MainCamera.CameraFrustum;
 
 	BoundingSphere bv;
 	bv.Center = m.MeshletCullData[meshletIndex].BoundingSphere.Center;
@@ -29,18 +29,33 @@ bool IsMeshletVisible(const Drawable& drawable, uint32_t meshletIndex, RenderGro
 	return vf.IsInFrustum(bv);
 }
 
-void VertexPipeline::Init(ID3D11DeviceContext* context)
+VertexPipeline::VertexPipeline()
+{
+
+}
+
+VertexPipeline::~VertexPipeline()
+{
+
+}
+
+void VertexPipeline::Init(GraphicsContext& context)
 {
 	std::vector<uint32_t> indices{};
 	indices.resize(MESHLET_INDEX_COUNT);
 	for (uint32_t i = 0; i < MESHLET_INDEX_COUNT; i++) indices[i] = i;
-	MeshletIndexBuffer = GFX::CreateBuffer(MESHLET_INDEX_COUNT * sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_VB, indices.data());
-	DrawableInstanceBuffer = GFX::CreateVertexBuffer<uint32_t>(1, nullptr);
-	MeshletInstanceBuffer = GFX::CreateVertexBuffer<uint32_t>(1, nullptr);
+	ResourceInitData meshletInitData = { &context, indices.data() };
+	MeshletIndexBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(MESHLET_INDEX_COUNT * sizeof(uint32_t), sizeof(uint32_t), RCF_None, &meshletInitData));
+	DrawableInstanceBuffer = ScopedRef<Buffer>(GFX::CreateVertexBuffer<uint32_t>(1, nullptr));
+	MeshletInstanceBuffer = ScopedRef<Buffer>(GFX::CreateVertexBuffer<uint32_t>(1, nullptr));
 	IndexCount = MESHLET_INDEX_COUNT;
+
+	GFX::SetDebugName(MeshletIndexBuffer.get(), "VertexPipeline::MeshletIndexBuffer");
+	GFX::SetDebugName(DrawableInstanceBuffer.get(), "VertexPipeline::DrawableInstanceBuffer");
+	GFX::SetDebugName(MeshletInstanceBuffer.get(), "VertexPipeline::MeshletInstanceBuffer");
 }
 
-void VertexPipeline::Draw(ID3D11DeviceContext* context, RenderGroup& rg, bool skipCulling)
+void VertexPipeline::Draw(GraphicsContext& context, GraphicsState& state, RenderGroup& rg, bool skipCulling)
 {
 	// Prepare
 	std::vector<uint32_t> meshlets;
@@ -65,13 +80,17 @@ void VertexPipeline::Draw(ID3D11DeviceContext* context, RenderGroup& rg, bool sk
 	InstanceCount = meshlets.size();
 
 	// Upload
-	GFX::ExpandBuffer(context, MeshletInstanceBuffer, meshlets.size() * sizeof(uint32_t));
-	GFX::ExpandBuffer(context, DrawableInstanceBuffer, drawables.size() * sizeof(uint32_t));
-	GFX::Cmd::UploadToBuffer(context, MeshletInstanceBuffer, 0, meshlets.data(), 0, meshlets.size() * sizeof(uint32_t));
-	GFX::Cmd::UploadToBuffer(context, DrawableInstanceBuffer, 0, drawables.data(), 0, drawables.size() * sizeof(uint32_t));
+	GFX::ExpandBuffer(context, MeshletInstanceBuffer.get(), meshlets.size() * sizeof(uint32_t));
+	GFX::ExpandBuffer(context, DrawableInstanceBuffer.get(), drawables.size() * sizeof(uint32_t));
+	GFX::Cmd::UploadToBuffer(context, MeshletInstanceBuffer.get(), 0, meshlets.data(), 0, meshlets.size() * sizeof(uint32_t));
+	GFX::Cmd::UploadToBuffer(context, DrawableInstanceBuffer.get(), 0, drawables.data(), 0, drawables.size() * sizeof(uint32_t));
 
 	// Execute draw
-	rg.SetupPipelineInputs(context);
-	GFX::Cmd::BindVertexBuffers(context, { VertPipeline.MeshletIndexBuffer, VertPipeline.MeshletInstanceBuffer, VertPipeline.DrawableInstanceBuffer });
-	context->DrawInstanced(VertPipeline.IndexCount, VertPipeline.InstanceCount, 0, 0);
+	rg.SetupPipelineInputs(state);
+	state.VertexBuffers.resize(3);
+	state.VertexBuffers[0] = MeshletIndexBuffer.get();
+	state.VertexBuffers[1] = MeshletInstanceBuffer.get();
+	state.VertexBuffers[2] = DrawableInstanceBuffer.get();
+	GFX::Cmd::BindState(context, state);
+	context.CmdList->DrawInstanced(IndexCount, InstanceCount, 0, 0);
 }

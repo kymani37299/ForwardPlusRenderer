@@ -30,3 +30,6 @@ template<typename T> T MAX(const T & a, const T & b) { return a > b ? a : b; }
 template<typename T> T MIN(const T & a, const T & b) { return a < b ? a : b; }
 template<typename T> inline static constexpr uint32_t EnumToInt(T enumValue) { return static_cast<uint32_t>(enumValue); }
 template<typename T> inline static constexpr T IntToEnum(uint32_t intValue) { return static_cast<T>(intValue); }
+
+template<typename T> using ScopedRef = std::unique_ptr<T>;
+template<typename T> using Ref = std::shared_ptr<T>;

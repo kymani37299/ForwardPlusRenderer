@@ -1,257 +1,443 @@
 #include "Commands.h"
 
-#include "System/ApplicationConfiguration.h"
-#include "Render/Device.h"
 #include "Render/Resource.h"
+#include "Render/Buffer.h"
+#include "Render/Device.h"
+#include "Render/Texture.h"
 #include "Render/Shader.h"
-#include "Utility/StringUtility.h"
 
-namespace GFX
+namespace GFX::Cmd
 {
-	namespace
+	GraphicsContext* CreateGraphicsContext()
 	{
-		DXGI_FORMAT IndexStrideToDXGIFormat(unsigned int indexStride)
-		{
-			switch (indexStride)
-			{
-			case 0: return DXGI_FORMAT_UNKNOWN;
-			case 2: return DXGI_FORMAT_R16_UINT;
-			case 4: return DXGI_FORMAT_R32_UINT;
-			default: NOT_IMPLEMENTED;
-			}
-			return DXGI_FORMAT_UNKNOWN;
-		}
+		GraphicsContext* context = new GraphicsContext{};
+
+		D3D12_COMMAND_QUEUE_DESC queueDesc{};
+		queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+		queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+
+		ID3D12Device* device = Device::Get()->GetHandle();
+		API_CALL(device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(context->CmdQueue.GetAddressOf())));
+		API_CALL(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(context->CmdAlloc.GetAddressOf())));
+		API_CALL(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, context->CmdAlloc.Get(), nullptr /* Initial PSO */, IID_PPV_ARGS(context->CmdList.GetAddressOf())));
+		API_CALL(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(context->CmdFence.Handle.GetAddressOf())));
+		context->CmdFence.Value = 0;
+
+		// TODO: Lower number of pages somehow
+		context->MemContext.SRVHeap = DescriptorHeapGPU{ D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 4096u , 64u };
+		context->MemContext.SRVPersistentPage = context->MemContext.SRVHeap.NewPage();
+
+		return context;
 	}
 
-	namespace Cmd
+	void MarkerBegin(GraphicsContext& context, const std::string& name)
 	{
-		static ComPtr<ID3DUserDefinedAnnotation> DebugMarkerHandle;
+		// TODO
+	}
 
-		void MarkerBegin(ID3D11DeviceContext* context, const std::string& markerName)
+	void MarkerEnd(GraphicsContext& context)
+	{
+		// TODO
+	}
+
+	void AddResourceTransition(std::vector<D3D12_RESOURCE_BARRIER>& barriers, Resource* res, D3D12_RESOURCE_STATES wantedState)
+	{
+		if (!res || res->CurrState & wantedState) return;
+
+		if (res->Type == ResourceType::TextureSubresource)
 		{
-			if (!Device::Get()->IsMainContext(context)) return;
-
-			if(!DebugMarkerHandle.Get()) API_CALL(context->QueryInterface(IID_PPV_ARGS(DebugMarkerHandle.GetAddressOf())));
-
-			std::wstring wDebugName = StringUtility::ToWideString(markerName);
-			DebugMarkerHandle->BeginEvent(wDebugName.c_str());
-		}
-		
-		void MarkerEnd(ID3D11DeviceContext* context)
-		{
-			if (!Device::Get()->IsMainContext(context)) return;
-
-			ASSERT(DebugMarkerHandle, "[Cmd::MarkerEnd] Called MarkerEnd without MarkerBegin before it!");
-			DebugMarkerHandle->EndEvent();
-		}
-
-		void ResetContext(ID3D11DeviceContext* context)
-		{
-			context->ClearState();
-			context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-			PipelineState defaultState = GFX::DefaultPipelineState();
-			SetPipelineState(context, defaultState);
-		}
-
-		ID3D11DeviceContext* CreateDeferredContext()
-		{
-			ID3D11DeviceContext* context;
-			API_CALL(Device::Get()->GetHandle()->CreateDeferredContext(0, &context));
-			return context;
-		}
-
-		void SubmitDeferredContext(ID3D11DeviceContext* context)
-		{
-			Device::Get()->SubmitDeferredContext(context);
-		}
-
-		void BindVertexBuffer(ID3D11DeviceContext* context, BufferID bufferID)
-		{
-			BindVertexBuffers(context, { bufferID });
-		}
-
-		void BindVertexBuffers(ID3D11DeviceContext* context, std::vector<BufferID> buffers)
-		{
-			std::vector<ID3D11Buffer*> bufferHandles;
-			std::vector<uint32_t> offsets;
-			std::vector<uint32_t> strides;
-
-			for (BufferID id : buffers)
+			TextureSubresource* subres = static_cast<TextureSubresource*>(res);
+			for (uint32_t mip = subres->FirstMip; mip < subres->FirstMip + subres->MipCount; mip++)
 			{
-				const Buffer& buffer = GFX::Storage::GetBuffer(id);
-
-				bufferHandles.push_back(buffer.Handle.Get());
-				offsets.push_back(0);
-				strides.push_back(buffer.ElementStride);
-			}
-
-			context->IASetVertexBuffers(0, buffers.size(), bufferHandles.data(), strides.data(), offsets.data());
-		}
-
-		void BindIndexBuffer(ID3D11DeviceContext* context, BufferID bufferID)
-		{
-			const Buffer& buffer = GFX::Storage::GetBuffer(bufferID);
-			context->IASetIndexBuffer(buffer.Handle.Get(), IndexStrideToDXGIFormat(buffer.ElementStride), 0u);
-		}
-
-		void BindRenderTarget(ID3D11DeviceContext* context, TextureID colorID, TextureID depthID)
-		{
-			BindRenderTargets(context, { colorID }, depthID);
-		}
-
-		void BindRenderTargets(ID3D11DeviceContext* context, std::vector<TextureID> colorID, TextureID depthID)
-		{
-			ID3D11DepthStencilView* dsv = nullptr;
-			std::vector<ID3D11RenderTargetView*> rtvs;
-
-			// Setup viewport
-			if ((colorID.size() > 0 && colorID[0].Valid()) || depthID.Valid())
-			{
-				const Texture& texture = depthID.Valid() ? GFX::Storage::GetTexture(depthID) : GFX::Storage::GetTexture(colorID[0]);
-				SetViewport(context, texture.Width, texture.Height);
-			}
-
-			// Get RTVs
-			for(uint32_t i=0;i<colorID.size();i++)
-			{
-				const TextureID texID = colorID[i];
-				if (texID.Valid())
+				for (uint32_t el = subres->FirstElement; el < subres->FirstElement + subres->ElementCount; el++)
 				{
-					const Texture& colorTexture = GFX::Storage::GetTexture(texID);
-					rtvs.push_back(colorTexture.RTV.Get());
+					D3D12_RESOURCE_BARRIER barrier;
+					barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+					barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+					barrier.Transition.pResource = res->Handle.Get();
+					barrier.Transition.StateBefore = res->CurrState;
+					barrier.Transition.StateAfter = wantedState;
+					barrier.Transition.Subresource = D3D12CalcSubresource(mip, el, 0, subres->NumMips, subres->NumElements);
+					barriers.push_back(std::move(barrier));
 				}
 			}
+		}
+		else if (res->Type == ResourceType::BufferSubresource)
+		{
+			NOT_IMPLEMENTED;
+		}
+		else
+		{
+			D3D12_RESOURCE_BARRIER barrier;
+			barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+			barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+			barrier.Transition.pResource = res->Handle.Get();
+			barrier.Transition.StateBefore = res->CurrState;
+			barrier.Transition.StateAfter = wantedState;
+			barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+			barriers.push_back(std::move(barrier));
+		}
 
-			// Get DSV
-			if (depthID.Valid())
+		res->CurrState = wantedState;
+	}
+
+	void TransitionResource(GraphicsContext& context, Resource* resource, D3D12_RESOURCE_STATES wantedState)
+	{
+		std::vector<D3D12_RESOURCE_BARRIER> barriers{};
+		AddResourceTransition(barriers, resource, wantedState);
+		if(!barriers.empty()) context.CmdList->ResourceBarrier(barriers.size(), barriers.data());
+	}
+
+	void FlushContext(GraphicsContext& context)
+	{
+		Fence& fence = context.CmdFence;
+
+		fence.Value++;
+		API_CALL(context.CmdQueue->Signal(fence.Handle.Get(), fence.Value));
+		if (context.CmdFence.Handle->GetCompletedValue() < context.CmdFence.Value)
+		{
+			void* eventHandle = CreateEventEx(nullptr, FALSE, FALSE, EVENT_ALL_ACCESS);
+			if (eventHandle)
 			{
-				const Texture& depthTexture = GFX::Storage::GetTexture(depthID);
-				dsv = depthTexture.DSV.Get();
-			}
-
-			context->OMSetRenderTargets(rtvs.size(), rtvs.size() == 0 ? nullptr : rtvs.data(), dsv);
-		}
-
-		void SetViewport(ID3D11DeviceContext* context, uint32_t width, uint32_t height)
-		{
-			const D3D11_VIEWPORT viewport = { 0.0f, 0.0f, (float) width, (float) height, 0.0f, 1.0f };
-			context->RSSetViewports(1, &viewport);
-		}
-
-		void SetPipelineState(ID3D11DeviceContext* context, const PipelineState& pipelineState)
-		{
-			const CompiledPipelineState& compiledState = GFX::CompilePipelineState(pipelineState);
-			SetPipelineState(context, compiledState);
-		}
-
-		void SetPipelineState(ID3D11DeviceContext* context, const CompiledPipelineState& pipelineState)
-		{
-			const float blendFactor[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-
-			context->RSSetState(pipelineState.RS.Get());
-			context->OMSetDepthStencilState(pipelineState.DS.Get(), 0xff);
-			context->OMSetBlendState(pipelineState.BS.Get(), blendFactor, 0xffffffff);
-		}
-
-		void ClearRenderTarget(ID3D11DeviceContext* context, TextureID id, Float4 clearColor)
-		{
-			const float clearValue[4] = { clearColor.x, clearColor.y, clearColor.z, clearColor.w };
-			const Texture& tex = GFX::Storage::GetTexture(id);
-			ASSERT(tex.RTV.Get(), "Trying to clear invalid color texture!");
-			context->ClearRenderTargetView(tex.RTV.Get(), clearValue);
-		}
-
-		void ClearDepthStencil(ID3D11DeviceContext* context, TextureID id, float depthValue, uint32_t stencilValue)
-		{
-			const Texture& tex = GFX::Storage::GetTexture(id);
-			ASSERT(tex.DSV.Get(), "Trying to clear invalid depth texture!");
-			context->ClearDepthStencilView(tex.DSV.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, depthValue, stencilValue);
-		}
-
-		void UploadToBuffer(ID3D11DeviceContext* context, BufferID bufferID, uint32_t dstOffset, const void* data, uint32_t srcOffset, size_t dataSize)
-		{
-			if (dataSize == 0) return;
-
-			const Buffer& buffer = GFX::Storage::GetBuffer(bufferID);
-			if ((buffer.CreationFlags & RCF_CPU_Write) || (buffer.CreationFlags & RCF_CPU_Write_Persistent))
-			{
-				const D3D11_MAP mapMode = buffer.CreationFlags & RCF_CPU_Write_Persistent ? D3D11_MAP_WRITE : D3D11_MAP_WRITE_DISCARD;
-
-				D3D11_MAPPED_SUBRESOURCE mapResult;
-				API_CALL(context->Map(buffer.Handle.Get(), 0, mapMode, 0, &mapResult));
-
-				const uint8_t* srcPtr = reinterpret_cast<const uint8_t*>(data);
-				const uint8_t* dstPtr = reinterpret_cast<const uint8_t*>(mapResult.pData);
-
-				memcpy((void*)(dstPtr + dstOffset), srcPtr + srcOffset, dataSize);
-				context->Unmap(buffer.Handle.Get(), 0);
-			}
-			else if(buffer.CreationFlags & RCF_CopyDest)
-			{
-				const Buffer& buffer = GFX::Storage::GetBuffer(bufferID);
-				D3D11_BOX bufferRegion;
-				bufferRegion.left = dstOffset;
-				bufferRegion.right = dstOffset + dataSize;
-				bufferRegion.top = 0;
-				bufferRegion.bottom = 1;
-				bufferRegion.front = 0;
-				bufferRegion.back = 1;
-				context->UpdateSubresource(buffer.Handle.Get(), 0, &bufferRegion, data, 0, 0);
+				API_CALL(context.CmdFence.Handle->SetEventOnCompletion(context.CmdFence.Value, eventHandle));
+				WaitForSingleObject(eventHandle, INFINITE);
+				CloseHandle(eventHandle);
 			}
 			else
 			{
-				ASSERT(0, "[UploadToBuffer, please set RCF_CopyDest or RCF_CPU_Write(_Persistent) for the resource you want to upload to!");
+				ASSERT(0, "[Fence::Sync] CreateEventEx(nullptr, FALSE, FALSE, EVENT_ALL_ACCESS) failed!");
 			}
 		}
+	}
 
-		void UploadToTexture(ID3D11DeviceContext* context, void* data, TextureID textureID, uint32_t mipIndex)
+	void SubmitContext(GraphicsContext& context)
+	{
+		API_CALL(context.CmdList->Close());
+		ID3D12CommandList* cmdsLists[] = { context.CmdList.Get() };
+		context.CmdQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+	}
+
+	void ResetContext(GraphicsContext& context)
+	{
+		context.CmdAlloc->Reset();
+		context.CmdList->Reset(context.CmdAlloc.Get(), nullptr);
+		context.BoundState.Valid = false;
+	}
+
+	void BindState(GraphicsContext& context, const GraphicsState& state)
+	{
+		ApplyGraphicsState(context, state);
+	}
+
+	void ClearRenderTarget(GraphicsContext& context, Texture* renderTarget)
+	{
+		TransitionResource(context, renderTarget, D3D12_RESOURCE_STATE_RENDER_TARGET);
+		float clearColor[] = { 0.0f, 0.0f, 0.0f, 0.0f };
+		D3D12_RECT rect = { 0.0f, 0.0f, renderTarget->Width, renderTarget->Height };
+		context.CmdList->ClearRenderTargetView(renderTarget->RTV, clearColor, 1, &rect);
+	}
+
+	void ClearDepthStencil(GraphicsContext& context, Texture* depthStencil)
+	{
+		TransitionResource(context, depthStencil, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+		D3D12_RECT rect = { 0.0f, 0.0f, depthStencil->Width, depthStencil->Height };
+		context.CmdList->ClearDepthStencilView(depthStencil->DSV, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 1, &rect);
+	}
+
+	// TODO: Create staging resources directly on a Device and use that
+
+	struct UpdateSubresourceInput
+	{
+		Resource* DstResource = nullptr;
+		const void* Data = nullptr;
+		uint32_t MipIndex = 0;
+		uint32_t ArrayIndex = 0;
+		uint32_t SrcOffset = 0;
+		uint32_t DstOffset = 0;
+		uint32_t DataSize = 0;
+	};
+
+	static void UpdateSubresource(GraphicsContext& context, UpdateSubresourceInput input)
+	{
+		Device* device = Device::Get();
+
+		// Maybe use one staging buffer for everything	
+		static constexpr uint32_t StagingOffset = 0;
+
+		uint32_t subresourceIndex = 0;
+		D3D12_SUBRESOURCE_DATA subresourceData{};
+		subresourceData.pData = (const void*)(reinterpret_cast<const uint8_t*>(input.Data) + input.SrcOffset);
+		if (input.DstResource->Type == ResourceType::Texture)
 		{
-			const Texture& texture = GFX::Storage::GetTexture(textureID);
-			uint32_t subresourceIndex = D3D11CalcSubresource(mipIndex, 0, texture.NumMips);
-			context->UpdateSubresource(texture.Handle.Get(), subresourceIndex, nullptr, data, texture.RowPitch, texture.SlicePitch);
+			Texture* texture = static_cast<Texture*>(input.DstResource);
+			subresourceIndex = D3D12CalcSubresource(input.MipIndex, input.ArrayIndex, 0, texture->NumMips, texture->NumElements);
+			subresourceData.RowPitch = texture->RowPitch;
+			subresourceData.SlicePitch = texture->SlicePitch;
+		}
+		else if (input.DstResource->Type == ResourceType::Buffer)
+		{
+			Buffer* buffer = static_cast<Buffer*>(input.DstResource);
+			subresourceData.RowPitch = buffer->ByteSize;
+			subresourceData.SlicePitch = subresourceData.RowPitch;
 		}
 
-		void CopyToTexture(ID3D11DeviceContext* context, TextureID srcTexture, TextureID dstTexture, uint32_t mipIndex)
+		uint64_t resourceSize;
+		D3D12_PLACED_SUBRESOURCE_FOOTPRINT subresLayout;
+		uint32_t subresRowNumber;
+		uint64_t subresRowByteSizes;
+
+		ID3D12Resource* dxResource = input.DstResource->Handle.Get();
+		D3D12_RESOURCE_DESC resourceDesc = dxResource->GetDesc();
+
+		// Get memory footprints
+		ID3D12Device* resourceDevice;
+		dxResource->GetDevice(__uuidof(*resourceDevice), reinterpret_cast<void**>(&resourceDevice));
+		resourceDevice->GetCopyableFootprints(&resourceDesc, subresourceIndex, 1, StagingOffset, &subresLayout, &subresRowNumber, &subresRowByteSizes, &resourceSize);
+		resourceDevice->Release();
+
+		// Create staging resource
+		Buffer* stagingResource = GFX::CreateBuffer(input.DataSize ? input.DataSize : resourceSize, 1, RCF_CPU_Access);
+		DeferredTrash::Put(stagingResource);
+		GFX::SetDebugName(stagingResource, "UpdateSubresource::StagingBuffer");
+
+		// Upload data to staging resource
+		uint8_t* stagingDataPtr;
+		API_CALL(stagingResource->Handle->Map(0, NULL, reinterpret_cast<void**>(&stagingDataPtr)));
+		if (input.DataSize)
 		{
-			const Texture& srcTex = GFX::Storage::GetTexture(srcTexture);
-			const Texture& dstTex = GFX::Storage::GetTexture(dstTexture);
-			ASSERT(srcTex.RowPitch == dstTex.RowPitch
-				&& srcTex.SlicePitch == dstTex.SlicePitch
-				&& srcTex.NumMips == dstTex.NumMips, "[Cmd::CopyToTexture] SRC and DST are not compatible!");
-			uint32_t subresourceIndex = D3D11CalcSubresource(mipIndex, 0, srcTex.NumMips);
-			context->CopySubresourceRegion(dstTex.Handle.Get(), subresourceIndex, 0, 0, 0, srcTex.Handle.Get(), subresourceIndex, nullptr);
+			memcpy(stagingDataPtr, input.Data, input.DataSize);
+		}
+		else
+		{
+			D3D12_MEMCPY_DEST DestData = { stagingDataPtr + subresLayout.Offset, subresLayout.Footprint.RowPitch, (uint64_t)subresLayout.Footprint.RowPitch * subresRowNumber };
+			MemcpySubresource(&DestData, &subresourceData, (uint32_t)subresRowByteSizes, subresRowNumber, subresLayout.Footprint.Depth);
+		}
+		stagingResource->Handle->Unmap(0, NULL);
+
+		// Copy data to resource
+		if (input.DstResource->Type == ResourceType::Buffer)
+		{
+			const uint32_t copySize = input.DataSize ? input.DataSize : subresLayout.Footprint.Width;
+			Buffer* buffer = static_cast<Buffer*>(input.DstResource);
+			TransitionResource(context, buffer, D3D12_RESOURCE_STATE_COPY_DEST);
+			context.CmdList->CopyBufferRegion(buffer->Handle.Get(), input.DstOffset, stagingResource->Handle.Get(), subresLayout.Offset, copySize);
+		}
+		else
+		{
+			Texture* texture = static_cast<Texture*>(input.DstResource);
+			TransitionResource(context, texture, D3D12_RESOURCE_STATE_COPY_DEST);
+
+			D3D12_TEXTURE_COPY_LOCATION dst{};
+			dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+			dst.pResource = texture->Handle.Get();
+			dst.SubresourceIndex = subresourceIndex;
+
+			D3D12_TEXTURE_COPY_LOCATION src{};
+			src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+			src.pResource = stagingResource->Handle.Get();
+			src.PlacedFootprint = subresLayout;
+
+			context.CmdList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
 		}
 
-		void CopyToBuffer(ID3D11DeviceContext* context, BufferID srcBuffer, uint32_t srcOffset, BufferID dstBuffer, uint32_t dstOffset, uint32_t size)
-		{
-			if (size == 0) return;
+		DeferredTrash::Put(stagingResource->Handle.Get());
+	}
 
-			const Buffer& srcBuf = GFX::Storage::GetBuffer(srcBuffer);
-			const Buffer& dstBuf = GFX::Storage::GetBuffer(dstBuffer);
-			D3D11_BOX sourceRegion;
-			sourceRegion.left = srcOffset;
-			sourceRegion.right = srcOffset + size;
-			sourceRegion.top = 0;
-			sourceRegion.bottom = 1;
-			sourceRegion.front = 0;
-			sourceRegion.back = 1;
-			context->CopySubresourceRegion(dstBuf.Handle.Get(), 0, dstOffset, 0, 0, srcBuf.Handle.Get(), 0, &sourceRegion);
+	void UploadToBufferCPU(Buffer* buffer, uint32_t dstOffset, const void* data, uint32_t srcOffset, size_t dataSize)
+	{
+		ASSERT(buffer->CreationFlags & RCF_CPU_Access, "[UploadToBufferCPU] Buffer must have CPU Access in order to map it");
+
+		D3D12_RANGE mapRange{ 0, buffer->ByteSize };
+		void* mappedData;
+		API_CALL(buffer->Handle->Map(0, &mapRange, &mappedData));
+		memcpy(mappedData, data, dataSize);
+		buffer->Handle->Unmap(0, &mapRange);
+	}
+
+	void UploadToBufferGPU(GraphicsContext& context, Buffer* buffer, uint32_t dstOffset, const void* data, uint32_t srcOffset, size_t dataSize)
+	{
+		UpdateSubresourceInput updateInput{};
+		updateInput.DstResource = buffer;
+		updateInput.Data = data;
+		updateInput.DataSize = dataSize;
+		updateInput.SrcOffset = srcOffset;
+		updateInput.DstOffset = dstOffset;
+
+		TransitionResource(context, buffer, D3D12_RESOURCE_STATE_COPY_DEST);
+		UpdateSubresource(context, updateInput);
+	}
+
+	void UploadToBuffer(GraphicsContext& context, Buffer* buffer, uint32_t dstOffset, const void* data, uint32_t srcOffset, size_t dataSize)
+	{
+		if (dataSize == 0) return;
+
+		if (buffer->CreationFlags & RCF_CPU_Access)
+		{
+			UploadToBufferCPU(buffer, dstOffset, data, srcOffset, dataSize);
 		}
-
-		void ResolveTexture(ID3D11DeviceContext* context, TextureID srcTexture, TextureID dstTexture)
+		else
 		{
-			const Texture& srcTex = GFX::Storage::GetTexture(srcTexture);
-			const Texture& dstTex = GFX::Storage::GetTexture(dstTexture);
-			ASSERT(srcTex.Format == dstTex.Format, "In order to resolve a texture source and destination need to be a same format");
-			context->ResolveSubresource(dstTex.Handle.Get(), 0, srcTex.Handle.Get(), 0, srcTex.Format);
+			UploadToBufferGPU(context, buffer, dstOffset, data, srcOffset, dataSize);
 		}
+	}
 
-		void DrawFC(ID3D11DeviceContext* context)
+	void UploadToTexture(GraphicsContext& context, const void* data, Texture* texture, uint32_t mipIndex, uint32_t arrayIndex)
+	{
+		UpdateSubresourceInput updateInput{};
+		updateInput.DstResource = texture;
+		updateInput.Data = data;
+		updateInput.MipIndex = mipIndex;
+		updateInput.ArrayIndex = arrayIndex;
+
+		TransitionResource(context, texture, D3D12_RESOURCE_STATE_COPY_DEST);
+		UpdateSubresource(context, updateInput);
+	}
+
+	void CopyToTexture(GraphicsContext& context, Texture* srcTexture, Texture* dstTexture, uint32_t mipIndex)
+	{
+		TransitionResource(context, srcTexture, D3D12_RESOURCE_STATE_COPY_SOURCE);
+		TransitionResource(context, dstTexture, D3D12_RESOURCE_STATE_COPY_DEST);
+
+		D3D12_TEXTURE_COPY_LOCATION srcCopy{};
+		srcCopy.pResource = srcTexture->Handle.Get();
+		srcCopy.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+		srcCopy.SubresourceIndex = D3D12CalcSubresource(mipIndex, 0, 0, srcTexture->NumMips, srcTexture->NumElements);
+
+		D3D12_TEXTURE_COPY_LOCATION dstCopy{};
+		dstCopy.pResource = dstTexture->Handle.Get();
+		srcCopy.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+		srcCopy.SubresourceIndex = D3D12CalcSubresource(mipIndex, 0, 0, dstTexture->NumMips, dstTexture->NumElements);
+
+		context.CmdList->CopyTextureRegion(&dstCopy, 0, 0, 0, &srcCopy, nullptr);
+	}
+
+	void CopyToBuffer(GraphicsContext& context, Buffer* srcBuffer, uint32_t srcOffset, Buffer* dstBuffer, uint32_t dstOffset, uint32_t size)
+	{
+		NOT_IMPLEMENTED;
+	}
+
+	void DrawFC(GraphicsContext& context, GraphicsState& state)
+	{
+		state.VertexBuffers.resize(1);
+		state.VertexBuffers[0] = Device::Get()->GetQuadBuffer();
+		GFX::Cmd::BindState(context, state);
+		context.CmdList->DrawInstanced(6, 1, 0, 0);
+	}
+
+	void BindShader(GraphicsState& state, Shader* shader, uint8_t stages, std::vector<std::string> config, bool multiInput)
+	{
+		const CompiledShader& compShader = GFX::GetCompiledShader(shader, config, stages);
+
+		state.Pipeline.VS = compShader.Vertex;
+		state.Pipeline.HS = compShader.Hull;
+		state.Pipeline.DS = compShader.Domain;
+		state.Pipeline.GS = compShader.Geometry;
+		state.Pipeline.PS = compShader.Pixel;
+		state.Compute = compShader.Compute;
+
+		if (multiInput)
 		{
-			GFX::Cmd::BindVertexBuffer(context, Device::Get()->GetQuadBuffer());
-			context->Draw(6, 0);
+			state.Pipeline.InputLayout = { compShader.InputLayoutMultiInput.data(), (uint32_t)compShader.InputLayoutMultiInput.size() };
+		}
+		else
+		{
+			state.Pipeline.InputLayout = { compShader.InputLayout.data(), (uint32_t)compShader.InputLayout.size() };
+		}
+	}
+
+	void BindRenderTarget(GraphicsState& state, Texture* renderTarget)
+	{
+		if (renderTarget)
+		{
+			state.RenderTarget = renderTarget;
+			state.Viewport = { 0.0f, 0.0f, (float)renderTarget->Width, (float)renderTarget->Height, 0.0f, 1.0f };
+			state.Scissor = { 0,0, (long)renderTarget->Width, (long)renderTarget->Height };
+			state.Pipeline.RTVFormats[0] = renderTarget->Format;
+			state.Pipeline.NumRenderTargets = 1;
+			state.Pipeline.SampleDesc.Count = GetSampleCount(renderTarget->CreationFlags);
+		}
+		else
+		{
+			state.RenderTarget = nullptr;
+			state.Pipeline.RTVFormats[0] = DXGI_FORMAT_UNKNOWN;
+			state.Pipeline.NumRenderTargets = 0;
 		}
 
 	}
+
+	void BindDepthStencil(GraphicsState& state, Texture* depthStencil)
+	{
+		if (!depthStencil) NOT_IMPLEMENTED;
+
+		state.DepthStencil = depthStencil;
+		state.Viewport = { 0.0f, 0.0f, (float)depthStencil->Width, (float)depthStencil->Height, 0.0f, 1.0f };
+		state.Scissor = { 0,0, (long)depthStencil->Width, (long)depthStencil->Height };
+		state.Pipeline.DSVFormat = depthStencil->Format;
+		state.Pipeline.SampleDesc.Count = GetSampleCount(depthStencil->CreationFlags);
+	}
+
+	void BindSampler(GraphicsState& state, uint32_t slot, D3D12_TEXTURE_ADDRESS_MODE addressMode, D3D12_FILTER filter)
+	{
+		D3D12_STATIC_SAMPLER_DESC samplerDesc{};
+		samplerDesc.AddressU = addressMode;
+		samplerDesc.AddressV = addressMode;
+		samplerDesc.AddressW = addressMode;
+		samplerDesc.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+		samplerDesc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+		samplerDesc.Filter = filter;
+		samplerDesc.MaxAnisotropy = 16;
+		samplerDesc.MaxLOD = D3D12_FLOAT32_MAX;
+		samplerDesc.MinLOD = 0;
+		samplerDesc.MipLODBias = 0;
+		samplerDesc.RegisterSpace = 0;
+		samplerDesc.ShaderRegister = slot;
+		samplerDesc.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		state.Samplers.push_back(samplerDesc);
+	}
+
+	void GenerateMips(GraphicsContext& context, Texture* texture)
+	{
+		ASSERT(texture->NumElements == 1, "GenerateMips not supported for texture arrays!");
+
+		GFX::Cmd::MarkerBegin(context, "GenerateMips");
+
+		// Init state
+		GraphicsState state{};
+		state.Table.SRVs.resize(1);
+		GFX::Cmd::BindSampler(state, 0, D3D12_TEXTURE_ADDRESS_MODE_CLAMP, D3D12_FILTER_MIN_MAG_MIP_LINEAR);
+		GFX::Cmd::BindShader(state, Device::Get()->GetCopyShader(), VS | PS);
+
+		// Generate subresources
+		std::vector<TextureSubresource*> subresources{};
+		subresources.resize(texture->NumMips);
+		for (uint32_t mip = 0; mip < texture->NumMips; mip++)
+		{
+			subresources[mip] = GFX::CreateTextureSubresource(texture, mip, 1, 0, texture->NumElements);
+			DeferredTrash::Put(subresources[mip]);
+		}
+
+		// Generate mips
+		for (uint32_t mip = 1; mip < texture->NumMips; mip++)
+		{
+			state.Table.SRVs[0] = subresources[mip - 1];
+			GFX::Cmd::BindRenderTarget(state, subresources[mip]);
+			GFX::Cmd::DrawFC(context, state);
+		}
+
+		// Return resource state to initial state
+		for (uint32_t mip = 0; mip < texture->NumMips; mip++)
+		{
+			GFX::Cmd::TransitionResource(context, subresources[mip], texture->CurrState);
+		}
+
+		GFX::Cmd::MarkerEnd(context);
+	}
+
+	void ResolveTexture(GraphicsContext& context, Texture* inputTexture, Texture* outputTexture)
+	{
+		TransitionResource(context, inputTexture, D3D12_RESOURCE_STATE_RESOLVE_SOURCE);
+		TransitionResource(context, outputTexture, D3D12_RESOURCE_STATE_RESOLVE_DEST);
+		context.CmdList->ResolveSubresource(outputTexture->Handle.Get(), 0, inputTexture->Handle.Get(), 0, outputTexture->Format);
+	}
+
 }

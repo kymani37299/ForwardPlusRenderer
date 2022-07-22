@@ -9,6 +9,8 @@
 #include <Engine/Render/Device.h>
 #include <Engine/Render/Buffer.h>
 #include <Engine/Render/Texture.h>
+#include <Engine/Render/Context.h>
+#include <Engine/Render/Commands.h>
 #include <Engine/Render/RenderThread.h>
 #include <Engine/Utility/PathUtility.h>
 #include <Engine/System/ApplicationConfiguration.h>
@@ -29,7 +31,7 @@ namespace SceneLoading
 		struct LoadingContext
 		{
 			std::string RelativePath;
-			ID3D11DeviceContext* GfxContext;
+			GraphicsContext* GfxContext;
 			SceneGraph* LoadingScene;
 			RenderGroup* LoadingRG;
 			RenderGroupType RGType;
@@ -176,7 +178,7 @@ namespace SceneLoading
 				vertices[i].Tangent = tangentData ? tangentData[i] : Float4(0,0,0,0);
 			}
 
-			MeshStorage::Allocation alloc = meshStorage.Allocate(context.GfxContext, vertCount, finalIndices.size());
+			MeshStorage::Allocation alloc = meshStorage.Allocate(*context.GfxContext, vertCount, finalIndices.size());
 
 			Mesh mesh;
 			mesh.VertCount = vertCount;
@@ -192,10 +194,10 @@ namespace SceneLoading
 			}
 
 			// Upload
-			GFX::Cmd::UploadToBuffer(context.GfxContext, meshStorage.GetVertexBuffer(), mesh.VertOffset * MeshStorage::GetVertexBufferStride(), vertices.data(), 0, mesh.VertCount * MeshStorage::GetVertexBufferStride());
-			GFX::Cmd::UploadToBuffer(context.GfxContext, meshStorage.GetIndexBuffer(), mesh.IndexOffset * MeshStorage::GetIndexBufferStride(), finalIndices.data(), 0, mesh.IndexCount * MeshStorage::GetIndexBufferStride());
+			GFX::Cmd::UploadToBuffer(*context.GfxContext, meshStorage.GetVertexBuffer(), mesh.VertOffset * MeshStorage::GetVertexBufferStride(), vertices.data(), 0, mesh.VertCount * MeshStorage::GetVertexBufferStride());
+			GFX::Cmd::UploadToBuffer(*context.GfxContext, meshStorage.GetIndexBuffer(), mesh.IndexOffset * MeshStorage::GetIndexBufferStride(), finalIndices.data(), 0, mesh.IndexCount * MeshStorage::GetIndexBufferStride());
 
-			return context.LoadingRG->AddMesh(context.GfxContext, mesh);
+			return context.LoadingRG->AddMesh(*context.GfxContext, mesh);
 		}
 
 		BoundingSphere CalculateBoundingSphere(cgltf_primitive* meshData)
@@ -218,7 +220,7 @@ namespace SceneLoading
 			ASSERT(vertexData, "[SceneLoading] ASSERT FAILED: vertexData");
 
 			static constexpr float MAX_FLOAT = std::numeric_limits<float>::max();
-			static constexpr float MIN_FLOAT = std::numeric_limits<float>::min();
+			static constexpr float MIN_FLOAT = -MAX_FLOAT;
 
 			Float3 minAABB{ MAX_FLOAT , MAX_FLOAT, MAX_FLOAT };
 			Float3 maxAABB{ MIN_FLOAT, MIN_FLOAT, MIN_FLOAT };
@@ -244,11 +246,7 @@ namespace SceneLoading
 
 		uint32_t LoadTexture(const LoadingContext& context, cgltf_texture* texture, ColorUNORM defaultColor = {1.0f, 1.0f, 1.0f, 1.0f})
 		{
-			TextureID defaultTex = GFX::CreateTexture(1,1,RCF_Bind_SRV, 1, DXGI_FORMAT_R8G8B8A8_UNORM, &defaultColor);
-
-			TextureStorage::Allocation alloc = context.LoadingRG->TextureData.AddTexture(context.GfxContext, defaultTex);
-
-			GFX::Storage::Free(defaultTex);
+			TextureStorage::Allocation alloc = context.LoadingRG->TextureData.AllocTexture(*context.GfxContext);
 
 			std::string texturePath = "";
 			if (texture)
@@ -259,8 +257,7 @@ namespace SceneLoading
 
 			if (AppConfig.Settings.contains("NO_BG_LOADING"))
 			{
-				TextureLoadingTask texLoadingTask{ texturePath, alloc, context.LoadingRG->TextureData, defaultColor };
-				texLoadingTask.Run(context.GfxContext);
+				Device::Get()->GetTaskExecutor().Submit(new TextureLoadingTask(texturePath, alloc, context.LoadingRG->TextureData, defaultColor));
 			}
 			else
 			{
@@ -298,7 +295,7 @@ namespace SceneLoading
 			material.MetallicRoughness = LoadTexture(context, mat.metallic_roughness_texture.texture);
 			material.Normal = LoadTexture(context, materialData->normal_texture.texture, ColorUNORM(0.5f, 0.5f, 1.0f, 1.0f));
 
-			return context.LoadingRG->AddMaterial(context.GfxContext, material);
+			return context.LoadingRG->AddMaterial(*context.GfxContext, material);
 		}
 
 		LoadedObject LoadObject(LoadingContext& context, cgltf_primitive* objectData)
@@ -379,8 +376,8 @@ namespace SceneLoading
 
 		LoadingContext context{};
 		context.RelativePath = PathUtility::GetPathWitoutFile(path);
-		context.GfxContext = Device::Get()->GetContext();
-		context.LoadingScene = &MainSceneGraph;
+		context.GfxContext = &Device::Get()->GetContext();
+		context.LoadingScene = MainSceneGraph;
 
 		cgltf_options options = {};
 		cgltf_data* data = NULL;
@@ -399,7 +396,7 @@ namespace SceneLoading
 
 	void AddDraws(LoadedScene scene, Entity entity)
 	{
-		ID3D11DeviceContext* context = Device::Get()->GetContext();
+		GraphicsContext& context = Device::Get()->GetContext();
 
 		std::unordered_map<uint32_t, uint32_t> entityIndexMap;
 		for (uint32_t i = 0; i < scene.Entities.size(); i++)
@@ -410,18 +407,14 @@ namespace SceneLoading
 			e.Scale = entity.Scale;
 			e.Rotation = entity.Rotation;
 
-			uint32_t entityIndex = MainSceneGraph.AddEntity(context, e);
+			uint32_t entityIndex = MainSceneGraph->AddEntity(context, e);
 			entityIndexMap[i] = entityIndex;
 		}
 
 		for (const LoadedObject& obj : scene.Objects)
 		{
-			RenderGroup& rg = MainSceneGraph.RenderGroups[EnumToInt(obj.RenderGroup)];
+			RenderGroup& rg = MainSceneGraph->RenderGroups[EnumToInt(obj.RenderGroup)];
 			rg.AddDraw(Device::Get()->GetContext(), obj.MaterialIndex, obj.MeshIndex, entityIndexMap[obj.EntityIndex], obj.BoundingVolume);
 		}
 	}
 }
-
-// TMP HACK - Delete this
-#undef MESHLET_TRIANGLE_COUNT
-#undef MESHLET_INDEX_COUNT

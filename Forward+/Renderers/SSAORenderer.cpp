@@ -3,6 +3,7 @@
 #include <Engine/Render/Commands.h>
 #include <Engine/Render/Shader.h>
 #include <Engine/Render/Texture.h>
+#include <Engine/Render/Buffer.h>
 #include <Engine/System/ApplicationConfiguration.h>
 #include <Engine/Utility/Random.h>
 #include <Engine/Utility/MathUtility.h>
@@ -10,16 +11,27 @@
 #include "Globals.h"
 #include "Scene/SceneGraph.h"
 #include "Renderers/Util/ConstantManager.h"
+#include "Renderers/Util/SamplerManager.h"
 #include "Shaders/shared_definitions.h"
 
-void SSAORenderer::Init(ID3D11DeviceContext* context)
+SSAORenderer::SSAORenderer()
+{
+
+}
+
+SSAORenderer::~SSAORenderer()
+{
+
+}
+
+void SSAORenderer::Init(GraphicsContext& context)
 {
 	for (uint32_t i = 0; i < SSAO_KERNEL_SIZE; i++)
 	{
 		Float3 sample = Float3{ Random::SNorm(), Random::SNorm(), Random::UNorm() }.NormalizeFast();
 		sample *= Random::UNorm();
 
-		const float scale = (float) i / SSAO_KERNEL_SIZE;
+		const float scale = (float)i / SSAO_KERNEL_SIZE;
 		sample *= MathUtility::Lerp(0.1f, 1.0f, scale * scale);
 
 		m_Kernel.push_back(Float4{ sample.x, sample.y, sample.z, 0.0f });
@@ -31,14 +43,20 @@ void SSAORenderer::Init(ID3D11DeviceContext* context)
 		const ColorUNORM noiseValue = { Random::SNorm(), Random::SNorm(), 0.0f, 1.0f };
 		noise.push_back(noiseValue);
 	}
-	m_NoiseTexture = GFX::CreateTexture(4, 4, RCF_Bind_SRV, 1, DXGI_FORMAT_R8G8B8A8_UNORM, noise.data());
+
+	ResourceInitData noiseData{ &context, noise.data() };
+	m_NoiseTexture = ScopedRef<Texture>(GFX::CreateTexture(4, 4, RCF_None, 1, DXGI_FORMAT_R8G8B8A8_UNORM, &noiseData));
 
 	const ColorUNORM defaultColor{ 1.0f, 1.0f, 1.0f, 1.0f };
-	m_NoSSAOTexture = GFX::CreateTexture(1, 1, RCF_Bind_SRV, 1, DXGI_FORMAT_R8G8B8A8_UNORM, &defaultColor);
+	ResourceInitData defaultData{ &context, &defaultColor };
+	m_NoSSAOTexture = ScopedRef<Texture>(GFX::CreateTexture(1, 1, RCF_None, 1, DXGI_FORMAT_R8G8B8A8_UNORM, &defaultData));
 
-	m_Shader = GFX::CreateShader("Forward+/Shaders/ssao.hlsl");
+	m_Shader = ScopedRef<Shader>(new Shader("Forward+/Shaders/ssao.hlsl"));
 
 	UpdateResources(context);
+
+	GFX::SetDebugName(m_NoiseTexture.get(), "SSAORenderer::Noise");
+	GFX::SetDebugName(m_NoSSAOTexture.get(), "SSAORenderer::NoSSAO");
 }
 
 struct SSAOSettingsRenderData
@@ -61,56 +79,63 @@ SSAOSettingsRenderData GetSettingsRenderData()
 	return data;
 }
 
-TextureID SSAORenderer::Draw(ID3D11DeviceContext* context, TextureID depth)
+Texture* SSAORenderer::Draw(GraphicsContext& context, Texture* depth)
 {
-	if (!RenderSettings.SSAO.Enabled) return m_NoSSAOTexture;
+	if (!RenderSettings.SSAO.Enabled) return m_NoSSAOTexture.get();
 
 	GFX::Cmd::MarkerBegin(context, "SSAO");
 
 	// Sample
 	{
+		GraphicsState state{};
+
 		CBManager.Clear();
 		CBManager.Add(GetSettingsRenderData());
-		CBManager.Add(MainSceneGraph.MainCamera.CameraData);
+		CBManager.Add(MainSceneGraph->MainCamera.CameraData);
 		for (uint32_t i = 0; i < SSAO_KERNEL_SIZE; i++) CBManager.Add(m_Kernel[i]);
 		CBManager.Add(AppConfig.WindowWidth);
-		CBManager.Add(AppConfig.WindowHeight, true);
+		CBManager.Add(AppConfig.WindowHeight);
+		
+		SSManager.Bind(state);
 
-		GFX::Cmd::BindRenderTarget(context, m_SSAOSampleTexture);
-		GFX::Cmd::BindShader<VS | PS>(context, m_Shader, { "SSAO_SAMPLE" });
-		GFX::Cmd::BindSRV<PS>(context, m_NoiseTexture, 0);
-		GFX::Cmd::BindSRV<PS>(context, depth, 1);
-		GFX::Cmd::DrawFC(context);
+		state.Table.CBVs.push_back(CBManager.GetBuffer());
+		state.Table.SRVs.push_back(m_NoiseTexture.get());
+		state.Table.SRVs.push_back(depth);
+
+		GFX::Cmd::BindRenderTarget(state, m_SSAOSampleTexture.get());
+		GFX::Cmd::BindShader(state, m_Shader.get(), VS | PS, {"SSAO_SAMPLE"});
+		GFX::Cmd::DrawFC(context, state);
 	}
-
-
-	GFX::Cmd::BindRenderTarget(context, TextureID{});
 
 	// Blur
 	{
+		GraphicsState state{};
+
 		CBManager.Clear();
 		CBManager.Add(AppConfig.WindowWidth);
-		CBManager.Add(AppConfig.WindowHeight, true);
+		CBManager.Add(AppConfig.WindowHeight);
 
-		GFX::Cmd::BindRenderTarget(context, m_SSAOTexture);
-		GFX::Cmd::BindShader<VS | PS>(context, m_Shader, { "SSAO_BLUR" });
-		GFX::Cmd::BindSRV<PS>(context, m_SSAOSampleTexture, 0);
-		GFX::Cmd::DrawFC(context);
+		SSManager.Bind(state);
+
+		state.Table.CBVs.push_back(CBManager.GetBuffer());
+		state.Table.SRVs.push_back(m_SSAOSampleTexture.get());
+
+		GFX::Cmd::BindRenderTarget(state, m_SSAOTexture.get());
+		GFX::Cmd::BindShader(state, m_Shader.get(), VS | PS, {"SSAO_BLUR"});
+		GFX::Cmd::DrawFC(context, state);
 	}
-	
+
 
 	GFX::Cmd::MarkerEnd(context);
 
-	return m_SSAOTexture;
+	return m_SSAOTexture.get();
 }
 
-void SSAORenderer::UpdateResources(ID3D11DeviceContext* context)
+void SSAORenderer::UpdateResources(GraphicsContext& context)
 {
-	if (m_SSAOTexture.Valid())
-	{
-		GFX::Storage::Free(m_SSAOSampleTexture);
-		GFX::Storage::Free(m_SSAOTexture);
-	}
-	m_SSAOSampleTexture = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV, 1, DXGI_FORMAT_R16_UNORM);
-	m_SSAOTexture = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV, 1, DXGI_FORMAT_R16_UNORM);
+	m_SSAOSampleTexture = ScopedRef<Texture>(GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV, 1, DXGI_FORMAT_R16_UNORM));
+	m_SSAOTexture = ScopedRef<Texture>(GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV, 1, DXGI_FORMAT_R16_UNORM));
+
+	GFX::SetDebugName(m_SSAOSampleTexture.get(), "SSAORenderer::SSAOSample");
+	GFX::SetDebugName(m_SSAOSampleTexture.get(), "SSAORenderer::SSAO");
 }

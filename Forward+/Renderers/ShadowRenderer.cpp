@@ -1,7 +1,10 @@
 #include "ShadowRenderer.h"
 
 #include <Engine/Render/Texture.h>
+#include <Engine/Render/Shader.h>
+#include <Engine/Render/Buffer.h>
 #include <Engine/Render/Commands.h>
+#include <Engine/Render/Context.h>
 #include <Engine/System/ApplicationConfiguration.h>
 
 #include "Globals.h"
@@ -10,78 +13,93 @@
 #include "Renderers/Util/VertexPipeline.h"
 #include "Scene/SceneGraph.h"
 
-void ShadowRenderer::Init(ID3D11DeviceContext* context)
+ShadowRenderer::ShadowRenderer()
 {
-	m_Shadowmap = GFX::CreateTexture(1024, 1024, RCF_Bind_DSV | RCF_Bind_SRV);
-	m_ShadowmapShader = GFX::CreateShader("Forward+/Shaders/depth.hlsl");
-	m_ShadowmaskShader = GFX::CreateShader("Forward+/Shaders/shadowmask.hlsl");
-	ReloadTextureResources(context);
+
 }
 
-TextureID ShadowRenderer::CalculateShadowMask(ID3D11DeviceContext* context, TextureID depth)
+ShadowRenderer::~ShadowRenderer()
+{
+
+}
+
+void ShadowRenderer::Init(GraphicsContext& context)
+{
+	m_Shadowmap = ScopedRef<Texture>(GFX::CreateTexture(1024, 1024, RCF_Bind_DSV));
+	m_ShadowmapShader = ScopedRef<Shader>(new Shader("Forward+/Shaders/depth.hlsl"));
+	m_ShadowmaskShader = ScopedRef<Shader>(new Shader("Forward+/Shaders/shadowmask.hlsl"));
+	ReloadTextureResources(context);
+
+	GFX::SetDebugName(m_Shadowmap.get(), "ShadowRenderer::Shadowmap");
+}
+
+Texture* ShadowRenderer::CalculateShadowMask(GraphicsContext& context, Texture* depth)
 {
 	GFX::Cmd::MarkerBegin(context, "Shadows");
 
-	GFX::Cmd::ClearDepthStencil(context, m_Shadowmap);
+	GFX::Cmd::ClearDepthStencil(context, m_Shadowmap.get());
 
 	// Shadowmap
 	{
 		GFX::Cmd::MarkerBegin(context, "Shadowmap");
-		
-		CBManager.Clear();
-		CBManager.Add(MainSceneGraph.ShadowCamera.CameraData, true);
-		
-		PipelineState pso = GFX::DefaultPipelineState();
-		pso.DS.DepthEnable = true;
 
+		GraphicsState state;
+		CBManager.Clear();
+		CBManager.Add(MainSceneGraph->ShadowCamera.CameraData);
+
+		state.Table.CBVs.push_back(CBManager.GetBuffer());
+		state.Pipeline.DepthStencilState.DepthEnable = true;
+		
 		RenderGroupType prepassTypes[] = { RenderGroupType::Opaque, RenderGroupType::AlphaDiscard };
 		for (uint32_t i = 0; i < STATIC_ARRAY_SIZE(prepassTypes); i++)
 		{
 			RenderGroupType rgType = IntToEnum<RenderGroupType>(i);
-			RenderGroup& renderGroup = MainSceneGraph.RenderGroups[i];
+			RenderGroup& renderGroup = MainSceneGraph->RenderGroups[i];
 
 			std::vector<std::string> config{};
 			config.push_back("SHADOWMAP");
 
-			GFX::Cmd::BindRenderTarget(context, TextureID{}, m_Shadowmap);
-			GFX::Cmd::SetPipelineState(context, pso);
+			GFX::Cmd::BindDepthStencil(state, m_Shadowmap.get());
 			if (rgType == RenderGroupType::AlphaDiscard)
 			{
 				config.push_back("ALPHA_DISCARD");
-				SSManager.Bind(context);
+				SSManager.Bind(state);
 			}
 
-			GFX::Cmd::BindShader<VS | PS>(context, m_ShadowmapShader, config, true);
-			VertPipeline.Draw(context, renderGroup, true);
+			GFX::Cmd::BindShader(state, m_ShadowmapShader.get(), VS | PS, config, true);
+			VertPipeline->Draw(context, state, renderGroup, true);
 		}
 		GFX::Cmd::MarkerEnd(context);
 	}
 
 	// Shadowmask
 	{
+		GraphicsState state;
+
 		CBManager.Clear();
-		CBManager.Add(MainSceneGraph.MainCamera.CameraData);
-		CBManager.Add(MainSceneGraph.ShadowCamera.CameraData);
-		CBManager.Add(MainSceneGraph.SceneInfoData, true);
+		CBManager.Add(MainSceneGraph->MainCamera.CameraData);
+		CBManager.Add(MainSceneGraph->ShadowCamera.CameraData);
+		CBManager.Add(MainSceneGraph->SceneInfoData);
+		state.Table.CBVs.push_back(CBManager.GetBuffer());
+		state.Table.SRVs.resize(2);
+		state.Table.SRVs[0] = depth;
+		state.Table.SRVs[1] = m_Shadowmap.get();
 
 		GFX::Cmd::MarkerBegin(context, "Shadowmask");
-		SSManager.Bind(context);
-		GFX::Cmd::BindRenderTarget(context, m_Shadowmask);
-		GFX::Cmd::BindSRV<PS>(context, depth, 0);
-		GFX::Cmd::BindSRV<PS>(context, m_Shadowmap, 1);
-		GFX::Cmd::BindShader<VS | PS>(context, m_ShadowmaskShader);
-		GFX::Cmd::DrawFC(context);
-		GFX::Cmd::BindSRV<PS>(context, nullptr, 0);
+		SSManager.Bind(state);
+		GFX::Cmd::BindRenderTarget(state, m_Shadowmask.get());
+		GFX::Cmd::BindShader(state, m_ShadowmaskShader.get(), VS | PS);
+		GFX::Cmd::DrawFC(context, state);
 		GFX::Cmd::MarkerEnd(context);
 	}
 
 	GFX::Cmd::MarkerEnd(context);
 
-	return m_Shadowmask;
+	return m_Shadowmask.get();
 }
 
-void ShadowRenderer::ReloadTextureResources(ID3D11DeviceContext* context)
+void ShadowRenderer::ReloadTextureResources(GraphicsContext& context)
 {
-	if (m_Shadowmask.Valid()) GFX::Storage::Free(m_Shadowmask);
-	m_Shadowmask = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV | RCF_Bind_SRV, 1, DXGI_FORMAT_R32_FLOAT);
+	m_Shadowmask = ScopedRef<Texture>(GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV, 1, DXGI_FORMAT_R32_FLOAT));
+	GFX::SetDebugName(m_Shadowmask.get(), "ShadowRenderer::Shadowmask");
 }

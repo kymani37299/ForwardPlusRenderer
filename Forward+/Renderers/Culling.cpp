@@ -1,6 +1,8 @@
 #include "Culling.h"
 
+#include <Engine/Render/Resource.h>
 #include <Engine/Render/Buffer.h>
+#include <Engine/Render/Texture.h>
 #include <Engine/Render/Commands.h>
 #include <Engine/Render/Shader.h>
 #include <Engine/System/ApplicationConfiguration.h>
@@ -10,28 +12,34 @@
 #include "Scene/SceneGraph.h"
 #include "Shaders/shared_definitions.h"
 
-void Culling::Init(ID3D11DeviceContext* context)
+Culling::Culling()
 {
-	m_LightCullingShader = GFX::CreateShader("Forward+/Shaders/light_culling.hlsl");
+}
+
+Culling::~Culling()
+{
+}
+
+void Culling::Init(GraphicsContext& context)
+{
+	m_LightCullingShader = ScopedRef<Shader>(new Shader{ "Forward+/Shaders/light_culling.hlsl" });
 	UpdateResources(context);
 }
 
-void Culling::UpdateResources(ID3D11DeviceContext* context)
+void Culling::UpdateResources(GraphicsContext& context)
 {
-	if (m_VisibleLightsBuffer.Valid())
-		GFX::Storage::Free(m_VisibleLightsBuffer);
-
 	m_NumTilesX = MathUtility::CeilDiv(AppConfig.WindowWidth, TILE_SIZE);
 	m_NumTilesY = MathUtility::CeilDiv(AppConfig.WindowHeight, TILE_SIZE);
-	m_VisibleLightsBuffer = GFX::CreateBuffer(m_NumTilesX * m_NumTilesY * (MAX_LIGHTS_PER_TILE + 1) * sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_SB | RCF_Bind_UAV);
+	m_VisibleLightsBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(m_NumTilesX * m_NumTilesY * (MAX_LIGHTS_PER_TILE + 1) * sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_UAV));
+	GFX::SetDebugName(m_VisibleLightsBuffer.get(), "Culling::VisibleLightsBuffer");
 }
 
 namespace CullingPrivate
 {
 	bool IsVisible(const Drawable& d)
 	{
-		const Entity& e = MainSceneGraph.Entities[d.EntityIndex];
-		const ViewFrustum& vf = MainSceneGraph.MainCamera.CameraFrustum;
+		const Entity& e = MainSceneGraph->Entities[d.EntityIndex];
+		const ViewFrustum& vf = MainSceneGraph->MainCamera.CameraFrustum;
 		const BoundingSphere bv = e.GetBoundingVolume(d.BoundingVolume);
 
 		return vf.IsInFrustum(bv);
@@ -52,13 +60,13 @@ namespace CullingPrivate
 	}
 }
 
-void Culling::CullGeometries(ID3D11DeviceContext* context)
+void Culling::CullGeometries(GraphicsContext& context)
 {
 	if (!DebugToolsConfig.FreezeGeometryCulling)
 	{
 		for (uint32_t i = 0; i < EnumToInt(RenderGroupType::Count); i++)
 		{
-			RenderGroup& rg = MainSceneGraph.RenderGroups[i];
+			RenderGroup& rg = MainSceneGraph->RenderGroups[i];
 			if (DebugToolsConfig.DisableGeometryCulling)
 			{
 				uint32_t numDrawables = rg.Drawables.GetSize();
@@ -73,23 +81,28 @@ void Culling::CullGeometries(ID3D11DeviceContext* context)
 	}
 }
 
-void Culling::CullLights(ID3D11DeviceContext* context, TextureID depth)
+void Culling::CullLights(GraphicsContext& context, Texture* depth)
 {
 	if (!DebugToolsConfig.FreezeLightCulling && !DebugToolsConfig.DisableLightCulling)
 	{
-		CBManager.Clear();
-		CBManager.Add(MainSceneGraph.SceneInfoData);
-		CBManager.Add(MainSceneGraph.MainCamera.CameraData, true);
+		GraphicsState state{};
+		state.Table.CBVs.resize(1);
+		state.Table.SRVs.resize(2);
+		state.Table.UAVs.resize(1);
 
-		GFX::Cmd::BindRenderTarget(context, TextureID{}, TextureID{});
+		CBManager.Clear();
+		CBManager.Add(MainSceneGraph->SceneInfoData);
+		CBManager.Add(MainSceneGraph->MainCamera.CameraData);
+
+		state.Table.CBVs[0] = CBManager.GetBuffer();
+		state.Table.SRVs[0] = MainSceneGraph->Lights.GetBuffer();
+		state.Table.SRVs[1] = depth;
+		state.Table.UAVs[0] = m_VisibleLightsBuffer.get();
+
 		GFX::Cmd::MarkerBegin(context, "Light Culling");
-		GFX::Cmd::BindShader<CS>(context, m_LightCullingShader);
-		GFX::Cmd::BindSRV<CS>(context, MainSceneGraph.Lights.GetBuffer(), 0);
-		GFX::Cmd::BindSRV<CS>(context, depth, 1);
-		GFX::Cmd::BindUAV<CS>(context, m_VisibleLightsBuffer, 0);
-		context->Dispatch(m_NumTilesX, m_NumTilesY, 1);
-		GFX::Cmd::BindUAV<CS>(context, nullptr, 0);
-		GFX::Cmd::BindSRV<CS>(context, nullptr, 1);
+		GFX::Cmd::BindShader(state, m_LightCullingShader.get(), CS);
+		GFX::Cmd::BindState(context, state);
+		context.CmdList->Dispatch(m_NumTilesX, m_NumTilesY, 1);
 		GFX::Cmd::MarkerEnd(context);
 	}
 }

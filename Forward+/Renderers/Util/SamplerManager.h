@@ -2,19 +2,16 @@
 
 #include <vector>
 
-struct ID3D11DeviceContext;
-struct ID3D11SamplerState;
+struct GraphicsState;
+struct D3D12_STATIC_SAMPLER_DESC;
 
 class SamplerManager
 {
 public:
-	~SamplerManager();
-
-	void Init();
-	void Bind(ID3D11DeviceContext* context);
+	void Bind(GraphicsState& state);
 
 private:
-	std::vector<ID3D11SamplerState*> m_Samplers;
+	std::vector<D3D12_STATIC_SAMPLER_DESC> m_Samplers;
 };
 
 extern SamplerManager SSManager;

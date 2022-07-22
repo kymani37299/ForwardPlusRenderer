@@ -1,25 +1,32 @@
 #pragma once
-#include <Engine/Render/ResourceID.h>
 
-struct ID3D11DeviceContext;
+#include <Engine/Common.h>
+
+struct GraphicsContext;
+struct GraphicsState;
+struct Texture;
+struct Buffer;
+struct Shader;
 
 class SkyboxRenderer
 {
 public:
+	static constexpr uint32_t CUBEMAP_SIZE = 512;
+
 	SkyboxRenderer(const std::string& texturePath): m_SkyboxTexturePath(texturePath) {}
 
-	void Init(ID3D11DeviceContext* context);
-	void Draw(ID3D11DeviceContext* context);
+	void Init(GraphicsContext& context);
+	void Draw(GraphicsContext& context, GraphicsState& state);
 
-	void OnShaderReload(ID3D11DeviceContext* context);
+	void OnShaderReload(GraphicsContext& context);
 
-	TextureID GetIrradianceMap() const { return m_IrradianceCubemap; }
+	Texture* GetIrradianceMap() const { return m_IrradianceCubemap.get(); }
 
 private:
 	std::string m_SkyboxTexturePath;
 
-	BufferID m_CubeVB;
-	ShaderID m_SkyboxShader;
-	TextureID m_SkyboxCubemap;
-	TextureID m_IrradianceCubemap;
+	ScopedRef<Buffer> m_CubeVB;
+	ScopedRef<Shader> m_SkyboxShader;
+	ScopedRef<Texture> m_SkyboxCubemap;
+	ScopedRef<Texture> m_IrradianceCubemap;
 };

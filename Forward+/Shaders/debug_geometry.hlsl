@@ -10,8 +10,8 @@ struct DebugGeometry
 
 cbuffer Constants : register(b0)
 {
-	DebugGeometry DebugGeoData;
 	Camera CamData;
+	DebugGeometry DebugGeoData;
 }
 
 float4 VS(float3 position : SV_POSITION) : SV_Position

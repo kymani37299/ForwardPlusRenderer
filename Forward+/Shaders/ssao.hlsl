@@ -93,7 +93,7 @@ cbuffer Constants : register(b0)
     uint2 ScreenSize;
 }
 
-Texture2D<float> SampledSSAO;
+Texture2D<float> SampledSSAO : register(t0);
 
 float PS(FCVertex IN) : SV_Target
 {
