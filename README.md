@@ -13,12 +13,12 @@ Implemented classic forward+ structure, where everything is rendered in forward 
 
 ### Performance
 
-The more lights we have in the scene the bigger the performance gain we get. In the scene with a lot of lights only very small part of it will be rendered in the specific tile.
-For example in the Sponza scene with 10k lights randomly placed around the map, most tiles will be calculating less than 30 lights. This is a huge gain, without this culling we would be calculating
+In the scene with a lot of lights only very small part of it will be rendered in the specific tile.
+For example in the Sponza scene with 20k lights randomly placed around the map, most tiles will be calculating less than 30 lights. This is a huge gain, without this culling we would be calculating
 10k lights per pixel instead of 30 lights per pixel.</br>
 </br>
 
-<img src="Images/Comparison.png" width="500" height="614">
+<img src="Images/Comparison.png" width="860" height="700">
 
 ## Geometry culling
 
@@ -28,7 +28,7 @@ Both CPU and GPU culling is supported.</br>
 For the geometry culling we are using just frustum culling with bounding spheres. Bounding spheres are calculated in the model loading phase and are in model space. When we are culling we are moving it to a world space where culling is performed. </br>
 Culling is performed on beggining of the frame and is producing a visibility mask (bitfield) that will be used at later stages only to process visible geometries.
 
-<img src="Images/FrustumCulling.png" width="500" height="375">
+<img src="Images/FrustumCulling.png" width="250" height="187">
 
 ## Indirect drawing
 
