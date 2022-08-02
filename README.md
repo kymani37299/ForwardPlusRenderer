@@ -51,6 +51,8 @@ In the real case scenario it is not that simple to have just one ExecuteIndirect
 
 Currently we are having 3 render groups for the Opaque, AlphaDiscard and Transparent geometry.
 
+<img src="Images/ShaderDataGraph.png" width="847" height="382">
+
 ## Anti-aliasing
 
 There are serveral implementations of the antialiasing from which you can choose in imgui. (Tools > Postprocessing)
