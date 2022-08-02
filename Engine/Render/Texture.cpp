@@ -223,7 +223,7 @@ namespace GFX
 		}
 
 		D3D12MA::ALLOCATION_DESC allocationDesc{};
-		allocationDesc.HeapType = D3D12_HEAP_TYPE_DEFAULT;
+		allocationDesc.HeapType = GetHeapType(texture->CreationFlags);
 		API_CALL(device->GetAllocator()->CreateResource(&allocationDesc, &resourceDesc, texture->CurrState, clearValue.get(), &texture->Alloc, IID_PPV_ARGS(texture->Handle.GetAddressOf())));
 
 		if (initData) GFX::Cmd::UploadToTexture(*initData->Context, initData->Data, texture, 0);

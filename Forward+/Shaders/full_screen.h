@@ -1,3 +1,6 @@
+#ifndef FULLSCREEN_H
+#define FULLSCREEN_H
+
 struct FCVertexIN
 {
 	float2 pos : SV_POSITION;
@@ -19,3 +22,5 @@ FCVertex GetFCVertex(FCVertexIN IN)
 }
 
 #define VS_IMPL FCVertex VS(FCVertexIN IN) { return GetFCVertex(IN); }
+
+#endif // FULLSCREEN_H

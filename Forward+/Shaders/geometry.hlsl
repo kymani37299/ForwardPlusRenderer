@@ -30,7 +30,7 @@ Texture2D<float> AmbientOcclusion : register(t4);
 
 VertexOut VS(VertexPipelineInput IN)
 {
-    const Drawable d = Drawables[IN.DrawableInstance];
+    const Drawable d = GetDrawable();
     const Vertex vert = GetWorldSpaceVertex(IN);
 	
 	VertexOut OUT;
@@ -86,17 +86,13 @@ float4 PS(VertexOut IN) : SV_TARGET
 	const float3 view = normalize(MainCamera.Position - IN.WorldPosition);
 
 	float4 litColor = float4(0.0f, 0.0f, 0.0f, 0.0f);
-	const float2 shadowMaskUV = screenUV;
-	const float shadowFactor = Shadowmask.Sample(s_LinearWrap, shadowMaskUV);
-
-	uint dirLightIndex = -1;
-	float3 fogColor = float3(0.6f, 0.67f, 0.73f);
-
+	
 #ifdef DISABLE_LIGHT_CULLING
 	[loop]
-	for(uint i=0; i < SceneInfoData.NumLights; i++)
+	for (uint i = 0; i < SceneInfoData.NumLights; i++)
 	{
-		const Light l = Lights[i];
+		litColor.rgb += ComputeLightEffect(Lights[i], mat, IN.WorldPosition, normal, view);
+	}
 #else
 	const uint2 tileIndex = GetTileIndexFromPosition(IN.Position.xyz);
 	const uint visibleLightOffset = GetOffsetFromTileIndex(SceneInfoData, tileIndex);
@@ -104,42 +100,25 @@ float4 PS(VertexOut IN) : SV_TARGET
 	[loop]
 	for (uint i = visibleLightOffset; VisibleLights[i] != VISIBLE_LIGHT_END; i++)
 	{
-		const uint lightIndex = VisibleLights[i];
-		const Light l = Lights[lightIndex];
+		litColor.rgb += ComputeLightEffect(Lights[VisibleLights[i]], mat, IN.WorldPosition, normal, view);
+	}
 #endif // DISABLE_LIGHT_CULLING
 
-		switch (l.Type)
-		{
-		case LIGHT_TYPE_DIRECTIONAL:
-			dirLightIndex = lightIndex;
-			litColor.rgb += shadowFactor * ComputeDirectionalLight(l, mat, normal, view);
-			break;
-		case LIGHT_TYPE_POINT:
-			litColor.rgb += ComputePointLight(l, mat, IN.WorldPosition, normal, view);
-			break;
-		case LIGHT_TYPE_SPOT:
-			litColor.rgb += ComputeSpotLight(l, mat, IN.WorldPosition, normal, view);
-			break;
-
-		// We are using ambient lights only when IBL is not turned on
-#ifndef USE_IBL
-		case LIGHT_TYPE_AMBIENT:
-			litColor.rgb += ComputeAmbientLight(l, mat);
-			break;
-#endif // !USE_IBL
-		}
-	}
-
 #ifdef USE_IBL
-	const float3 irradiance = IrradianceMap.Sample(s_LinearWrap, normal).rgb;
-	litColor.rgb += ComputeIrradianceEffect(irradiance, mat, normal, view);
-
-	if (dirLightIndex != -1)
-	{
-		fogColor = IrradianceMap.Sample(s_LinearWrap, Lights[dirLightIndex].Direction).rgb;
-	}
-	
+	const float3 fogColor = IrradianceMap.Sample(s_LinearWrap, SceneInfoData.DirLight.Direction).rgb;
+	const float3 ambientIrradiance = IrradianceMap.Sample(s_LinearWrap, normal).rgb;
+#else
+	const float3 fogColor = float3(0.6f, 0.67f, 0.73f);
+	const float3 ambientIrradiance = SceneInfoData.AmbientRadiance;
 #endif // USE_IBL
+
+	// Directional
+	const float2 shadowMaskUV = screenUV;
+	const float shadowFactor = Shadowmask.Sample(s_LinearWrap, shadowMaskUV);
+	litColor.rgb += shadowFactor * ComputeDirectionalEffect(SceneInfoData.DirLight, mat, normal, view);
+
+	// Ambient
+	litColor.rgb += ComputeAmbientEffect(ambientIrradiance, mat, normal, view);
 
 	// Distance fog
 	litColor.rgb = ApplyFog(litColor.rgb, IN.Position.z / IN.Position.w, fogColor);

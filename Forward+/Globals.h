@@ -1,19 +1,10 @@
 #pragma once
 
-struct DebugToolsConfiguration
+struct DebugVisualizations
 {
-	bool DisableGeometryCulling = false;
-	bool FreezeGeometryCulling = false;
-	bool DrawBoundingSpheres = false;
-	bool UseMeshletCulling = true;
-
-	bool DisableLightCulling = false;
-	bool FreezeLightCulling = false;
+	bool BoundingSpheres = false;
 	bool LightHeatmap = false;
-	bool DrawLightSpheres = false;
-
-	bool UsePBR = true;
-	bool UseIBL = true;
+	bool LightSpheres = false;
 };
 
 enum class AntiAliasingMode
@@ -40,12 +31,30 @@ struct SSAOSettings
 	float Power = 1.5f;
 };
 
+struct CullingSettings
+{
+	bool LightCullingEnabled = true;
+	
+	bool GeometryCullingEnabled = true;
+	bool GeometryCullingFrozen = false;
+	bool GeometryCullingOnCPU = false;
+	bool GeometryOcclusionCullingEnabled = true;
+};
+
+struct ShadingSettings
+{
+	bool UsePBR = true;
+	bool UseIBL = true;
+};
+
 struct RendererSettings
 {
 	AntiAliasingMode AntialiasingMode = AntiAliasingMode::MSAA;
 	float Exposure = 1.0f;
 	BloomSettings Bloom;
 	SSAOSettings SSAO;
+	CullingSettings Culling;
+	ShadingSettings Shading;
 };
 
 struct RenderStatistics
@@ -56,4 +65,4 @@ struct RenderStatistics
 
 extern RenderStatistics RenderStats;
 extern RendererSettings RenderSettings;
-extern DebugToolsConfiguration DebugToolsConfig;
+extern DebugVisualizations DebugViz;

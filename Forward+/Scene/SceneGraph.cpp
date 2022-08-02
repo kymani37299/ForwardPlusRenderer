@@ -3,6 +3,7 @@
 #include <Engine/Render/Device.h>
 #include <Engine/Render/Commands.h>
 #include <Engine/Render/Context.h>
+#include <Engine/Render/RenderThread.h>
 #include <Engine/Render/Buffer.h>
 #include <Engine/Render/Texture.h>
 #include <Engine/Render/Shader.h>
@@ -17,6 +18,10 @@ namespace
 	struct EntitySB
 	{
 		DirectX::XMFLOAT4X4 ModelToWorld;
+
+		// BoundingVolume
+		DirectX::XMFLOAT3 Center;
+		float Radius;
 	};
 
 	struct MaterialSB
@@ -34,6 +39,7 @@ namespace
 	{
 		uint32_t VertexOffset;
 		uint32_t IndexOffset;
+		uint32_t IndexCount;
 	};
 
 	struct DrawableSB
@@ -45,7 +51,7 @@ namespace
 
 	struct LightSB
 	{
-		uint32_t LightType;
+		bool IsSpot;
 		DirectX::XMFLOAT3 Position;
 		DirectX::XMFLOAT3 Radiance;
 		DirectX::XMFLOAT2 Falloff;
@@ -117,12 +123,16 @@ void Mesh::UpdateBuffer(GraphicsContext& context, RenderGroup& renderGroup)
 	MeshSB meshSB{};
 	meshSB.VertexOffset = VertOffset;
 	meshSB.IndexOffset = IndexOffset;
+	meshSB.IndexCount = IndexCount;
 	GFX::Cmd::UploadToBuffer(context, renderGroup.Meshes.GetBuffer(), sizeof(MeshSB) * MeshIndex, &meshSB, 0, sizeof(MeshSB));
 }
 
-BoundingSphere Entity::GetBoundingVolume(BoundingSphere bv) const
+BoundingSphere Entity::GetBoundingVolume() const
 {
-	const float maxBaseScale = MAX(MAX(BaseTransform(0, 0), BaseTransform(1, 1)), BaseTransform(2, 2));
+	const BoundingSphere& bv = BaseBoundingSphere;
+
+	const Float3 baseScale{ BaseTransform(0, 0), BaseTransform(1, 1), BaseTransform(2, 2) };
+	const float maxBaseScale = MAX(MAX(baseScale.x, baseScale.y), baseScale.z);
 	const float maxlocalScale = MAX(MAX(Scale.x, Scale.y), Scale.z);
 	const float maxScale = maxBaseScale * maxlocalScale;
 
@@ -131,7 +141,7 @@ BoundingSphere Entity::GetBoundingVolume(BoundingSphere bv) const
 	const Float3 basePosition{ xmbasePosition };
 
 	BoundingSphere bs;
-	bs.Center = Position + maxlocalScale * basePosition;
+	bs.Center = Position + baseScale * Scale * basePosition;
 	bs.Radius = bv.Radius * maxScale;
 
 	return bs;
@@ -145,8 +155,12 @@ void Entity::UpdateBuffer(GraphicsContext& context)
 	XMMATRIX modelToWorld = XMMatrixAffineTransformation(Scale.ToXM(), Float3(0.0f, 0.0f, 0.0f).ToXM(), Float4(0.0f, 0.0f, 0.0f, 0.0f).ToXM(), Position.ToXM());
 	modelToWorld = XMMatrixMultiply(baseTransform, modelToWorld);
 
+	::BoundingSphere bs = GetBoundingVolume();
+
 	EntitySB entitySB{};
 	entitySB.ModelToWorld = XMUtility::ToHLSLFloat4x4(modelToWorld);
+	entitySB.Center = bs.Center.ToXMF();
+	entitySB.Radius = bs.Radius;
 	GFX::Cmd::UploadToBuffer(context, MainSceneGraph->Entities.GetBuffer(), sizeof(EntitySB) * EntityIndex, &entitySB, 0, sizeof(EntitySB));
 }
 
@@ -166,7 +180,7 @@ void Light::UpdateBuffer(GraphicsContext& context)
 	using namespace DirectX;
 
 	LightSB lightSB{};
-	lightSB.LightType = Type;
+	lightSB.IsSpot = IsSpot;
 	lightSB.Position = Position.ToXMF();
 	lightSB.Radiance = Radiance.ToXMF();
 	lightSB.Falloff = Falloff.ToXMF();
@@ -267,6 +281,8 @@ void RenderGroup::Initialize(GraphicsContext& context)
 	Drawables.Initialize("ElementBuffer::Drawables");
 	MeshData.Initialize();
 	TextureData.Initialize();
+
+	VisibilityMaskBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_UAV));
 }
 
 uint32_t RenderGroup::AddMaterial(GraphicsContext& context, Material& material)
@@ -304,25 +320,48 @@ uint32_t RenderGroup::AddMesh(GraphicsContext& context, Mesh& mesh)
 	return index;
 }
 
+class RenderGroupAddDrawRenderTask : public RenderTask
+{
+public:
+	RenderGroupAddDrawRenderTask(Drawable& drawable, RenderGroup& renderGroup):
+		m_RenderGroup(renderGroup),
+		m_Drawable(drawable) {}
+
+	void Run(GraphicsContext& context) override
+	{
+		Entity& e = MainSceneGraph->Entities[m_Drawable.EntityIndex];
+
+		e.UpdateBuffer(context);
+		m_Drawable.UpdateBuffer(context, m_RenderGroup);
+	}
+
+private:
+	RenderGroup& m_RenderGroup;
+	Drawable& m_Drawable;
+};
+
 void RenderGroup::AddDraw(GraphicsContext& context, uint32_t materialIndex, uint32_t meshIndex, uint32_t entityIndex, const BoundingSphere& boundingSphere)
 {
 	const uint32_t index = Drawables.Next();
 	
+	Entity& e = MainSceneGraph->Entities[entityIndex];
+
 	Drawable drawable;
 	drawable.DrawableIndex = index;
 	drawable.MaterialIndex = materialIndex;
 	drawable.MeshIndex = meshIndex;
 	drawable.EntityIndex = entityIndex;
-	drawable.BoundingVolume = boundingSphere;
 	Drawables[index] = drawable;
+
+	e.BaseBoundingSphere = boundingSphere;
 
 	if (Device::Get()->IsMainContext(context))
 	{
-		drawable.UpdateBuffer(context, *this);
+		Device::Get()->GetTaskExecutor().Submit(new RenderGroupAddDrawRenderTask(Drawables[index], *this));
 	}
 	else
 	{
-		NOT_IMPLEMENTED;
+		RenderThreadPool::Get()->Submit(new RenderGroupAddDrawRenderTask(Drawables[index], *this));
 	}
 }
 
@@ -330,10 +369,7 @@ void RenderGroup::SetupPipelineInputs(GraphicsState& state)
 {
 	if(state.Table.SRVs.size() < 127) state.Table.SRVs.resize(127);
 
-	state.Table.SRVs[120] = TextureData.GetBuffer();
-	state.Table.SRVs[121] = MeshData.GetVertexBuffer();
-	state.Table.SRVs[122] = MeshData.GetIndexBuffer();
-	state.Table.SRVs[123] = Meshes.GetBuffer();
+	state.Table.SRVs[123] = TextureData.GetBuffer();
 	state.Table.SRVs[124] = MainSceneGraph->Entities.GetBuffer();
 	state.Table.SRVs[125] = Materials.GetBuffer();
 	state.Table.SRVs[126] = Drawables.GetBuffer();
@@ -367,8 +403,7 @@ void SceneGraph::FrameUpdate(GraphicsContext& context)
 	// Shadow camera
 	{
 		ShadowCamera.NextTransform.Position = MainCamera.CurrentTranform.Position;
-		if (DirLightIndex != UINT32_MAX)
-			ShadowCamera.NextTransform.Forward = Lights[DirLightIndex].Direction;
+		ShadowCamera.NextTransform.Forward = DirLight.Direction;
 		ShadowCamera.FrameUpdate(context);
 	}
 
@@ -377,6 +412,10 @@ void SceneGraph::FrameUpdate(GraphicsContext& context)
 		SceneInfoData.NumLights = Lights.GetSize();
 		SceneInfoData.ScreenSize = { (float) AppConfig.WindowWidth, (float) AppConfig.WindowHeight };
 		SceneInfoData.AspectRatio = (float) AppConfig.WindowWidth / AppConfig.WindowHeight;
+
+		SceneInfoData.DirLight.Direction = DirLight.Direction.ToXMFA();
+		SceneInfoData.DirLight.Radiance = DirLight.Radiance.ToXMFA();
+		SceneInfoData.AmbientRadiance = AmbientLight.ToXMFA();
 	}
 }
 
@@ -398,32 +437,10 @@ uint32_t SceneGraph::AddEntity(GraphicsContext& context, Entity entity)
 	return index;
 }
 
-Light SceneGraph::CreateDirectionalLight(GraphicsContext& context, Float3 direction, Float3 color)
-{
-	ASSERT(DirLightIndex == UINT32_MAX, "Only one directional light is supported per scene!");
-
-	Light l{};
-	l.Type = LT_Directional;
-	l.Direction = direction;
-	l.Radiance = color;
-
-	l = CreateLight(context, l);
-	DirLightIndex = l.LightIndex;
-	return l;
-}
-
-Light SceneGraph::CreateAmbientLight(GraphicsContext& context, Float3 color)
-{
-	Light l{};
-	l.Type = LT_Ambient;
-	l.Radiance = color;
-	return CreateLight(context, l);
-}
-
 Light SceneGraph::CreatePointLight(GraphicsContext& context, Float3 position, Float3 color, Float2 falloff)
 {
 	Light l{};
-	l.Type = LT_Point;
+	l.IsSpot = false;
 	l.Position = position;
 	l.Radiance = color;
 	l.Falloff = falloff;

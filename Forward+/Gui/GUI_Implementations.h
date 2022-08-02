@@ -4,10 +4,10 @@
 
 #include "Globals.h"
 
-class DebugToolsGUI : public GUIElement
+class DebugVisualizationsGUI : public GUIElement
 {
 public:
-	DebugToolsGUI(bool shown = false) : GUIElement("Debug tools", shown) {}
+	DebugVisualizationsGUI(bool shown = false) : GUIElement("Debug visualizations", shown) {}
 	virtual void Update(float dt) {}
 	virtual void Render();
 };
@@ -41,19 +41,6 @@ public:
 private:
 	std::vector<float> DTHistory;
 	float m_CurrentDT = 0.0f;
-};
-
-class TextureVisualizerGUI : public GUIElement
-{
-public:
-	TextureVisualizerGUI() : GUIElement("Texture visualizer", false) {}
-
-	virtual void Update(float dt) {}
-	virtual void Render();
-
-private:
-	uint32_t m_SelectedTexture = 0;
-	float m_ScaleFactor = 0.1f;
 };
 
 class LightsGUI : public GUIElement

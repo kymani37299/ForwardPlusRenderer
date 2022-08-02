@@ -7,6 +7,7 @@
 #include "Render/Device.h"
 #include "Render/Memory.h"
 #include "Render/Texture.h"
+#include "Render/Shader.h"
 #include "Render/RenderThread.h"
 #include "Gui/GUI.h"
 #include "System/ApplicationConfiguration.h"
@@ -22,6 +23,7 @@ Engine::Engine(Application* app)
 	Window::Init();
 	Window::Get()->ShowCursor(false);
 	Device::Init();
+	GFX::InitShaderCompiler();
 	RenderThreadPool::Init(8);
 	GUI::Init();
 	m_Application = app;
@@ -39,6 +41,7 @@ Engine::~Engine()
 	delete m_Application;
 	ReleaseContextCache();
 	RenderThreadPool::Destroy();
+	GFX::DestroyShaderCompiler();
 	Device::Destroy();
 	Window::Destroy();
 }
@@ -73,8 +76,6 @@ void Engine::Run()
 		}
 
 		// Render
-		GFX::Cmd::MarkerBegin(context, "Frame");
-		
 		Texture* finalRT = m_Application->OnDraw(context);
 		if (!finalRT)
 		{
@@ -84,7 +85,6 @@ void Engine::Run()
 
 		GUI::Get()->Render(context, finalRT);
 		Device::Get()->EndFrame(finalRT);
-		GFX::Cmd::MarkerEnd(context);
 
 		WindowInput::InputFrameEnd();
 		m_FrameTimer.Stop();

@@ -57,7 +57,7 @@ void GeometryRenderer::DepthPrepass(GraphicsContext& context, GraphicsState& sta
 			config.push_back("ALPHA_DISCARD");
 			SSManager.Bind(state);
 		}
-		GFX::Cmd::BindShader(state, m_DepthPrepassShader.get(), VS | PS, config, true);
+		GFX::Cmd::BindShader(state, m_DepthPrepassShader.get(), VS | PS, config);
 		VertPipeline->Draw(context, state, renderGroup);
 	}
 	GFX::Cmd::MarkerEnd(context);
@@ -68,6 +68,16 @@ void GeometryRenderer::Draw(GraphicsContext& context, GraphicsState& state, Text
 	GFX::Cmd::MarkerBegin(context, "Geometry");
 
 	if (state.Table.CBVs.size() < 1) state.Table.CBVs.resize(1);
+
+	D3D12_BLEND_DESC blendStateOff = state.Pipeline.BlendState;
+	D3D12_BLEND_DESC blendStateOn = state.Pipeline.BlendState;
+	blendStateOn.RenderTarget[0].BlendEnable = true;
+	blendStateOn.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+	blendStateOn.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_MAX;
+	blendStateOn.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
+	blendStateOn.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+	blendStateOn.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_SRC_ALPHA;
+	blendStateOn.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
 
 	CBManager.Clear();
 	CBManager.Add(MainSceneGraph->MainCamera.CameraData);
@@ -95,17 +105,20 @@ void GeometryRenderer::Draw(GraphicsContext& context, GraphicsState& state, Text
 
 	for (uint32_t i = 0; i < EnumToInt(RenderGroupType::Count); i++)
 	{
-		RenderGroupType rgType = (RenderGroupType)i;
+		RenderGroupType rgType = IntToEnum<RenderGroupType>(i);
 		RenderGroup& renderGroup = MainSceneGraph->RenderGroups[i];
 		if (renderGroup.Drawables.GetSize() == 0) continue;
 
+		state.Pipeline.BlendState = rgType == RenderGroupType::Transparent ? blendStateOn : blendStateOff;
+
 		std::vector<std::string> configuration;
 		if (rgType == RenderGroupType::AlphaDiscard) configuration.push_back("ALPHA_DISCARD");
-		if (DebugToolsConfig.DisableLightCulling) configuration.push_back("DISABLE_LIGHT_CULLING");
-		if (DebugToolsConfig.UsePBR) configuration.push_back("USE_PBR");
-		if (DebugToolsConfig.UsePBR && DebugToolsConfig.UseIBL) configuration.push_back("USE_IBL");
-
-		GFX::Cmd::BindShader(state, m_GeometryShader.get(), VS | PS, configuration, true);
+		if (rgType == RenderGroupType::Transparent) configuration.push_back("ALPHA_BLEND");
+		if (!RenderSettings.Culling.LightCullingEnabled) configuration.push_back("DISABLE_LIGHT_CULLING");
+		if (RenderSettings.Shading.UsePBR) configuration.push_back("USE_PBR");
+		if (RenderSettings.Shading.UsePBR && RenderSettings.Shading.UseIBL) configuration.push_back("USE_IBL");
+		
+		GFX::Cmd::BindShader(state, m_GeometryShader.get(), VS | PS, configuration);
 		VertPipeline->Draw(context, state, renderGroup);
 	}
 

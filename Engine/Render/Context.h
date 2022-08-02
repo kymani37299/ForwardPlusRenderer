@@ -49,6 +49,8 @@ struct BindTable
 
 struct GraphicsState
 {
+	static constexpr uint32_t PUSH_CONSTANT_BINDING = 128;
+
 	BindTable Table;
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC Pipeline;
 	D3D12_SHADER_BYTECODE Compute;
@@ -61,9 +63,11 @@ struct GraphicsState
 	D3D12_RECT Scissor;
 	D3D12_PRIMITIVE_TOPOLOGY Primitives;
 	std::vector<D3D12_STATIC_SAMPLER_DESC> Samplers;
+	std::vector<uint32_t> PushConstants;
+	D3D12_COMMAND_SIGNATURE_DESC CommandSignature;
 
 	GraphicsState();
 };
 
 void ReleaseContextCache();
-void ApplyGraphicsState(GraphicsContext& context, const GraphicsState& state);
+ID3D12CommandSignature* ApplyGraphicsState(GraphicsContext& context, const GraphicsState& state);

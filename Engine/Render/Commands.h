@@ -11,6 +11,7 @@ struct GraphicsState;
 struct Resource;
 struct Shader;
 struct Texture;
+struct ID3D12CommandSignature;
 
 enum D3D12_TEXTURE_ADDRESS_MODE;
 enum D3D12_FILTER;
@@ -28,7 +29,8 @@ namespace GFX::Cmd
 	void AddResourceTransition(std::vector<D3D12_RESOURCE_BARRIER>& barriers, Resource* resource, D3D12_RESOURCE_STATES wantedState);
 	void TransitionResource(GraphicsContext& context, Resource* resource, D3D12_RESOURCE_STATES wantedState);
 
-	void BindState(GraphicsContext& context, const GraphicsState& state);
+	ID3D12CommandSignature* BindState(GraphicsContext& context, const GraphicsState& state);
+	void UpdatePushConstants(GraphicsContext& context, const GraphicsState& state);
 	void ClearRenderTarget(GraphicsContext& context, Texture* renderTarget);
 	void ClearDepthStencil(GraphicsContext& context, Texture* depthStencil);
 

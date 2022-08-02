@@ -1,3 +1,6 @@
+#ifndef LIGHTING_H
+#define LIGHTING_H
+
 #include "scene.h"
 
 #ifdef USE_PBR
@@ -102,18 +105,11 @@ float3 PBR(float3 radiance, float3 toLight, float3 normal, float3 toEye, Materia
 	return (diffuse + specular) * radiance * cosToLight;
 }
 
-float3 ComputeDirectionalLight(Light light, MaterialInput mat, float3 normal, float3 toEye)
-{
-	const float3 radiance = light.Radiance;
-	const float3 toLight = -light.Direction;
-	return LIGHT_FUNCTION(radiance, toLight, normal, toEye, mat) * mat.AO;
-}
-
-float3 ComputePointLight(Light light, MaterialInput mat, float3 worldPos, float3 normal, float3 toEye)
+float3 ComputeLightEffect(Light light, MaterialInput mat, float3 worldPos, float3 normal, float3 toEye)
 {
 	float3 toLight = light.Position - worldPos;
 	const float distance = length(toLight);
-	
+
 	// Range test
 	if (distance > light.Falloff.y) return float3(0.0f, 0.0f, 0.0f);
 
@@ -122,25 +118,32 @@ float3 ComputePointLight(Light light, MaterialInput mat, float3 worldPos, float3
 
 	const float3 radiance = light.Radiance * CalcAttenuation(distance, light.Falloff.x, light.Falloff.y);
 
+	if (light.IsSpot)
+	{
+		// TODO: Add spot mask
+	}
+
 	return LIGHT_FUNCTION(radiance, toLight, normal, toEye, mat);
 }
 
-float3 ComputeSpotLight(Light light, MaterialInput mat, float3 pos, float3 normal, float3 toEye)
+float3 ComputeDirectionalEffect(DirectionalLight light, MaterialInput mat, float3 normal, float3 toEye)
 {
-	// TODO
-	return float3(0.0f, 0.0f, 0.0f);
+	const float3 radiance = light.Radiance;
+	const float3 toLight = -light.Direction;
+	return LIGHT_FUNCTION(radiance, toLight, normal, toEye, mat) * mat.AO;
 }
 
-float3 ComputeAmbientLight(Light light, MaterialInput mat)
+float3 ComputeAmbientEffect(float3 radiance, MaterialInput mat, float3 normal, float3 view)
 {
-	return light.Radiance * mat.Albedo.rgb * mat.AO;
-}
-
-float3 ComputeIrradianceEffect(float3 irradiance, MaterialInput mat, float3 normal, float3 view)
-{
+#ifdef USE_IBL
 	const float3 specularFactor = FresnelSchlickRoughness(mat.F0, max(dot(normal, view), 0.0), mat.Roughness);
 	const float3 diffuseFactor = 1.0f - specularFactor;
-	const float3 diffuse = irradiance * mat.Albedo.rgb;
+	const float3 diffuse = radiance * mat.Albedo.rgb;
 	const float ao = mat.AO;
 	return diffuseFactor * diffuse * ao;
+#else
+	return radiance * mat.Albedo.rgb * mat.AO;
+#endif
 }
+
+#endif // LIGHTING_H

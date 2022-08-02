@@ -120,8 +120,6 @@ struct Drawable
 	uint32_t MaterialIndex;
 	uint32_t MeshIndex;
 
-	BoundingSphere BoundingVolume;
-
 	void UpdateBuffer(GraphicsContext& context, RenderGroup& renderGroup);
 };
 
@@ -130,34 +128,35 @@ struct Entity
 	uint32_t EntityIndex;
 
 	DirectX::XMFLOAT4X4 BaseTransform = XMUtility::ToXMFloat4x4(DirectX::XMMatrixIdentity());
+	BoundingSphere BaseBoundingSphere;
+	
 	Float3 Position = Float3(0.0f, 0.0f, 0.0f);
 	Float3 Scale = Float3(1.0f, 1.0f, 1.0f);
 	Float3 Rotation = Float3(0.0f, 0.0f, 0.0f);
 
-	BoundingSphere GetBoundingVolume(BoundingSphere bv) const;
+	BoundingSphere GetBoundingVolume() const;
 
 	void UpdateBuffer(GraphicsContext& context);
 };
 
-enum LightType : uint32_t
+struct DirectionalLight
 {
-	LT_Invalid = 0,
-	LT_Directional = 1,
-	LT_Point = 2,
-	LT_Spot = 3,
-	LT_Ambient = 4,
+	Float3 Direction;
+	Float3 Radiance;
 };
 
 struct Light
 {
 	uint32_t LightIndex = 0;
 
-	LightType Type = LT_Invalid;
-	Float3 Position = { 0.0f, 0.0f, 0.0f };		// Point
-	Float3 Radiance = { 0.0f, 0.0f, 0.0f };		// Dir/Spot/Point/Ambient
-	Float2 Falloff = { 0.0f, 0.0f };			// Point/Spot (Start, End)
-	Float3 Direction = { 0.0f, 0.0f, 0.0f };	// Dir/Spot
-	float SpotPower = 0.0f;						// Spot
+	bool IsSpot = false;
+	Float3 Position = { 0.0f, 0.0f, 0.0f };
+	Float3 Radiance = { 0.0f, 0.0f, 0.0f };
+	Float2 Falloff = { 0.0f, 0.0f };			// (Start, End)
+
+	// Spot only
+	Float3 Direction = { 0.0f, 0.0f, 0.0f };
+	float SpotPower = 0.0f;
 
 	void UpdateBuffer(GraphicsContext& context);
 };
@@ -358,6 +357,7 @@ struct RenderGroup
 	TextureStorage TextureData;
 	MeshStorage MeshData;
 
+	ScopedRef<Buffer> VisibilityMaskBuffer;
 	BitField VisibilityMask;
 };
 
@@ -374,10 +374,20 @@ struct SceneGraph
 	static constexpr uint32_t MAX_ENTITIES = 10000;
 	static constexpr uint32_t MAX_LIGHTS = 100000;
 
+	struct DirectonalLightCB
+	{
+		DirectX::XMFLOAT3A Direction = Float3{1.0f, 2.0f, 3.0f}.ToXMFA();
+		DirectX::XMFLOAT3A Radiance = Float3{ 4.0f, 5.0f, 6.0f }.ToXMFA();
+	};
+
 	struct SceneInfoRenderData
 	{
 		uint32_t NumLights;
 		DirectX::XMFLOAT3 Padding;
+
+		DirectonalLightCB DirLight;
+		DirectX::XMFLOAT3A AmbientRadiance = Float3{ 7.0f, 8.0f, 9.0f }.ToXMFA();
+
 		DirectX::XMFLOAT2A ScreenSize;
 		float AspectRatio;
 	};
@@ -388,8 +398,6 @@ struct SceneGraph
 	void FrameUpdate(GraphicsContext& context);
 	uint32_t AddEntity(GraphicsContext& context, Entity entity);
 
-	Light CreateDirectionalLight(GraphicsContext& context, Float3 direction, Float3 color);
-	Light CreateAmbientLight(GraphicsContext& context, Float3 color);
 	Light CreatePointLight(GraphicsContext& context, Float3 position, Float3 color, Float2 falloff);
 	Light CreateLight(GraphicsContext& context, Light light);
 
@@ -398,8 +406,10 @@ struct SceneGraph
 
 	ElementBuffer<Entity> Entities;
 	RenderGroup RenderGroups[EnumToInt(RenderGroupType::Count)];
+
 	ElementBuffer<Light> Lights;
-	uint32_t DirLightIndex = UINT32_MAX;
+	DirectionalLight DirLight;
+	Float3 AmbientLight;
 
 	SceneInfoRenderData SceneInfoData;
 };

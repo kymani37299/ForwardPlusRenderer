@@ -15,10 +15,12 @@ enum ResourceCreationFlags : uint64_t
 	RCF_Bind_RTV = RCF_Bind_UAV << 1,
 	RCF_Bind_DSV = RCF_Bind_RTV << 1,
 	RCF_Bind_CBV = RCF_Bind_DSV << 1,
+	RCF_Bind_RAW = RCF_Bind_CBV << 1,
 
 	// Misc
-	RCF_CPU_Access = RCF_Bind_CBV << 1,
-	RCF_GenerateMips = RCF_CPU_Access << 1,
+	RCF_CPU_Access = RCF_Bind_RAW << 1,
+	RCF_Readback = RCF_CPU_Access << 1,
+	RCF_GenerateMips = RCF_Readback << 1,
 	RCF_Cubemap = RCF_GenerateMips << 1,
 
 	// MSAA
@@ -28,7 +30,7 @@ enum ResourceCreationFlags : uint64_t
 	RCF_MSAA_X16 = RCF_MSAA_X8 << 1,
 };
 
-inline D3D12_RESOURCE_FLAGS GetResourceCreationFlags(uint32_t creationFlags)
+inline D3D12_RESOURCE_FLAGS GetResourceCreationFlags(uint64_t creationFlags)
 {
 	D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE;
 	if (creationFlags & RCF_Bind_RTV) flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
@@ -37,13 +39,20 @@ inline D3D12_RESOURCE_FLAGS GetResourceCreationFlags(uint32_t creationFlags)
 	return flags;
 }
 
-inline uint32_t GetSampleCount(uint32_t creationFlags)
+inline uint32_t GetSampleCount(uint64_t creationFlags)
 {
 	if (creationFlags & RCF_MSAA_X2) return 2;
 	if (creationFlags & RCF_MSAA_X4) return 4;
 	if (creationFlags & RCF_MSAA_X8) return 8;
 	if (creationFlags & RCF_MSAA_X16) return 16;
 	return 1;
+}
+
+inline D3D12_HEAP_TYPE GetHeapType(uint64_t creationFlags)
+{
+	if (creationFlags & RCF_Readback) return D3D12_HEAP_TYPE_READBACK;
+	if (creationFlags & RCF_CPU_Access) return D3D12_HEAP_TYPE_UPLOAD;
+	return D3D12_HEAP_TYPE_DEFAULT;
 }
 
 enum class ResourceType

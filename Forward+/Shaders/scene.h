@@ -1,9 +1,28 @@
+#ifndef SCENE_H
+#define SCENE_H
+
+#include "culling.h"
+
+struct DirectionalLight
+{
+	float3 Direction;
+	float Padding0;
+	float3 Radiance;
+	float Padding1;
+};
+
 struct SceneInfo
 {
 	uint NumLights;
 	float3 Padding1;
+
+	DirectionalLight DirLight;
+
+	float3 AmbientRadiance;
+	float Padding2;
+
 	float2 ScreenSize;
-	float2 Padding2;
+	float2 Padding3;
 	float AspectRatio;
 };
 
@@ -27,12 +46,14 @@ struct Drawable
 struct Entity
 {
 	float4x4 ModelToWorld;
+	BoundingSphere BoundingVolume;
 };
 
 struct Mesh
 {
 	uint VertexOffset;
 	uint IndexOffset;
+	uint IndexCount;
 };
 
 struct Vertex
@@ -61,10 +82,14 @@ struct Material
 
 struct Light
 {
-	uint Type;			// 1 - Dir, 2 - Point, 3 - Spot, 4 - Ambient
-	float3 Position;	// Point
-	float3 Radiance;	// All
-	float2 Falloff;		// Point/Spot (Start, End)
-	float3 Direction;	// Dir/Spot
-	float SpotPower;	// Spot
+	bool IsSpot;
+	float3 Position;
+	float3 Radiance;
+	float2 Falloff;		// (Start, End)
+	
+	// Spot only
+	float3 Direction;
+	float SpotPower;
 };
+
+#endif // SCENE_H

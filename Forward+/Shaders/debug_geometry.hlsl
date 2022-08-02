@@ -11,19 +11,31 @@ struct DebugGeometry
 cbuffer Constants : register(b0)
 {
 	Camera CamData;
-	DebugGeometry DebugGeoData;
 }
 
-float4 VS(float3 position : SV_POSITION) : SV_Position
+StructuredBuffer<DebugGeometry> InstanceData : register(t0);
+
+struct VertexOut
+{
+	float4 Position : SV_POSITION;
+	float4 Color : GEO_COLOR;
+};
+
+VertexOut VS(float3 position : MODEL_POSITION, uint instanceID : SV_InstanceID)
 {
 	const float4 modelPos = float4(position, 1.0f);
-	const float4 worldPos = mul(modelPos, DebugGeoData.ModelToWorld);
+	const float4 worldPos = mul(modelPos, InstanceData[instanceID].ModelToWorld);
 	const float4 viewPos = mul(worldPos, CamData.WorldToView);
 	const float4 clipPos = mul(viewPos, CamData.ViewToClip);
-	return clipPos;
+
+	VertexOut OUT;
+	OUT.Position = clipPos;
+	OUT.Color = InstanceData[instanceID].Color;
+
+	return OUT;
 }
 
-float4 PS(float4 position : SV_POSITION) : SV_Target
+float4 PS(VertexOut IN) : SV_Target
 {
-	return DebugGeoData.Color;
+	return IN.Color;
 }

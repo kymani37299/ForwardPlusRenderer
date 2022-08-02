@@ -16,7 +16,7 @@
 
 using Microsoft::WRL::ComPtr;
 
-#define SAFE_RELEASE
+#define USE_PIX
 
 inline uint32_t D3D12CalcSubresource(uint32_t MipSlice, uint32_t ArraySlice, uint32_t PlaneSlice, uint32_t MipLevels, uint32_t ArraySize)
 {

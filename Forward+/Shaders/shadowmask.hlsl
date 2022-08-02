@@ -17,10 +17,8 @@ Texture2D<float> Shadowmap : register(t1);
 
 float CalculateShadowFactor(float3 worldPosition)
 {
-	float4 shadowmapPosition = GetClipPos(worldPosition, ShadowCamera);
-	shadowmapPosition.xyz /= shadowmapPosition.w;
-
-	const float2 shadowmapUV = GetUVFromClipPosition(shadowmapPosition.xyz);
+	const float4 shadowmapPosition = GetClipPos(worldPosition, ShadowCamera);
+	const float2 shadowmapUV = GetUVFromClipPosition(shadowmapPosition);
 
 	const bool inShadowMap = shadowmapUV.x < 1.0f && shadowmapUV.x > 0.0f && shadowmapUV.y < 1.0f && shadowmapUV.y > 0.0f;
 

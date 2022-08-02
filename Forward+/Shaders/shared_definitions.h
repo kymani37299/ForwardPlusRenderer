@@ -1,3 +1,6 @@
+#ifndef SHARED_DEFINITIONS_H
+#define SHARED_DEFINITIONS_H
+
 // Light culling
 #define TILE_SIZE 16
 #define MAX_LIGHTS_PER_TILE 1024
@@ -8,4 +11,8 @@
 
 // SSAO
 #define SSAO_KERNEL_SIZE 64
+
+#define WAVESIZE 32
+
+#endif // SHARED_DEFINITIONS_H
 

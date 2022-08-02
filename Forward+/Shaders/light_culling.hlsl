@@ -21,35 +21,6 @@ groupshared ViewFrustum gsTileFrustum;
 
 groupshared uint gsVisibleLightIndexes[MAX_LIGHTS_PER_TILE];
 
-float ComputeLightRadius(Light light)
-{
-	switch (light.Type)
-	{
-	case LIGHT_TYPE_DIRECTIONAL:
-		return 1000000.0f;
-
-	case LIGHT_TYPE_POINT:
-	case LIGHT_TYPE_SPOT: // TODO: This can be further optimized with direction
-	{
-		return light.Falloff.y;
-	}
-	case LIGHT_TYPE_AMBIENT:
-		return 1000000.0f;
-	}
-	return 0.0f;
-}
-
-bool CullLight(Light light, ViewFrustum viewFrustum)
-{
-	bool isVisible = true;
-	if (light.Type == LIGHT_TYPE_POINT)
-	{
-		BoundingSphere bs = CreateBoundingSphere(light.Position, ComputeLightRadius(light));
-		isVisible = IsInViewFrustum(bs, viewFrustum);
-	}
-	return isVisible;
-}
-
 [numthreads(TILE_SIZE, TILE_SIZE, 1)]
 void CS(uint3 threadID : SV_DispatchThreadID, uint3 groupID : SV_GroupID, uint3 localThreadID : SV_GroupThreadID)
 {
@@ -138,7 +109,8 @@ void CS(uint3 threadID : SV_DispatchThreadID, uint3 groupID : SV_GroupID, uint3 
 		if (lightIndex >= SceneInfoData.NumLights) break;
 		const Light l = Lights[lightIndex];
 
-		bool isVisible = CullLight(l, gsTileFrustum);
+		BoundingSphere bs = CreateBoundingSphere(l.Position, l.Falloff.y);
+		const bool isVisible = IsInViewFrustum(bs, gsTileFrustum);
 		if (isVisible)
 		{
 			uint writeOffset;

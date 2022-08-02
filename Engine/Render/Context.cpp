@@ -89,6 +89,11 @@ GraphicsState::GraphicsState()
 	Viewport = { 0.0f, 0.0f, (float)AppConfig.WindowWidth, (float)AppConfig.WindowHeight, 0.0f, 1.0f };
 	Scissor = { 0,0, (long)AppConfig.WindowWidth, (long)AppConfig.WindowHeight };
 	Primitives = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+
+	CommandSignature.ByteStride = 0;
+	CommandSignature.NodeMask = 0;
+	CommandSignature.NumArgumentDescs = 0;
+	CommandSignature.pArgumentDescs = nullptr;
 }
 
 static std::vector<D3D12_DESCRIPTOR_RANGE> CreateDescriptorRanges(std::vector<Resource*> bindings, D3D12_DESCRIPTOR_RANGE_TYPE rangeType)
@@ -147,7 +152,7 @@ static void UpdateDescriptorData(const std::vector<Resource*>& bindings, Descrip
 
 static uint32_t CalcRootSignatureHash(const GraphicsState& state)
 {
-	uint32_t sigHash = 0xffffffff;
+	uint32_t sigHash = Hash::Crc32(state.PushConstants.size());
 	for (const D3D12_STATIC_SAMPLER_DESC& samplerDesc : state.Samplers) sigHash = Hash::Crc32(sigHash, samplerDesc);
 	sigHash = Hash::Crc32(sigHash, "CBV");
 	for (uint32_t i = 0; i < state.Table.CBVs.size(); i++) if(state.Table.CBVs[i]) sigHash = Hash::Crc32(sigHash, i);
@@ -171,6 +176,17 @@ static ID3D12RootSignature* GetOrCreateRootSignature(const GraphicsState& state)
 	descriptorRanges[0] = CreateDescriptorRanges(table.CBVs, D3D12_DESCRIPTOR_RANGE_TYPE_CBV);
 	descriptorRanges[1] = CreateDescriptorRanges(table.SRVs, D3D12_DESCRIPTOR_RANGE_TYPE_SRV);
 	descriptorRanges[2] = CreateDescriptorRanges(table.UAVs, D3D12_DESCRIPTOR_RANGE_TYPE_UAV);
+
+	if (!state.PushConstants.empty())
+	{
+		D3D12_ROOT_PARAMETER rootParamater;
+		rootParamater.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+		rootParamater.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		rootParamater.Constants.Num32BitValues = state.PushConstants.size();
+		rootParamater.Constants.RegisterSpace = 0;
+		rootParamater.Constants.ShaderRegister = GraphicsState::PUSH_CONSTANT_BINDING;
+		rootParameters.push_back(rootParamater);
+	}
 
 	for (uint32_t i = 0; i < 3; i++)
 	{
@@ -268,7 +284,7 @@ void ReleaseContextCache()
 	PSOCache.clear();
 }
 
-void ApplyGraphicsState(GraphicsContext& context, const GraphicsState& state)
+ID3D12CommandSignature* ApplyGraphicsState(GraphicsContext& context, const GraphicsState& state)
 {
 	Device* device = Device::Get();
 	ID3D12GraphicsCommandList* cmdList = context.CmdList.Get();
@@ -350,9 +366,9 @@ void ApplyGraphicsState(GraphicsContext& context, const GraphicsState& state)
 			DXGI_FORMAT dxgiFormat = DXGI_FORMAT_UNKNOWN;
 			switch (state.IndexBuffer->Stride)
 			{
-			case 8:  dxgiFormat = DXGI_FORMAT_R8_UINT; break;
-			case 16: dxgiFormat = DXGI_FORMAT_R16_UINT; break;
-			case 32: dxgiFormat = DXGI_FORMAT_R32_UINT; break;
+			case 1:  dxgiFormat = DXGI_FORMAT_R8_UINT; break;
+			case 2: dxgiFormat = DXGI_FORMAT_R16_UINT; break;
+			case 4: dxgiFormat = DXGI_FORMAT_R32_UINT; break;
 			default: NOT_IMPLEMENTED;
 			}
 
@@ -384,6 +400,13 @@ void ApplyGraphicsState(GraphicsContext& context, const GraphicsState& state)
 	// Bind root table
 	{
 		uint32_t nextSlot = 0;
+
+		if (!state.PushConstants.empty())
+		{
+			GFX::Cmd::UpdatePushConstants(context, state);
+			nextSlot++;
+		}
+
 		for (uint32_t i = 0; i < 3; i++)
 		{
 			if (pages[i].AllocationIndex == 0) continue;
@@ -404,4 +427,14 @@ void ApplyGraphicsState(GraphicsContext& context, const GraphicsState& state)
 			cmdList->ResourceBarrier(barriers.size(), barriers.data());
 		}
 	}
+
+	// Create command signature
+	ID3D12CommandSignature* commandSignature = nullptr;
+	if (state.CommandSignature.ByteStride != 0)
+	{
+		// TODO: Cache signatures
+		API_CALL(Device::Get()->GetHandle()->CreateCommandSignature(&state.CommandSignature, rootSignature, IID_PPV_ARGS(&commandSignature)));
+		DeferredTrash::Put(commandSignature);
+	}
+	return commandSignature;
 }

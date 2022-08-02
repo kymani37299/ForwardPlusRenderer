@@ -1,3 +1,6 @@
+#ifndef LIGHT_CULLING_H
+#define LIGHT_CULLING_H
+
 #include "shared_definitions.h"
 #include "scene.h"
 
@@ -22,3 +25,5 @@ uint2 GetTileIndexFromPosition(float3 position)
 	const float2 tileIndexF = position.xy / TILE_SIZE;
 	return uint2(tileIndexF.x, tileIndexF.y);
 }
+
+#endif // LIGHT_CULLING_H

@@ -10,6 +10,12 @@
 #include "Renderers/Util/ConstantManager.h"
 #include "Scene/SceneGraph.h"
 
+struct DebugGeometrySB
+{
+	DirectX::XMFLOAT4X4 ModelToWorld;
+	DirectX::XMFLOAT4 Color;
+};
+
 static Buffer* GenerateSphereVB(GraphicsContext& context)
 {
 	constexpr uint32_t parallels = 11;
@@ -94,13 +100,13 @@ void DebugRenderer::Init(GraphicsContext& context)
 
 	m_DebugGeometryShader = ScopedRef<Shader>(new Shader("Forward+/Shaders/debug_geometry.hlsl"));
 	m_LightHeatmapShader = ScopedRef<Shader>(new Shader("Forward+/Shaders/light_heatmap.hlsl"));
+
+	m_DebugGeometriesBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(sizeof(DebugGeometrySB), sizeof(DebugGeometrySB), RCF_None));
 }
 
 void DebugRenderer::Draw(GraphicsContext& context, Texture* colorTarget, Texture* depthTarget, Buffer* visibleLights)
 {
-	UpdateStats(context);
-
-	if (DebugToolsConfig.DrawBoundingSpheres)
+	if (DebugViz.BoundingSpheres)
 	{
 		for (uint32_t rgType = 0; rgType < EnumToInt(RenderGroupType::Count); rgType++)
 		{
@@ -108,20 +114,17 @@ void DebugRenderer::Draw(GraphicsContext& context, Texture* colorTarget, Texture
 			const uint32_t numDrawables = rg.Drawables.GetSize();
 			for (uint32_t i = 0; i < numDrawables; i++)
 			{
-				if (!rg.VisibilityMask.Get(i)) continue;
-
 				const Drawable& d = rg.Drawables[i];
 				const Entity& e = MainSceneGraph->Entities[d.EntityIndex];
 				const float maxScale = MAX(MAX(e.Scale.x, e.Scale.y), e.Scale.z);
 
-				BoundingSphere bs = e.GetBoundingVolume(d.BoundingVolume);
-
+				BoundingSphere bs = e.GetBoundingVolume();
 				DrawSphere(bs.Center, Float4(Random::UNorm(i), Random::UNorm(i + 1), Random::UNorm(i + 2), 0.2f), { bs.Radius, bs.Radius, bs.Radius });
 			}
 		}
 	}
 
-	if (DebugToolsConfig.DrawLightSpheres)
+	if (DebugViz.LightSpheres)
 	{
 		const uint32_t numLights = MainSceneGraph->Lights.GetSize();
 		for (uint32_t i = 0; i < numLights; i++)
@@ -136,7 +139,7 @@ void DebugRenderer::Draw(GraphicsContext& context, Texture* colorTarget, Texture
 	GFX::Cmd::BindDepthStencil(geometriesState, depthTarget);
 	DrawGeometries(context, geometriesState);
 
-	if (DebugToolsConfig.LightHeatmap && !DebugToolsConfig.DisableLightCulling && !DebugToolsConfig.FreezeGeometryCulling)
+	if (DebugViz.LightHeatmap && RenderSettings.Culling.LightCullingEnabled)
 	{
 		CBManager.Clear();
 		CBManager.Add(MainSceneGraph->SceneInfoData);
@@ -159,29 +162,17 @@ void DebugRenderer::Draw(GraphicsContext& context, Texture* colorTarget, Texture
 	}
 }
 
-void DebugRenderer::UpdateStats(GraphicsContext& context)
-{
-	GFX::Cmd::MarkerBegin(context, "Update stats");
-
-	// Drawable stats
-	RenderStats.TotalDrawables = 0;
-	RenderStats.VisibleDrawables = 0;
-	for (uint32_t i = 0; i < EnumToInt(RenderGroupType::Count); i++)
-	{
-		RenderGroup& rg = MainSceneGraph->RenderGroups[i];
-		RenderStats.TotalDrawables += rg.Drawables.GetSize();
-		if (!DebugToolsConfig.FreezeGeometryCulling)
-		{
-			RenderStats.VisibleDrawables += rg.VisibilityMask.CountOnes();
-		}
-	}
-
-	GFX::Cmd::MarkerEnd(context);
-}
-
 void DebugRenderer::DrawGeometries(GraphicsContext& context, GraphicsState& state)
 {
 	GFX::Cmd::MarkerBegin(context, "Debug Geometries");
+
+	std::sort(m_GeometriesToRender.begin(), m_GeometriesToRender.end(), [](const DebugGeometry& a, const DebugGeometry& b)
+		{
+			const Float3 cameraPos = MainSceneGraph->MainCamera.CurrentTranform.Position;
+			const float aDist = (cameraPos - a.Position).Abs().SumElements();
+			const float bDist = (cameraPos - b.Position).Abs().SumElements();
+			return aDist < bDist;
+		});
 
 	// Prepare pipeline
 	state.Pipeline.DepthStencilState.DepthEnable = true;
@@ -196,44 +187,41 @@ void DebugRenderer::DrawGeometries(GraphicsContext& context, GraphicsState& stat
 	GFX::Cmd::BindShader(state, m_DebugGeometryShader.get(), VS | PS);
 
 	state.Table.CBVs.resize(1);
+	state.Table.SRVs.resize(1);
 	state.VertexBuffers.resize(1);
 
-	for (const DebugGeometry& dg : m_GeometriesToRender)
+	Buffer* typeToVB[EnumToInt(DebugGeometryType::COUNT)] = { m_CubeVB.get(), m_SphereVB.get()};
+
+	std::vector<DebugGeometrySB> debugGeometries{};
+	for (uint32_t i = 0; i < EnumToInt(DebugGeometryType::COUNT); i++)
 	{
-		Buffer* vertexBuffer = nullptr;
-
-		// Prepare data
+		DebugGeometryType type = IntToEnum<DebugGeometryType>(i);
+		for (const DebugGeometry& dg : m_GeometriesToRender)
 		{
-			using namespace DirectX;
+			if (dg.Type != type) continue;
 
-			XMMATRIX modelToWorld;
-
-			switch (dg.Type)
-			{
-			case DebugGeometryType::CUBE:
-				modelToWorld = XMMatrixAffineTransformation(dg.Scale.ToXM(), Float3(0.0f, 0.0f, 0.0f).ToXM(), Float4(0.0f, 0.0f, 0.0f, 0.0f).ToXM(), dg.Position.ToXM());
-				vertexBuffer = m_CubeVB.get();
-				break;
-			case DebugGeometryType::SPHERE:
-				modelToWorld = XMMatrixAffineTransformation(dg.Scale.ToXM(), Float3(0.0f, 0.0f, 0.0f).ToXM(), Float4(0.0f, 0.0f, 0.0f, 0.0f).ToXM(), dg.Position.ToXM());
-				vertexBuffer = m_SphereVB.get();
-				break;
-			default: NOT_IMPLEMENTED;
-			}
-
-			CBManager.Clear();
-			CBManager.Add(MainSceneGraph->MainCamera.CameraData);
-			CBManager.Add(XMUtility::ToHLSLFloat4x4(modelToWorld));
-			CBManager.Add(dg.Color.ToXMF());
-			state.Table.CBVs[0] = CBManager.GetBuffer();
+			DebugGeometrySB geoEntry{};
+			geoEntry.ModelToWorld = XMUtility::ToHLSLFloat4x4(DirectX::XMMatrixAffineTransformation(dg.Scale.ToXM(), Float3(0.0f, 0.0f, 0.0f).ToXM(), Float4(0.0f, 0.0f, 0.0f, 0.0f).ToXM(), dg.Position.ToXM()));
+			geoEntry.Color = dg.Color.ToXMF();
+			debugGeometries.push_back(geoEntry);
 		}
 
-		// Draw
+		if (debugGeometries.empty()) continue;
+
+		if (debugGeometries.size() > m_DebugGeometriesBuffer->ByteSize / m_DebugGeometriesBuffer->Stride)
 		{
-			state.VertexBuffers[0] = vertexBuffer;
-			GFX::Cmd::BindState(context, state);
-			context.CmdList->DrawInstanced(vertexBuffer->ByteSize / vertexBuffer->Stride, 1, 0, 0);
+			GFX::ResizeBuffer(context, m_DebugGeometriesBuffer.get(), debugGeometries.size() * m_DebugGeometriesBuffer->Stride);
 		}
+		GFX::Cmd::UploadToBuffer(context, m_DebugGeometriesBuffer.get(), 0, debugGeometries.data(), 0, debugGeometries.size() * m_DebugGeometriesBuffer->Stride);
+		state.Table.SRVs[0] = m_DebugGeometriesBuffer.get();
+
+		CBManager.Clear();
+		CBManager.Add(MainSceneGraph->MainCamera.CameraData);
+		state.Table.CBVs[0] = CBManager.GetBuffer();
+		state.VertexBuffers[0] = typeToVB[i];
+		GFX::Cmd::BindState(context, state);
+		context.CmdList->DrawInstanced(m_SphereVB->ByteSize / m_SphereVB->Stride, debugGeometries.size(), 0, 0);
+		debugGeometries.clear();
 	}
 
 	GFX::Cmd::MarkerEnd(context);

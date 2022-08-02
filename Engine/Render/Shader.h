@@ -4,6 +4,10 @@
 #include <unordered_map>
 #include <set>
 
+// TODO: Move this to .cpp
+#include "REnder/RenderAPI.h"
+#include <dxcapi.h>
+
 struct D3D12_INPUT_ELEMENT_DESC;
 
 enum ShaderStage : uint8_t
@@ -30,7 +34,7 @@ struct CompiledShader
 	std::vector<D3D12_INPUT_ELEMENT_DESC> InputLayout;
 	std::vector<D3D12_INPUT_ELEMENT_DESC> InputLayoutMultiInput;
 
-	std::vector<ComPtr<ID3DBlob>> Data;
+	std::vector<ComPtr<IDxcOperationResult>> Data;
 };
 
 struct Shader
@@ -53,6 +57,9 @@ struct Shader
 
 namespace GFX
 {
+	void InitShaderCompiler();
+	void DestroyShaderCompiler();
+
 	const CompiledShader& GetCompiledShader(Shader* shaderID, const std::vector<std::string>& defines, uint32_t shaderStages);
 	void ReloadAllShaders();
 }

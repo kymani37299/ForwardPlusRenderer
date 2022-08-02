@@ -1,3 +1,6 @@
+#ifndef CULLING_H
+#define CULLING_H
+
 struct ViewFrustum
 {
 	float4 Planes[6];
@@ -52,3 +55,5 @@ bool IsInViewFrustum(BoundingSphere bs, ViewFrustum vf)
 	}
 	return true;
 }
+
+#endif // CULLING_H

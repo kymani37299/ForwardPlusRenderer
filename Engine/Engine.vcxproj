@@ -102,7 +102,7 @@
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)\External\DirectXMesh\Include;$(SolutionDir)\External\stb\include;$(SolutionDir)\External\imgui\src;$(SolutionDir)\External\cgitf;$(SolutionDir)\Engine;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\External\dxc;$(SolutionDir)\External\DirectXMesh\Include;$(SolutionDir)\External\stb\include;$(SolutionDir)\External\imgui\src;$(SolutionDir)\External\cgitf;$(SolutionDir)\Engine;$(SolutionDir)\External\WinPixEventRuntime\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -120,7 +120,7 @@
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)\External\DirectXMesh\Include;$(SolutionDir)\External\stb\include;$(SolutionDir)\External\imgui\src;$(SolutionDir)\External\cgitf;$(SolutionDir)\Engine;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\External\dxc;$(SolutionDir)\External\DirectXMesh\Include;$(SolutionDir)\External\stb\include;$(SolutionDir)\External\imgui\src;$(SolutionDir)\External\cgitf;$(SolutionDir)\Engine;$(SolutionDir)\External\WinPixEventRuntime\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -138,7 +138,7 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)\External\DirectXMesh\Include;$(SolutionDir)\External\stb\include;$(SolutionDir)\External\imgui\src;$(SolutionDir)\External\cgitf;$(SolutionDir)\Engine;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\External\dxc;$(SolutionDir)\External\DirectXMesh\Include;$(SolutionDir)\External\stb\include;$(SolutionDir)\External\imgui\src;$(SolutionDir)\External\cgitf;$(SolutionDir)\Engine;$(SolutionDir)\External\WinPixEventRuntime\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -156,7 +156,7 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)\External\DirectXMesh\Include;$(SolutionDir)\External\stb\include;$(SolutionDir)\External\imgui\src;$(SolutionDir)\External\cgitf;$(SolutionDir)\Engine;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\External\dxc;$(SolutionDir)\External\DirectXMesh\Include;$(SolutionDir)\External\stb\include;$(SolutionDir)\External\imgui\src;$(SolutionDir)\External\cgitf;$(SolutionDir)\Engine;$(SolutionDir)\External\WinPixEventRuntime\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>

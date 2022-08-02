@@ -1,3 +1,4 @@
 SIMPLE_SCENE - Loading simple scene with one cube and a planeBG_LOADING 
 MTR_LOADING - Multithreaded loading
 HIDE_GUI - Hide imgui windows when in play mode
+SINGLE_CASTLE - Draw single sponza castle instead of grid ( better for light profiling )

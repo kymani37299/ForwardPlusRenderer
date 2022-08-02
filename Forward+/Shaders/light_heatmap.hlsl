@@ -4,7 +4,7 @@
 
 VS_IMPL;
 
-#define HIGH_LIGHT_COUNT 30
+#define HIGH_LIGHT_COUNT 50
 
 cbuffer Constants : register(b0)
 {

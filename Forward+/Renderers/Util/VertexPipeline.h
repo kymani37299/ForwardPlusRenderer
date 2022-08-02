@@ -6,20 +6,25 @@ struct RenderGroup;
 struct GraphicsContext;
 struct GraphicsState;
 struct Buffer;
+struct Shader;
 
-struct VertexPipeline
+class VertexPipeline
 {
+public:
 	VertexPipeline();
 	~VertexPipeline();
 
 	void Init(GraphicsContext& context);
 	void Draw(GraphicsContext& context, GraphicsState& state, RenderGroup& renderGroup, bool skipCulling = false);
 
-	uint32_t InstanceCount = 0;
-	uint32_t IndexCount = 0;
-	ScopedRef<Buffer> MeshletIndexBuffer;
-	ScopedRef<Buffer> DrawableInstanceBuffer;
-	ScopedRef<Buffer> MeshletInstanceBuffer;
+private:
+	void Draw_CPU(GraphicsContext& context, GraphicsState& state, RenderGroup& renderGroup, bool skipCulling);
+	void Draw_GPU(GraphicsContext& context, GraphicsState& state, RenderGroup& renderGroup, bool skipCulling);
+
+private:
+	ScopedRef<Buffer> m_IndirectArgumentsBuffer;
+	ScopedRef<Buffer> m_IndirectArgumentsCountBuffer;
+	ScopedRef<Shader> m_PrepareArgsShader;
 };
 
 extern VertexPipeline* VertPipeline;

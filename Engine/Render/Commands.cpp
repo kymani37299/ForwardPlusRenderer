@@ -1,5 +1,7 @@
 #include "Commands.h"
 
+#include <WinPixEventRuntime/pix3.h>
+
 #include "Render/Resource.h"
 #include "Render/Buffer.h"
 #include "Render/Device.h"
@@ -32,12 +34,13 @@ namespace GFX::Cmd
 
 	void MarkerBegin(GraphicsContext& context, const std::string& name)
 	{
-		// TODO
+		const uint64_t defaultColor = PIX_COLOR(0, 0, 0);
+		PIXBeginEvent(context.CmdList.Get(), defaultColor, name.c_str());
 	}
 
 	void MarkerEnd(GraphicsContext& context)
 	{
-		// TODO
+		PIXEndEvent(context.CmdList.Get());
 	}
 
 	void AddResourceTransition(std::vector<D3D12_RESOURCE_BARRIER>& barriers, Resource* res, D3D12_RESOURCE_STATES wantedState)
@@ -124,9 +127,20 @@ namespace GFX::Cmd
 		context.BoundState.Valid = false;
 	}
 
-	void BindState(GraphicsContext& context, const GraphicsState& state)
+	ID3D12CommandSignature* BindState(GraphicsContext& context, const GraphicsState& state)
 	{
-		ApplyGraphicsState(context, state);
+		return ApplyGraphicsState(context, state);
+	}
+
+
+
+	void UpdatePushConstants(GraphicsContext& context, const GraphicsState& state)
+	{
+		ASSERT(!state.PushConstants.empty(), "[UpdatePushConstants] Push constants are empty");
+
+		const bool useCompute = state.Compute.pShaderBytecode != nullptr;
+		if (useCompute) context.CmdList->SetComputeRoot32BitConstants(0, state.PushConstants.size(), state.PushConstants.data(), 0);
+		else  context.CmdList->SetGraphicsRoot32BitConstants(0, state.PushConstants.size(), state.PushConstants.data(), 0);
 	}
 
 	void ClearRenderTarget(GraphicsContext& context, Texture* renderTarget)
@@ -313,7 +327,9 @@ namespace GFX::Cmd
 
 	void CopyToBuffer(GraphicsContext& context, Buffer* srcBuffer, uint32_t srcOffset, Buffer* dstBuffer, uint32_t dstOffset, uint32_t size)
 	{
-		NOT_IMPLEMENTED;
+		TransitionResource(context, srcBuffer, D3D12_RESOURCE_STATE_COPY_SOURCE);
+		TransitionResource(context, dstBuffer, D3D12_RESOURCE_STATE_COPY_DEST);
+		context.CmdList->CopyBufferRegion(dstBuffer->Handle.Get(), dstOffset, srcBuffer->Handle.Get(), srcOffset, size);
 	}
 
 	void DrawFC(GraphicsContext& context, GraphicsState& state)

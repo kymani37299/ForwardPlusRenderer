@@ -8,22 +8,11 @@
 #include "Scene/SceneGraph.h"
 
 // --------------------------------------------------
-void DebugToolsGUI::Render()
+void DebugVisualizationsGUI::Render()
 {
-	ImGui::Text("Geometry culling");
-	ImGui::Checkbox("Disable geometry culling", &DebugToolsConfig.DisableGeometryCulling);
-	ImGui::Checkbox("Freeze geometry culling", &DebugToolsConfig.FreezeGeometryCulling);
-	ImGui::Checkbox("Draw bounding boxes", &DebugToolsConfig.DrawBoundingSpheres);
-	ImGui::Checkbox("Use meshlet culling", &DebugToolsConfig.UseMeshletCulling);
-	ImGui::Separator();
-	ImGui::Text("Light culling");
-	ImGui::Checkbox("Freeze light culling", &DebugToolsConfig.FreezeLightCulling);
-	ImGui::Checkbox("Disable light culling", &DebugToolsConfig.DisableLightCulling);
-	ImGui::Checkbox("Light heatmap", &DebugToolsConfig.LightHeatmap);
-	ImGui::Checkbox("Draw light spheres", &DebugToolsConfig.DrawLightSpheres);
-	ImGui::Separator();
-	ImGui::Checkbox("Use PBR", &DebugToolsConfig.UsePBR);
-	ImGui::Checkbox("Use IBL", &DebugToolsConfig.UseIBL);
+	ImGui::Checkbox("Bounding spheres", &DebugViz.BoundingSpheres);
+	ImGui::Checkbox("Light spheres", &DebugViz.LightSpheres);
+	ImGui::Checkbox("Light heatmap", &DebugViz.LightHeatmap);
 	
 }
 
@@ -106,6 +95,26 @@ void RenderSettingsGUI::Render()
 			ImGui::InputFloat("Depth bias", &RenderSettings.SSAO.DepthBias);
 		}
 	}
+
+	if (ImGui::CollapsingHeader("Culling"))
+	{
+		ImGui::Checkbox("Light culling", &RenderSettings.Culling.LightCullingEnabled);
+		ImGui::Separator();
+		ImGui::Checkbox("Geometry culling on CPU", &RenderSettings.Culling.GeometryCullingOnCPU);
+		ImGui::Checkbox("Geometry culling", &RenderSettings.Culling.GeometryCullingEnabled);
+		ImGui::Checkbox("Geometry occlusion culling", &RenderSettings.Culling.GeometryOcclusionCullingEnabled);
+		ImGui::Checkbox("Geometry culling freeze", &RenderSettings.Culling.GeometryCullingFrozen);
+	}
+
+	if (ImGui::CollapsingHeader("Shading"))
+	{
+		ImGui::Checkbox("PBR", &RenderSettings.Shading.UsePBR);
+		if (RenderSettings.Shading.UsePBR)
+		{
+			ImGui::Checkbox("IBL", &RenderSettings.Shading.UseIBL);
+		}
+		
+	}
 }
 
 void RenderStatsGUI::Update(float dt)
@@ -142,68 +151,48 @@ void RenderStatsGUI::Render()
 }
 
 // --------------------------------------------------
-void TextureVisualizerGUI::Render()
-{
-	// TODO
-	// int val = m_SelectedTexture;
-	// ImGui::InputInt("Texture ID", &val);
-	// m_SelectedTexture = MIN((uint32_t) val, GFX::Storage::TEXTURE_STORAGE_SIZE);
-	// 
-	// ImGui::SliderFloat("Texture size", &m_ScaleFactor, 0.0f, 1.0f);
-	// 
-	// TextureID texture{ m_SelectedTexture };
-	// if (texture.Valid())
-	// {
-	// 	const Texture& tex = GFX::Storage::GetTexture(texture);
-	// 	if (tex.SRV.Get())
-	// 	{
-	// 		ImGui::Image(tex.SRV.Get(), { tex.Width * m_ScaleFactor, tex.Height * m_ScaleFactor });
-	// 	}
-	// }
-}
-
-// --------------------------------------------------
 void LightsGUI::Render()
 {
+	uint32_t lightsToGenerate = 0;
+
 	if (ImGui::Button("Generate 1k lights"))
 	{
-		for (uint32_t i = 0; i < 1000; i++)
-		{
-			const float strength = Random::Float(1.0f, 5.0f);
-			const Float3 position = Float3(1000.0f, 80.0f, 1000.0f) * Float3(Random::UNorm(), Random::UNorm(), Random::UNorm());
-			const Float3 color = strength * Float3(Random::UNorm(), Random::UNorm(), Random::UNorm());
-			const Float2 falloff = strength * Float2(0.5f + 2.0f * Random::UNorm(), 3.0f + 2.0f * Random::UNorm());
-			MainSceneGraph->CreatePointLight(Device::Get()->GetContext(), position, color, falloff);
-		}
+		lightsToGenerate = 1000;
+	}
+
+	if (ImGui::Button("Generate 10k lights"))
+	{
+		lightsToGenerate = 10000;
+	}
+
+	for (uint32_t i = 0; i < lightsToGenerate; i++)
+	{
+		const float strength = Random::Float(1.0f, 5.0f);
+		const Float3 position = Float3(1000.0f, 80.0f, 1000.0f) * Float3(Random::UNorm(), Random::UNorm(), Random::UNorm());
+		const Float3 color = strength * Float3(Random::UNorm(), Random::UNorm(), Random::UNorm());
+		const Float2 falloff = strength * Float2(0.5f + 2.0f * Random::UNorm(), 3.0f + 2.0f * Random::UNorm());
+		MainSceneGraph->CreatePointLight(Device::Get()->GetContext(), position, color, falloff);
 	}
 
 	ImGui::Separator();
 
-	if (MainSceneGraph->DirLightIndex != UINT32_MAX)
-	{
-		Light& dirLight = MainSceneGraph->Lights[MainSceneGraph->DirLightIndex];
+	DirectionalLight& dirLight = MainSceneGraph->DirLight;
 
-		float direction[3];
-		direction[0] = dirLight.Direction.x;
-		direction[1] = dirLight.Direction.y;
-		direction[2] = dirLight.Direction.z;
+	float direction[3];
+	direction[0] = dirLight.Direction.x;
+	direction[1] = dirLight.Direction.y;
+	direction[2] = dirLight.Direction.z;
 
-		ImGui::Text("Directional light");
-		bool changed = ImGui::SliderFloat3("Direction", direction, -1.0f, 1.0f);
-		dirLight.Direction = { direction[0], direction[1], direction[2] };
-		dirLight.Direction = dirLight.Direction.Normalize();
+	ImGui::Text("Directional light");
+	bool changed = ImGui::SliderFloat3("Direction", direction, -1.0f, 1.0f);
+	dirLight.Direction = { direction[0], direction[1], direction[2] };
+	dirLight.Direction = dirLight.Direction.Normalize();
 
-		float color[3];
-		color[0] = dirLight.Radiance.x;
-		color[1] = dirLight.Radiance.y;
-		color[2] = dirLight.Radiance.z;
-		changed = ImGui::SliderFloat3("Color", color, 0.0f, 5.0f) || changed;
+	float color[3];
+	color[0] = dirLight.Radiance.x;
+	color[1] = dirLight.Radiance.y;
+	color[2] = dirLight.Radiance.z;
+	changed = ImGui::SliderFloat3("Color", color, 0.0f, 5.0f) || changed;
 
-		dirLight.Radiance = { color[0], color[1], color[2] };
-
-		if (changed)
-		{
-			dirLight.UpdateBuffer(Device::Get()->GetContext());
-		}
-	}
+	dirLight.Radiance = { color[0], color[1], color[2] };
 }

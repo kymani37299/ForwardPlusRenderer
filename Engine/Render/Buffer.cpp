@@ -27,7 +27,7 @@ namespace GFX
 		bufferDesc.Flags = GetResourceCreationFlags(buffer->CreationFlags);
 
 		D3D12MA::ALLOCATION_DESC allocationDesc{};
-		allocationDesc.HeapType = buffer->CreationFlags & RCF_CPU_Access ? D3D12_HEAP_TYPE_UPLOAD : D3D12_HEAP_TYPE_DEFAULT;
+		allocationDesc.HeapType = GetHeapType(buffer->CreationFlags);
 		API_CALL(device->GetAllocator()->CreateResource(&allocationDesc, &bufferDesc, buffer->CurrState, nullptr, &buffer->Alloc, IID_PPV_ARGS(buffer->Handle.GetAddressOf())));
 		buffer->GPUAddress = buffer->Handle->GetGPUVirtualAddress();
 
@@ -36,18 +36,32 @@ namespace GFX
 			GFX::Cmd::UploadToBuffer(*initData->Context, buffer, 0, initData->Data, 0, buffer->ByteSize);
 		}
 
+		const bool rawBuffer = buffer->CreationFlags & RCF_Bind_RAW;
+
 		// SRV
 		{
 			buffer->SRV = memory.SRVHeap->Alloc();
 
 			D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
-			srvDesc.Format = DXGI_FORMAT_UNKNOWN;
 			srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
 			srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 			srvDesc.Buffer.FirstElement = 0;
-			srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
-			srvDesc.Buffer.NumElements = buffer->ByteSize / buffer->Stride;
-			srvDesc.Buffer.StructureByteStride = buffer->Stride;
+
+			if (rawBuffer)
+			{
+				srvDesc.Format = DXGI_FORMAT_R32_TYPELESS;
+				srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
+				srvDesc.Buffer.NumElements = buffer->ByteSize / sizeof(uint32_t);
+				srvDesc.Buffer.StructureByteStride = 0;
+			}
+			else
+			{
+				srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+				srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+				srvDesc.Buffer.NumElements = buffer->ByteSize / buffer->Stride;
+				srvDesc.Buffer.StructureByteStride = buffer->Stride;
+			}
+
 			device->GetHandle()->CreateShaderResourceView(buffer->Handle.Get(), &srvDesc, buffer->SRV);
 		}
 
@@ -56,13 +70,26 @@ namespace GFX
 			buffer->UAV = memory.SRVHeap->Alloc();
 
 			D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
-			uavDesc.Format = DXGI_FORMAT_UNKNOWN;
 			uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
 			uavDesc.Buffer.CounterOffsetInBytes = 0;
 			uavDesc.Buffer.FirstElement = 0;
-			uavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
-			uavDesc.Buffer.NumElements = buffer->ByteSize / buffer->Stride;
-			uavDesc.Buffer.StructureByteStride = buffer->Stride;
+
+			if (rawBuffer)
+			{
+				uavDesc.Format = DXGI_FORMAT_R32_TYPELESS;
+				uavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
+				uavDesc.Buffer.NumElements = buffer->ByteSize / sizeof(uint32_t);
+				uavDesc.Buffer.StructureByteStride = 0;
+			}
+			else
+			{
+				uavDesc.Format = DXGI_FORMAT_UNKNOWN;
+				uavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
+				uavDesc.Buffer.NumElements = buffer->ByteSize / buffer->Stride;
+				uavDesc.Buffer.StructureByteStride = buffer->Stride;
+
+			}
+
 			device->GetHandle()->CreateUnorderedAccessView(buffer->Handle.Get(), nullptr, &uavDesc, buffer->UAV);
 		}
 
@@ -77,6 +104,13 @@ namespace GFX
 		}
 	}
 
+	D3D12_RESOURCE_STATES GetStartingBufferState(uint64_t creationFlags)
+	{
+		if (creationFlags & RCF_Readback) return D3D12_RESOURCE_STATE_COPY_DEST;
+		if (creationFlags & RCF_CPU_Access) return D3D12_RESOURCE_STATE_GENERIC_READ;
+		return D3D12_RESOURCE_STATE_COMMON;
+	}
+
 	Buffer* CreateBuffer(uint64_t byteSize, uint64_t elementStride, uint64_t creationFlags, ResourceInitData* initData)
 	{
 		Buffer* buffer = new Buffer{};
@@ -84,7 +118,7 @@ namespace GFX
 		buffer->CreationFlags = creationFlags;
 		buffer->ByteSize = byteSize;
 		buffer->Stride = elementStride;
-		buffer->CurrState = creationFlags & RCF_CPU_Access ? D3D12_RESOURCE_STATE_GENERIC_READ : D3D12_RESOURCE_STATE_COMMON;
+		buffer->CurrState = GetStartingBufferState(creationFlags);
 		CreateBufferResources(buffer, initData);
 		return buffer;
 	}
@@ -103,9 +137,8 @@ namespace GFX
 		oldResource->UAV = buffer->UAV;
 		DeferredTrash::Put(oldResource);
 
-		uint32_t copySize = MIN(buffer->ByteSize, byteSize);
-		ComPtr<D3D12MA::Allocation> oldAlloc = buffer->Alloc;
-
+		const uint32_t copySize = MIN(buffer->ByteSize, byteSize);
+		
 		buffer->Handle.Reset();
 		buffer->Alloc.Reset();
 		buffer->CurrState = buffer->CreationFlags & RCF_CPU_Access ? D3D12_RESOURCE_STATE_GENERIC_READ : D3D12_RESOURCE_STATE_COMMON;

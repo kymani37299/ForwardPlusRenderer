@@ -12,8 +12,9 @@ class DebugRenderer
 {
 	enum class DebugGeometryType
 	{
-		CUBE,
-		SPHERE
+		CUBE = 0,
+		SPHERE = 1,
+		COUNT = 2
 	};
 
 	struct DebugGeometry
@@ -49,7 +50,6 @@ public:
 	}
 
 private:
-	void UpdateStats(GraphicsContext& context);
 	void DrawGeometries(GraphicsContext& context, GraphicsState& state);
 
 private:
@@ -60,4 +60,6 @@ private:
 
 	ScopedRef<Buffer> m_CubeVB;
 	ScopedRef<Buffer> m_SphereVB;
+
+	ScopedRef<Buffer> m_DebugGeometriesBuffer;
 };

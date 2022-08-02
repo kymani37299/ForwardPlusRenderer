@@ -48,7 +48,7 @@ float2 CalculateMotionVector(float4 newPosition, float4 oldPosition, float2 scre
 
 VertexOut VS(VertexPipelineInput IN)
 {
-    const Drawable d = Drawables[IN.DrawableInstance];
+    const Drawable d = GetDrawable();
     const Vertex vert = GetWorldSpaceVertex(IN);
 	
 	VertexOut OUT;

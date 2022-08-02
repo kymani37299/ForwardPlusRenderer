@@ -63,13 +63,9 @@ float PS(FCVertex IN) : SV_Target
     for (uint i = 0; i < SSAO_KERNEL_SIZE; i++)
     {
         const float3 samplePosition = position + mul(Samples[i].xyz, TBN) * Settings.SampleRadius;
+        const float4 sampleClipPos = GetClipPos(samplePosition, MainCamera);
+        const float2 sampleDepthUV = GetUVFromClipPosition(sampleClipPos);
 
-        float4 sampleClipPos = GetClipPos(samplePosition, MainCamera);
-        sampleClipPos /= sampleClipPos.w;
-        sampleClipPos.xy = sampleClipPos.xy * 0.5f + 0.5f; // [0-1]
-        sampleClipPos.y = 1.0f - sampleClipPos.y;
-        
-        const float2 sampleDepthUV = sampleClipPos;
         if (sampleDepthUV.x > 0.0f && sampleDepthUV.x < 1.0f && sampleDepthUV.y > 0.0f && sampleDepthUV.y < 1.0f)
         {
             const float sampleDepth = DepthTexture.Sample(s_PointClamp, sampleDepthUV) - Settings.DepthBias;

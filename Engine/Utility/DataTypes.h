@@ -55,6 +55,9 @@ struct Float2
 	float Dot(const Float2& other) const { return Float2(DirectX::XMVector2Dot(ToXM(), other.ToXM())).x; }
 	Float2 Normalize() const { return Float2(DirectX::XMVector2Normalize(ToXM())); }
 	Float2 NormalizeFast() const { return Float2(DirectX::XMVector2NormalizeEst(ToXM())); }
+	Float2 Abs() const { return Float2{ std::abs(x), std::abs(y) }; }
+
+	float SumElements() const { return x + y; }
 
 	operator DirectX::XMVECTOR() const { return ToXM(); }
 };
@@ -110,6 +113,9 @@ struct Float3
 	Float3 Normalize() const { return Float3(DirectX::XMVector3Normalize(ToXM())); }
 	Float3 NormalizeFast() const { return Float3(DirectX::XMVector3NormalizeEst(ToXM())); }
 	Float3 Cross(const Float3& other) const { return Float3(DirectX::XMVector3Cross(ToXM(), other.ToXM())); }
+	Float3 Abs() const { return Float3{ std::abs(x), std::abs(y), std::abs(z) }; }
+
+	float SumElements() const { return x + y + z; }
 
 	operator DirectX::XMVECTOR() const { return ToXM(); }
 };
@@ -166,6 +172,9 @@ struct Float4
 	float Dot(const Float4& other) const { return Float4(DirectX::XMVector4Dot(ToXM(), other.ToXM())).x; }
 	Float4 Normalize() const { return Float4(DirectX::XMVector4Normalize(ToXM())); }
 	Float4 NormalizeFast() const { return Float4(DirectX::XMVector4NormalizeEst(ToXM())); }
+	Float4 Abs() const { return Float4{ std::abs(x), std::abs(y), std::abs(z), std::abs(w) }; }
+
+	float SumElements() const { return x + y + z + w; }
 
 	operator DirectX::XMVECTOR() const { return ToXM(); }
 };

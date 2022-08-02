@@ -6,6 +6,7 @@
 #include <Engine/Render/Commands.h>
 #include <Engine/Render/Shader.h>
 #include <Engine/System/ApplicationConfiguration.h>
+#include <Engine/Utility/MathUtility.h>
 
 #include "Globals.h"
 #include "Renderers/Util/ConstantManager.h"
@@ -23,6 +24,9 @@ Culling::~Culling()
 void Culling::Init(GraphicsContext& context)
 {
 	m_LightCullingShader = ScopedRef<Shader>(new Shader{ "Forward+/Shaders/light_culling.hlsl" });
+	m_GeometryCullingShader = ScopedRef<Shader>(new Shader{ "Forward+/Shaders/geometry_culling.hlsl" });
+	m_CullingStatsBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_UAV));
+	m_CullingStatsReadback = ScopedRef<Buffer>(GFX::CreateBuffer(sizeof(uint32_t), sizeof(uint32_t), RCF_Readback));
 	UpdateResources(context);
 }
 
@@ -40,42 +44,30 @@ namespace CullingPrivate
 	{
 		const Entity& e = MainSceneGraph->Entities[d.EntityIndex];
 		const ViewFrustum& vf = MainSceneGraph->MainCamera.CameraFrustum;
-		const BoundingSphere bv = e.GetBoundingVolume(d.BoundingVolume);
-
+		const BoundingSphere bv = e.GetBoundingVolume();
 		return vf.IsInFrustum(bv);
-	}
-
-	void CullRenderGroup(RenderGroup& rg)
-	{
-		const uint32_t numDrawables = rg.Drawables.GetSize();
-		rg.VisibilityMask = BitField{ numDrawables };
-		for (uint32_t i = 0; i < numDrawables; i++)
-		{
-			Drawable& d = rg.Drawables[i];
-			if (d.DrawableIndex != Drawable::InvalidIndex && IsVisible(d))
-			{
-				rg.VisibilityMask.Set(i, true);
-			}
-		}
 	}
 }
 
-void Culling::CullGeometries(GraphicsContext& context)
+void Culling::CullGeometries(GraphicsContext& context, Texture* depth)
 {
-	if (!DebugToolsConfig.FreezeGeometryCulling)
+	if (!RenderSettings.Culling.GeometryCullingFrozen)
 	{
+		UpdateStats(context);
+
+		// Clear stats buffer
+		uint32_t clearValue = 0;
+		GFX::Cmd::UploadToBufferGPU(context, m_CullingStatsBuffer.get(), 0, &clearValue, 0, sizeof(uint32_t));
+
 		for (uint32_t i = 0; i < EnumToInt(RenderGroupType::Count); i++)
 		{
-			RenderGroup& rg = MainSceneGraph->RenderGroups[i];
-			if (DebugToolsConfig.DisableGeometryCulling)
+			if (RenderSettings.Culling.GeometryCullingOnCPU)
 			{
-				uint32_t numDrawables = rg.Drawables.GetSize();
-				rg.VisibilityMask = BitField(numDrawables);
-				for (uint32_t i = 0; i < numDrawables; i++) rg.VisibilityMask.Set(i, true);
+				CullRenderGroupCPU(context, MainSceneGraph->RenderGroups[i]);
 			}
 			else
 			{
-				CullingPrivate::CullRenderGroup(rg);
+				CullRenderGroupGPU(context, MainSceneGraph->RenderGroups[i], depth);
 			}
 		}
 	}
@@ -83,7 +75,7 @@ void Culling::CullGeometries(GraphicsContext& context)
 
 void Culling::CullLights(GraphicsContext& context, Texture* depth)
 {
-	if (!DebugToolsConfig.FreezeLightCulling && !DebugToolsConfig.DisableLightCulling)
+	if (RenderSettings.Culling.LightCullingEnabled)
 	{
 		GraphicsState state{};
 		state.Table.CBVs.resize(1);
@@ -104,5 +96,86 @@ void Culling::CullLights(GraphicsContext& context, Texture* depth)
 		GFX::Cmd::BindState(context, state);
 		context.CmdList->Dispatch(m_NumTilesX, m_NumTilesY, 1);
 		GFX::Cmd::MarkerEnd(context);
+	}
+}
+
+void Culling::CullRenderGroupCPU(GraphicsContext& context, RenderGroup& rg)
+{
+	if (rg.Drawables.GetSize() == 0) return;
+
+	const uint32_t numDrawables = rg.Drawables.GetSize();
+	rg.VisibilityMask = BitField{ numDrawables };
+
+	for (uint32_t i = 0; i < numDrawables; i++)
+	{
+		const Drawable& d = rg.Drawables[i];
+		if (!RenderSettings.Culling.GeometryCullingEnabled || 
+			(d.DrawableIndex != Drawable::InvalidIndex && CullingPrivate::IsVisible(d)))
+		{
+			rg.VisibilityMask.Set(i, true);
+		}
+	}
+}
+
+void Culling::CullRenderGroupGPU(GraphicsContext& context, RenderGroup& rg, Texture* depth)
+{
+	if (rg.Drawables.GetSize() == 0) return;
+
+	std::vector<std::string> config{};
+	config.push_back("GEO_CULLING");
+	if (!RenderSettings.Culling.GeometryCullingEnabled) config.push_back("FORCE_VISIBLE");
+	if (!RenderSettings.Culling.GeometryOcclusionCullingEnabled) config.push_back("DISABLE_OCCLUSION_CULLING");
+
+	GFX::Cmd::MarkerBegin(context, "Geometry Culling");
+
+	GFX::ExpandBuffer(context, rg.VisibilityMaskBuffer.get(), rg.Drawables.GetSize() * sizeof(uint32_t));
+
+	GraphicsState cullingState{};
+	cullingState.Table.SRVs.push_back(rg.Drawables.GetBuffer());
+	cullingState.Table.SRVs.push_back(MainSceneGraph->Entities.GetBuffer());
+	cullingState.Table.SRVs.push_back(depth);
+	cullingState.Table.UAVs.push_back(rg.VisibilityMaskBuffer.get());
+	cullingState.Table.UAVs.push_back(m_CullingStatsBuffer.get());
+
+	CBManager.Clear();
+	CBManager.Add(MainSceneGraph->MainCamera.CameraData);
+	CBManager.Add(MainSceneGraph->MainCamera.CameraFrustum);
+	CBManager.Add(rg.Drawables.GetSize());
+	// CBManager.Add(AppConfig.WindowWidth);
+	// CBManager.Add(AppConfig.WindowHeight);
+	cullingState.Table.CBVs.push_back(CBManager.GetBuffer());
+
+	GFX::Cmd::BindShader(cullingState, m_GeometryCullingShader.get(), CS, config);
+	GFX::Cmd::BindState(context, cullingState);
+
+	context.CmdList->Dispatch(MathUtility::CeilDiv(rg.Drawables.GetSize(), WAVESIZE), 1, 1);
+
+	GFX::Cmd::CopyToBuffer(context, m_CullingStatsBuffer.get(), 0, m_CullingStatsReadback.get(), 0, sizeof(uint32_t));
+
+	GFX::Cmd::MarkerEnd(context);
+}
+
+void Culling::UpdateStats(GraphicsContext& context)
+{
+	if (RenderSettings.Culling.GeometryCullingOnCPU)
+	{
+		RenderStats.TotalDrawables = 0;
+		RenderStats.VisibleDrawables = 0;
+		for (uint32_t i = 0; i < EnumToInt(RenderGroupType::Count); i++)
+		{
+			RenderGroup& rg = MainSceneGraph->RenderGroups[i];
+			RenderStats.TotalDrawables += rg.Drawables.GetSize();
+			RenderStats.VisibleDrawables += rg.VisibilityMask.CountOnes();
+		}
+	}
+	else
+	{
+		RenderStats.TotalDrawables = 0;
+		for (uint32_t i = 0; i < EnumToInt(RenderGroupType::Count); i++) RenderStats.TotalDrawables += MainSceneGraph->RenderGroups[i].Drawables.GetSize();
+
+		void* visibleDrawablesPtr = nullptr;
+		m_CullingStatsReadback->Handle->Map(0, nullptr, &visibleDrawablesPtr);
+		if(visibleDrawablesPtr) RenderStats.VisibleDrawables = *static_cast<uint32_t*>(visibleDrawablesPtr);
+		m_CullingStatsReadback->Handle->Unmap(0, nullptr);
 	}
 }

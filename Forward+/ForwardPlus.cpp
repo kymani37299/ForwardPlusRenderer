@@ -25,7 +25,7 @@
 #include "Gui/GUI_Implementations.h"
 
 // Globals initialization
-DebugToolsConfiguration DebugToolsConfig;
+DebugVisualizations DebugViz;
 RendererSettings RenderSettings;
 RenderStatistics RenderStats;
 
@@ -33,10 +33,9 @@ namespace ForwardPlusPrivate
 {
 	void PrepareScene(GraphicsContext& context)
 	{
-		const Float3 dirLight = Float3(-0.2f, -1.0f, -0.2f);
-
-		MainSceneGraph->CreateAmbientLight(context, Float3(0.05f, 0.05f, 0.2f));
-		MainSceneGraph->CreateDirectionalLight(context, dirLight, Float3(3.7f, 2.0f, 0.9f));
+		MainSceneGraph->AmbientLight = Float3(0.05f, 0.05f, 0.2f);
+		MainSceneGraph->DirLight.Direction = Float3(-0.2f, -1.0f, -0.2f);
+		MainSceneGraph->DirLight.Radiance = Float3(3.7f, 2.0f, 0.9f);
 
 		if (AppConfig.Settings.contains("SIMPLE_SCENE"))
 		{
@@ -63,21 +62,33 @@ namespace ForwardPlusPrivate
 			//SceneLoading::LoadedScene scene = SceneLoading::Load("Resources/SuperSponza/NewSponza_Main_Blender_glTF.gltf");
 			SceneLoading::LoadedScene scene = SceneLoading::Load("Resources/sponza/sponza.gltf");
 
-			constexpr uint32_t NUM_CASTLES[2] = { 10, 10 };
-			constexpr float CASTLE_OFFSET[2] = { 350.0f, 200.0f };
-
-			for (uint32_t i = 0; i < NUM_CASTLES[0]; i++)
+			if (AppConfig.Settings.contains("SINGLE_CASTLE"))
 			{
-				for (uint32_t j = 0; j < NUM_CASTLES[1]; j++)
+				const Float3 startingPosition{ 350.0f, 0.0f, 200.0f };
+
+				Entity e{};
+				e.Position = startingPosition;
+				e.Scale = 10.0f * Float3{ 1.0f, 1.0f, 1.0f };
+				SceneLoading::AddDraws(scene, e);
+				MainSceneGraph->MainCamera.NextTransform.Position += startingPosition;
+			}
+			else
+			{
+				constexpr uint32_t NUM_CASTLES[2] = { 10, 10 };
+				constexpr float CASTLE_OFFSET[2] = { 350.0f, 200.0f };
+				for (uint32_t i = 0; i < NUM_CASTLES[0]; i++)
 				{
-					Entity e{};
-					e.Position = { i * CASTLE_OFFSET[0], 0.0f , j * CASTLE_OFFSET[1] };
-					e.Scale = 10.0f * Float3{ 1.0f, 1.0f, 1.0f };
-					SceneLoading::AddDraws(scene, e);
+					for (uint32_t j = 0; j < NUM_CASTLES[1]; j++)
+					{
+						Entity e{};
+						e.Position = { i * CASTLE_OFFSET[0], 0.0f , j * CASTLE_OFFSET[1] };
+						e.Scale = 10.0f * Float3{ 1.0f, 1.0f, 1.0f };
+						SceneLoading::AddDraws(scene, e);
+					}
 				}
+				MainSceneGraph->MainCamera.NextTransform.Position += Float3(2 * CASTLE_OFFSET[0], 0.0f, 2 * CASTLE_OFFSET[1]);
 			}
 
-			MainSceneGraph->MainCamera.NextTransform.Position += Float3(2 * CASTLE_OFFSET[0], 0.0f, 2 * CASTLE_OFFSET[1]);
 		}
 	}
 
@@ -178,12 +189,11 @@ void ForwardPlus::OnInit(GraphicsContext& context)
 			GUI::Get()->SetVisible(false);
 		}
 
-		GUI::Get()->AddElement(new RenderSettingsGUI());
-		GUI::Get()->AddElement(new DebugToolsGUI());
-		GUI::Get()->AddElement(new PositionInfoGUI());
-		GUI::Get()->AddElement(new RenderStatsGUI(true));
-		GUI::Get()->AddElement(new TextureVisualizerGUI());
 		GUI::Get()->AddElement(new LightsGUI());
+		GUI::Get()->AddElement(new RenderStatsGUI(true));
+		GUI::Get()->AddElement(new RenderSettingsGUI());
+		GUI::Get()->AddElement(new DebugVisualizationsGUI());
+		GUI::Get()->AddElement(new PositionInfoGUI());
 	}
 
 	// Initialize GFX resources
@@ -220,19 +230,18 @@ Texture* ForwardPlus::OnDraw(GraphicsContext& context)
 {
 	using namespace ForwardPlusPrivate;
 
+	MainSceneGraph->FrameUpdate(context);
+
+	// Geometry culling
+	m_Culling.CullGeometries(context, m_MainRT_Depth.get());
+
 	// Prepare render targets
 	{
 		GFX::Cmd::ClearRenderTarget(context, m_MainRT_HDR.get());
 		GFX::Cmd::ClearRenderTarget(context, m_MotionVectorRT.get());
 		GFX::Cmd::ClearDepthStencil(context, m_MainRT_Depth.get());
 		GFX::Cmd::ClearDepthStencil(context, m_MainRT_DepthMS.get());
-		
 	}
-
-	MainSceneGraph->FrameUpdate(context);
-
-	// Geometry culling
-	m_Culling.CullGeometries(context);
 
 	// Depth prepass
 	const bool drawMotionVectors = RenderSettings.AntialiasingMode == AntiAliasingMode::TAA;

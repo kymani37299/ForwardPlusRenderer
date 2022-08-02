@@ -5,6 +5,7 @@
 
 struct GraphicsContext;
 
+// TODO: Add RenderTask priority
 class RenderTask
 {
 public:

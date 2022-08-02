@@ -4,7 +4,12 @@
 
 #include <set>
 #include <fstream>
-#include <d3dcompiler.h>
+
+#include <d3d12shader.h>
+
+#define _SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING
+#include <dxc/hlsl/DxilContainer.h>
+#undef _SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING
 
 #include "Render/Device.h"
 #include "Utility/StringUtility.h"
@@ -13,8 +18,17 @@
 
 namespace GFX
 {
-	namespace // Util
+	namespace ShaderCompiler
 	{
+		struct DXCCompiler
+		{
+			ComPtr<IDxcLibrary> Library;
+			ComPtr<IDxcCompiler> Compiler;
+			ComPtr<IDxcIncludeHandler> IncludeHandler;
+		};
+
+		DXCCompiler Compiler;
+
 		DXGI_FORMAT ToDXGIFormat(D3D12_SIGNATURE_PARAMETER_DESC paramDesc)
 		{
 			if (paramDesc.Mask == 1)
@@ -69,121 +83,68 @@ namespace GFX
 			NOT_IMPLEMENTED;
 			return DXGI_FORMAT_UNKNOWN;
 		}
-	}
 
-	namespace // Shader compiler
-	{
-		bool ReadFile(const std::string& path, std::vector<std::string>& content)
+		IDxcOperationResult* DXC_Compile(const std::wstring& path, const std::wstring& entryPoint, const std::wstring& targetProfile, const std::vector<DxcDefine>& defines)
 		{
-			content.clear();
+			ComPtr<IDxcBlobEncoding> sourceBlob;
+			uint32_t codePage = CP_UTF8;
+			API_CALL(Compiler.Library->CreateBlobFromFile(path.c_str(), &codePage, sourceBlob.GetAddressOf()));
 
-			std::ifstream fileStream(path, std::ios::in);
+			IDxcOperationResult* result;
 
-			if (!fileStream.is_open()) {
-				return false;
-			}
+			HRESULT hr = Compiler.Compiler->Compile(
+				sourceBlob.Get(), path.c_str(),
+				entryPoint.c_str(), targetProfile.c_str(),
+				nullptr, 0,
+				defines.empty() ? nullptr : defines.data(), defines.size(),
+				Compiler.IncludeHandler.Get(),
+				&result);
 
-			std::string line = "";
-			while (!fileStream.eof()) {
-				std::getline(fileStream, line);
-				content.push_back(line);
-			}
-
-			fileStream.close();
-			return true;
-		}
-
-		void ReadShaderFile(std::string path, std::string& shaderCode)
-		{
-			shaderCode = "";
-
-			std::string rootPath = PathUtility::GetPathWitoutFile(path);
-			std::vector<std::string> shaderContent;
-			std::vector<std::string> tmp;
-
-			bool readSuccess = false;
-
-			readSuccess = ReadFile(path, shaderContent);
-			ASSERT(readSuccess, "Failed to load shader: " + path);
-
-			shaderContent.insert((shaderContent.begin()), tmp.begin(), tmp.end());
-
-			std::set<std::string> loadedFiles = {};
-			for (size_t i = 0; i < shaderContent.size(); i++)
+			ASSERT(SUCCEEDED(hr), "Shader compilation failed!");
+			
+			result->GetStatus(&hr);
+			
+			if(FAILED(hr))
 			{
-				std::string& line = shaderContent[i];
-				if (StringUtility::Contains(line, "#include"))
+				if (result)
 				{
-					std::string fileName = line;
-					StringUtility::ReplaceAll(fileName, "#include", "");
-					StringUtility::ReplaceAll(fileName, " ", "");
-					StringUtility::ReplaceAll(fileName, "\"", "");
-
-					if (loadedFiles.count(fileName)) continue;
-					loadedFiles.insert(fileName);
-
-					readSuccess = ReadFile(rootPath + fileName, tmp);
-					ASSERT(readSuccess, "Failed to include file in shader: " + rootPath + fileName);
-					shaderContent.insert((shaderContent.begin() + (i + 1)), tmp.begin(), tmp.end());
+					ComPtr<IDxcBlobEncoding> errorsBlob;
+					hr = result->GetErrorBuffer(&errorsBlob);
+					if (SUCCEEDED(hr) && errorsBlob)
+					{
+						const char* errorString = (const char*)errorsBlob->GetBufferPointer();
+						std::cout << "Compilation failed with errors:" << errorString << std::endl;
+					}
 				}
-				else
-				{
-					shaderCode.append(line + "\n");
-				}
+				ASSERT(0, "Shader compilation failed!");
 			}
+
+			return result;
 		}
 
-		D3D_SHADER_MACRO* CompileConfiguration(const std::vector<std::string>& configuration)
+		std::vector<D3D12_INPUT_ELEMENT_DESC> DXC_CreateInputLayout(IDxcBlob* vsBlob, bool multiInput)
 		{
-			if (configuration.size() == 0) return nullptr;
-
-			const size_t numConfigs = configuration.size();
-			D3D_SHADER_MACRO* compiledConfig = (D3D_SHADER_MACRO*)malloc(sizeof(D3D_SHADER_MACRO) * (numConfigs + 1));
-			for (size_t i = 0; i < numConfigs; i++)
-			{
-				compiledConfig[i].Name = configuration[i].c_str();
-				compiledConfig[i].Definition = "";
-			}
-			compiledConfig[numConfigs].Name = NULL;
-			compiledConfig[numConfigs].Definition = NULL;
-
-			return compiledConfig;
-		}
-
-		ID3DBlob* ReadBlobFromFile(const std::string& path, const std::string& shaderCode, const std::string& entry, const std::string& hlsl_target, D3D_SHADER_MACRO* configuration)
-		{
-			ID3DBlob* shaderCompileErrorsBlob, * blob;
-			HRESULT hResult = D3DCompile(shaderCode.c_str(), shaderCode.size(), nullptr, configuration, nullptr, entry.c_str(), hlsl_target.c_str(), 0, 0, &blob, &shaderCompileErrorsBlob);
-			if (FAILED(hResult))
-			{
-				const char* errorString = NULL;
-				if (shaderCompileErrorsBlob) {
-					errorString = (const char*)shaderCompileErrorsBlob->GetBufferPointer();
-					shaderCompileErrorsBlob->Release();
-				}
-				std::cout << "Shader compiler error for file: " << path << "\nError message:" << errorString << std::endl;
-				return nullptr;
-			}
-			return blob;
-		}
-
-		std::vector<D3D12_INPUT_ELEMENT_DESC> CreateInputLayout(ID3DBlob* vsBlob, bool multiInput)
-		{
-			std::vector<D3D12_INPUT_ELEMENT_DESC> inputLayout;
+			std::vector<D3D12_INPUT_ELEMENT_DESC> inputLayout{};
 
 			ID3D12ShaderReflection* reflection;
-			API_CALL(D3DReflect(vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(), IID_ID3D11ShaderReflection, (void**)&reflection));
-			D3D12_SHADER_DESC desc;
+			ComPtr<IDxcContainerReflection> dxcReflection;
+			UINT32 shaderIdx;
+			API_CALL(DxcCreateInstance(CLSID_DxcContainerReflection, IID_PPV_ARGS(dxcReflection.GetAddressOf())));
+			API_CALL(dxcReflection->Load(vsBlob));
+			API_CALL(dxcReflection->FindFirstPartKind(hlsl::DFCC_DXIL, &shaderIdx));
+			API_CALL(dxcReflection->GetPartReflection(shaderIdx, __uuidof(ID3D12ShaderReflection), (void**)&reflection));
+
+			D3D12_SHADER_DESC desc{};
 			reflection->GetDesc(&desc);
 
-			bool lastPerInstance = false; // Last input was perInstance
-
-			inputLayout.resize(desc.InputParameters);
-
+			bool lastPerInstance = false;
+			uint32_t multiSlotInputSlot = 0;
 			for (size_t i = 0; i < desc.InputParameters; i++)
 			{
 				D3D12_SIGNATURE_PARAMETER_DESC paramDesc;
 				reflection->GetInputParameterDesc(i, &paramDesc);
+
+				if (paramDesc.SystemValueType != D3D_NAME_UNDEFINED) continue;
 
 				const bool perInstance = std::string(paramDesc.SemanticName).find("I_") == 0 ||
 					std::string(paramDesc.SemanticName).find("i_") == 0;
@@ -195,13 +156,15 @@ namespace GFX
 					return {};
 				}
 
-				inputLayout[i].SemanticName = paramDesc.SemanticName;
-				inputLayout[i].SemanticIndex = paramDesc.SemanticIndex;
-				inputLayout[i].Format = ToDXGIFormat(paramDesc);
-				inputLayout[i].InputSlot = multiInput ? i : 0;
-				inputLayout[i].AlignedByteOffset = D3D12_APPEND_ALIGNED_ELEMENT;
-				inputLayout[i].InputSlotClass = perInstance ? D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA : D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
-				inputLayout[i].InstanceDataStepRate = perInstance ? 1 : 0;
+				D3D12_INPUT_ELEMENT_DESC inputElement{};
+				inputElement.SemanticName = paramDesc.SemanticName;
+				inputElement.SemanticIndex = paramDesc.SemanticIndex;
+				inputElement.Format = ToDXGIFormat(paramDesc);
+				inputElement.InputSlot = multiInput ? multiSlotInputSlot++ : 0;
+				inputElement.AlignedByteOffset = D3D12_APPEND_ALIGNED_ELEMENT;
+				inputElement.InputSlotClass = perInstance ? D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA : D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA;
+				inputElement.InstanceDataStepRate = perInstance ? 1 : 0;
+				inputLayout.push_back(inputElement);
 
 				lastPerInstance = perInstance;
 			}
@@ -212,37 +175,69 @@ namespace GFX
 		// Returns true if compile success
 		bool CompileShader(const std::string path, const uint32_t creationFlags, const std::vector<std::string>& defines, CompiledShader& compiledShader)
 		{
-			// TODO: Port to 6_0
-			static const std::string SHADER_VERSION = "5_0";
+			static const std::wstring SHADER_VERSION = L"6_0";
 
-			std::string shaderCode;
-			ReadShaderFile(path, shaderCode);
+			std::vector<std::wstring> dxcDefinesW;
+			std::vector<DxcDefine> dxcDefines;
+			dxcDefines.resize(defines.size());
+			dxcDefinesW.resize(defines.size());
 
-			D3D_SHADER_MACRO* configuration = CompileConfiguration(defines);
-			
+			for (uint32_t i = 0; i < defines.size(); i++)
+			{
+				dxcDefinesW[i] = StringUtility::ToWideString(defines[i]);
+				dxcDefines[i].Name = dxcDefinesW[i].c_str();
+				dxcDefines[i].Value = 0;
+			}
+
+			const std::wstring wPath = StringUtility::ToWideString(path);
+
 			compiledShader.Data.resize(6);
-			compiledShader.Data[0] = creationFlags & VS ? ReadBlobFromFile(path, shaderCode, "VS", "vs_" + SHADER_VERSION, configuration) : nullptr;
-			compiledShader.Data[1] = creationFlags & GS ? ReadBlobFromFile(path, shaderCode, "GS", "gs_" + SHADER_VERSION, configuration) : nullptr;
-			compiledShader.Data[2] = creationFlags & HS ? ReadBlobFromFile(path, shaderCode, "HS", "hs_" + SHADER_VERSION, configuration) : nullptr;
-			compiledShader.Data[3] = creationFlags & DS ? ReadBlobFromFile(path, shaderCode, "DS", "ds_" + SHADER_VERSION, configuration) : nullptr;
-			compiledShader.Data[4] = creationFlags & PS ? ReadBlobFromFile(path, shaderCode, "PS", "ps_" + SHADER_VERSION, configuration) : nullptr;
-			compiledShader.Data[5] = creationFlags & CS ? ReadBlobFromFile(path, shaderCode, "CS", "cs_" + SHADER_VERSION, configuration) : nullptr;
+			compiledShader.Data[0] = creationFlags & VS ? DXC_Compile(wPath, L"VS", L"vs_" + SHADER_VERSION, dxcDefines) : nullptr;
+			compiledShader.Data[1] = creationFlags & GS ? DXC_Compile(wPath, L"GS", L"gs_" + SHADER_VERSION, dxcDefines) : nullptr;
+			compiledShader.Data[2] = creationFlags & HS ? DXC_Compile(wPath, L"HS", L"hs_" + SHADER_VERSION, dxcDefines) : nullptr;
+			compiledShader.Data[3] = creationFlags & DS ? DXC_Compile(wPath, L"DS", L"ds_" + SHADER_VERSION, dxcDefines) : nullptr;
+			compiledShader.Data[4] = creationFlags & PS ? DXC_Compile(wPath, L"PS", L"ps_" + SHADER_VERSION, dxcDefines) : nullptr;
+			compiledShader.Data[5] = creationFlags & CS ? DXC_Compile(wPath, L"CS", L"cs_" + SHADER_VERSION, dxcDefines) : nullptr;
 
-			compiledShader.Vertex = compiledShader.Data[0].Get() ? D3D12_SHADER_BYTECODE{ compiledShader.Data[0]->GetBufferPointer(), compiledShader.Data[0]->GetBufferSize() } : D3D12_SHADER_BYTECODE{ nullptr, 0 };
-			compiledShader.Geometry = compiledShader.Data[1].Get() ? D3D12_SHADER_BYTECODE{ compiledShader.Data[1]->GetBufferPointer(), compiledShader.Data[1]->GetBufferSize() } : D3D12_SHADER_BYTECODE{ nullptr, 0 };
-			compiledShader.Hull = compiledShader.Data[2].Get() ? D3D12_SHADER_BYTECODE{ compiledShader.Data[2]->GetBufferPointer(), compiledShader.Data[2]->GetBufferSize() } : D3D12_SHADER_BYTECODE{ nullptr, 0 };
-			compiledShader.Domain = compiledShader.Data[3].Get() ? D3D12_SHADER_BYTECODE{ compiledShader.Data[3]->GetBufferPointer(), compiledShader.Data[3]->GetBufferSize() } : D3D12_SHADER_BYTECODE{ nullptr, 0 };
-			compiledShader.Pixel = compiledShader.Data[4].Get() ? D3D12_SHADER_BYTECODE{ compiledShader.Data[4]->GetBufferPointer(), compiledShader.Data[4]->GetBufferSize() } : D3D12_SHADER_BYTECODE{ nullptr, 0 };
-			compiledShader.Compute = compiledShader.Data[5].Get() ? D3D12_SHADER_BYTECODE{ compiledShader.Data[5]->GetBufferPointer(), compiledShader.Data[5]->GetBufferSize() } : D3D12_SHADER_BYTECODE{ nullptr, 0 };
+			ComPtr<IDxcBlob> shaderBlobs[6];
+			for (uint32_t i = 0; i < 6; i++)
+			{
+				if (compiledShader.Data[i]) API_CALL(compiledShader.Data[i]->GetResult(shaderBlobs[i].GetAddressOf()));
+			}
+
+			compiledShader.Vertex = shaderBlobs[0].Get() ? D3D12_SHADER_BYTECODE{ shaderBlobs[0]->GetBufferPointer(), shaderBlobs[0]->GetBufferSize()} : D3D12_SHADER_BYTECODE{nullptr, 0};
+			compiledShader.Geometry = shaderBlobs[1].Get() ? D3D12_SHADER_BYTECODE{ shaderBlobs[1]->GetBufferPointer(), shaderBlobs[1]->GetBufferSize() } : D3D12_SHADER_BYTECODE{ nullptr, 0 };
+			compiledShader.Hull = shaderBlobs[2].Get() ? D3D12_SHADER_BYTECODE{ shaderBlobs[2]->GetBufferPointer(), shaderBlobs[2]->GetBufferSize() } : D3D12_SHADER_BYTECODE{ nullptr, 0 };
+			compiledShader.Domain = shaderBlobs[3].Get() ? D3D12_SHADER_BYTECODE{ shaderBlobs[3]->GetBufferPointer(), shaderBlobs[3]->GetBufferSize() } : D3D12_SHADER_BYTECODE{ nullptr, 0 };
+			compiledShader.Pixel = shaderBlobs[4].Get() ? D3D12_SHADER_BYTECODE{ shaderBlobs[4]->GetBufferPointer(), shaderBlobs[4]->GetBufferSize() } : D3D12_SHADER_BYTECODE{ nullptr, 0 };
+			compiledShader.Compute = shaderBlobs[5].Get() ? D3D12_SHADER_BYTECODE{ shaderBlobs[5]->GetBufferPointer(), shaderBlobs[5]->GetBufferSize() } : D3D12_SHADER_BYTECODE{ nullptr, 0 };
 
 			if (compiledShader.Vertex.BytecodeLength)
 			{
-				compiledShader.InputLayout = CreateInputLayout(compiledShader.Data[0].Get(), false);
-				compiledShader.InputLayoutMultiInput = CreateInputLayout(compiledShader.Data[0].Get(), true);
+				compiledShader.InputLayout = DXC_CreateInputLayout(shaderBlobs[0].Get(), false);
+				compiledShader.InputLayoutMultiInput = DXC_CreateInputLayout(shaderBlobs[0].Get(), true);
 			}
 
 			return true;
 		}
+	}
+
+	void InitShaderCompiler()
+	{
+		using namespace ShaderCompiler;
+
+		API_CALL(DxcCreateInstance(CLSID_DxcLibrary, IID_PPV_ARGS(Compiler.Library.GetAddressOf())));
+		API_CALL(DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(Compiler.Compiler.GetAddressOf())));
+		API_CALL(Compiler.Library->CreateIncludeHandler(&Compiler.IncludeHandler));
+	}
+
+	void DestroyShaderCompiler()
+	{
+		using namespace ShaderCompiler;
+
+		Compiler.Library = nullptr;
+		Compiler.Compiler = nullptr;
+		Compiler.IncludeHandler = nullptr;
 	}
 
 	static ShaderHash GetImlementationHash(const std::vector<std::string>& defines, uint32_t shaderStages)
@@ -251,6 +246,9 @@ namespace GFX
 		std::string defAll = " ";
 		for (const std::string& def : defines) defAll += def;
 		if (shaderStages & VS) defAll += "VS";
+		if (shaderStages & HS) defAll += "HS";
+		if (shaderStages & DS) defAll += "DS";
+		if (shaderStages & GS) defAll += "GS";
 		if (shaderStages & PS) defAll += "PS";
 		if (shaderStages & CS) defAll += "CS";
 		return Hash::Crc32(defAll);
@@ -261,7 +259,7 @@ namespace GFX
 		const uint32_t implHash = GetImlementationHash(defines, shaderStages);
 		if (!shader->Implementations.contains(implHash))
 		{
-			bool success = CompileShader(shader->Path, shaderStages, defines, shader->Implementations[implHash]);
+			bool success = ShaderCompiler::CompileShader(shader->Path, shaderStages, defines, shader->Implementations[implHash]);
 			ASSERT(success, "Shader compilation failed!");
 		}
 		return shader->Implementations.at(implHash);

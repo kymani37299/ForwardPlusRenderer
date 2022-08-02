@@ -158,14 +158,13 @@ namespace SceneLoading
 			// TODO: calculate missing attributes
 			ASSERT(positionData && uvData && normalData, "[SceneLoading::LoadMesh] Missing vertex data");
 			
-			MeshStorage& meshStorage = context.LoadingRG->MeshData;
-
 			// Indices
 			std::vector<uint32_t> loadedIndices;
-			std::vector<uint32_t> finalIndices;
-			std::vector<DirectX::CullData> cullData;
 			LoadIB(context, meshData->indices, loadedIndices);
-			PrepareIB(context, positionData, vertCount, loadedIndices, finalIndices, cullData);
+
+			std::vector<DirectX::CullData> cullData;
+			std::vector<uint32_t> indices = loadedIndices; // TODO: Enable meshlets
+			// PrepareIB(context, positionData, vertCount, loadedIndices, indices, cullData);
 
 			// Vertices
 			std::vector<MeshStorage::Vertex> vertices;
@@ -178,24 +177,19 @@ namespace SceneLoading
 				vertices[i].Tangent = tangentData ? tangentData[i] : Float4(0,0,0,0);
 			}
 
-			MeshStorage::Allocation alloc = meshStorage.Allocate(*context.GfxContext, vertCount, finalIndices.size());
+			MeshStorage& meshStorage = context.LoadingRG->MeshData;
+			MeshStorage::Allocation alloc = meshStorage.Allocate(*context.GfxContext, vertCount, indices.size());
 
 			Mesh mesh;
 			mesh.VertCount = vertCount;
-			mesh.IndexCount = finalIndices.size();
+			mesh.IndexCount = indices.size();
 			mesh.VertOffset = alloc.VertexOffset;
 			mesh.IndexOffset = alloc.IndexOffset;
 			mesh.MeshletCullData = cullData;
 
-			// Offset indices
-			for (uint32_t i = 0; i < finalIndices.size(); i++)
-			{
-				finalIndices[i] += mesh.VertOffset;
-			}
-
 			// Upload
 			GFX::Cmd::UploadToBuffer(*context.GfxContext, meshStorage.GetVertexBuffer(), mesh.VertOffset * MeshStorage::GetVertexBufferStride(), vertices.data(), 0, mesh.VertCount * MeshStorage::GetVertexBufferStride());
-			GFX::Cmd::UploadToBuffer(*context.GfxContext, meshStorage.GetIndexBuffer(), mesh.IndexOffset * MeshStorage::GetIndexBufferStride(), finalIndices.data(), 0, mesh.IndexCount * MeshStorage::GetIndexBufferStride());
+			GFX::Cmd::UploadToBuffer(*context.GfxContext, meshStorage.GetIndexBuffer(), mesh.IndexOffset * MeshStorage::GetIndexBufferStride(), indices.data(), 0, mesh.IndexCount * MeshStorage::GetIndexBufferStride());
 
 			return context.LoadingRG->AddMesh(*context.GfxContext, mesh);
 		}
