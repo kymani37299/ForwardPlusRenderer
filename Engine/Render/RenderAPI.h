@@ -18,11 +18,6 @@ using Microsoft::WRL::ComPtr;
 
 #define USE_PIX
 
-inline uint32_t D3D12CalcSubresource(uint32_t MipSlice, uint32_t ArraySlice, uint32_t PlaneSlice, uint32_t MipLevels, uint32_t ArraySize)
-{
-	return MipSlice + ArraySlice * MipLevels + PlaneSlice * MipLevels * ArraySize;
-}
-
 inline void MemcpySubresource(
 	_In_ const D3D12_MEMCPY_DEST* pDest,
 	_In_ const D3D12_SUBRESOURCE_DATA* pSrc,

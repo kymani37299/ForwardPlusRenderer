@@ -433,7 +433,9 @@ ID3D12CommandSignature* ApplyGraphicsState(GraphicsContext& context, const Graph
 	if (state.CommandSignature.ByteStride != 0)
 	{
 		// TODO: Cache signatures
-		API_CALL(Device::Get()->GetHandle()->CreateCommandSignature(&state.CommandSignature, rootSignature, IID_PPV_ARGS(&commandSignature)));
+		ID3D12RootSignature* rootSig = nullptr;
+		if (state.CommandSignature.NumArgumentDescs > 1) rootSig = rootSignature;
+		API_CALL(Device::Get()->GetHandle()->CreateCommandSignature(&state.CommandSignature, rootSig, IID_PPV_ARGS(&commandSignature)));
 		DeferredTrash::Put(commandSignature);
 	}
 	return commandSignature;

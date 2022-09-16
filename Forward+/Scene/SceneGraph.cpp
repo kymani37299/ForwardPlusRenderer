@@ -563,12 +563,12 @@ void TextureStorage::UpdateTexture(GraphicsContext& context, Allocation alloc, T
 		D3D12_TEXTURE_COPY_LOCATION srcCopy{};
 		srcCopy.pResource = m_StagingTexture->Handle.Get();
 		srcCopy.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-		srcCopy.SubresourceIndex = D3D12CalcSubresource(mip, 0, 0, m_StagingTexture->NumMips, m_StagingTexture->NumElements);
+		srcCopy.SubresourceIndex = GFX::GetSubresourceIndex(m_StagingTexture.get(), mip, 0);
 
 		D3D12_TEXTURE_COPY_LOCATION dstCopy{};
 		dstCopy.pResource = m_Data->Handle.Get();
 		dstCopy.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-		dstCopy.SubresourceIndex = D3D12CalcSubresource(mip, alloc.TextureIndex, 0, m_Data->NumMips, m_Data->NumElements);
+		dstCopy.SubresourceIndex = GFX::GetSubresourceIndex(m_Data.get(), mip, alloc.TextureIndex);
 
 		context.CmdList->CopyTextureRegion(&dstCopy, 0, 0, 0, &srcCopy, nullptr);
 	}

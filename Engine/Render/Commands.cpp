@@ -10,6 +10,7 @@
 
 namespace GFX::Cmd
 {
+
 	GraphicsContext* CreateGraphicsContext()
 	{
 		GraphicsContext* context = new GraphicsContext{};
@@ -60,7 +61,7 @@ namespace GFX::Cmd
 					barrier.Transition.pResource = res->Handle.Get();
 					barrier.Transition.StateBefore = res->CurrState;
 					barrier.Transition.StateAfter = wantedState;
-					barrier.Transition.Subresource = D3D12CalcSubresource(mip, el, 0, subres->NumMips, subres->NumElements);
+					barrier.Transition.Subresource = GFX::GetSubresourceIndex(subres, mip, el);
 					barriers.push_back(std::move(barrier));
 				}
 			}
@@ -184,7 +185,7 @@ namespace GFX::Cmd
 		if (input.DstResource->Type == ResourceType::Texture)
 		{
 			Texture* texture = static_cast<Texture*>(input.DstResource);
-			subresourceIndex = D3D12CalcSubresource(input.MipIndex, input.ArrayIndex, 0, texture->NumMips, texture->NumElements);
+			subresourceIndex = GFX::GetSubresourceIndex(texture, input.MipIndex, input.ArrayIndex);
 			subresourceData.RowPitch = texture->RowPitch;
 			subresourceData.SlicePitch = texture->SlicePitch;
 		}
@@ -315,12 +316,12 @@ namespace GFX::Cmd
 		D3D12_TEXTURE_COPY_LOCATION srcCopy{};
 		srcCopy.pResource = srcTexture->Handle.Get();
 		srcCopy.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-		srcCopy.SubresourceIndex = D3D12CalcSubresource(mipIndex, 0, 0, srcTexture->NumMips, srcTexture->NumElements);
+		srcCopy.SubresourceIndex = GFX::GetSubresourceIndex(srcTexture, mipIndex, 0);
 
 		D3D12_TEXTURE_COPY_LOCATION dstCopy{};
 		dstCopy.pResource = dstTexture->Handle.Get();
 		srcCopy.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-		srcCopy.SubresourceIndex = D3D12CalcSubresource(mipIndex, 0, 0, dstTexture->NumMips, dstTexture->NumElements);
+		srcCopy.SubresourceIndex = GFX::GetSubresourceIndex(dstTexture, mipIndex, 0);
 
 		context.CmdList->CopyTextureRegion(&dstCopy, 0, 0, 0, &srcCopy, nullptr);
 	}
@@ -413,7 +414,7 @@ namespace GFX::Cmd
 
 	void GenerateMips(GraphicsContext& context, Texture* texture)
 	{
-		ASSERT(texture->NumElements == 1, "GenerateMips not supported for texture arrays!");
+		ASSERT(texture->DepthOrArraySize == 1, "GenerateMips not supported for texture arrays!");
 
 		GFX::Cmd::MarkerBegin(context, "GenerateMips");
 
@@ -428,7 +429,7 @@ namespace GFX::Cmd
 		subresources.resize(texture->NumMips);
 		for (uint32_t mip = 0; mip < texture->NumMips; mip++)
 		{
-			subresources[mip] = GFX::CreateTextureSubresource(texture, mip, 1, 0, texture->NumElements);
+			subresources[mip] = GFX::CreateTextureSubresource(texture, mip, 1, 0, texture->DepthOrArraySize);
 			DeferredTrash::Put(subresources[mip]);
 		}
 

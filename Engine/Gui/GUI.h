@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <unordered_map>
 
 #include "Common.h"
 
@@ -42,7 +43,10 @@ private:
 	~GUI();
 
 public:
-	inline void AddElement(GUIElement* element) { m_Elements.push_back(element); }
+	inline void PushMenu(const std::string& menuName) { m_CurrentMenu = menuName; }
+	inline void PopMenu() { m_CurrentMenu = "Menu"; }
+
+	inline void AddElement(GUIElement* element) { m_Elements[m_CurrentMenu].push_back(element); }
 
 	bool HandleWndProc(void* hwnd, unsigned int msg, unsigned int wparam, long lparam);
 
@@ -56,5 +60,7 @@ public:
 private:
 	bool m_Initialized = false;
 	bool m_Visible = true;
-	std::vector<GUIElement*> m_Elements;
+
+	std::string m_CurrentMenu = "Menu";
+	std::unordered_map<std::string, std::vector<GUIElement*>> m_Elements;
 };

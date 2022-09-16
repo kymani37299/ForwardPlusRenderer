@@ -22,9 +22,10 @@ enum ResourceCreationFlags : uint64_t
 	RCF_Readback = RCF_CPU_Access << 1,
 	RCF_GenerateMips = RCF_Readback << 1,
 	RCF_Cubemap = RCF_GenerateMips << 1,
+	RCF_Texture3D = RCF_Cubemap << 1,
 
 	// MSAA
-	RCF_MSAA_X2 = RCF_Cubemap << 1,
+	RCF_MSAA_X2 = RCF_Texture3D << 1,
 	RCF_MSAA_X4 = RCF_MSAA_X2 << 1,
 	RCF_MSAA_X8 = RCF_MSAA_X4 << 1,
 	RCF_MSAA_X16 = RCF_MSAA_X8 << 1,
