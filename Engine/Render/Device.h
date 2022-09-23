@@ -5,7 +5,7 @@
 #include "Common.h"
 #include "Render/RenderAPI.h"
 
-struct RenderTask;
+class RenderTask;
 struct GraphicsContext;
 struct DescriptorHeapCPU;
 struct Texture;

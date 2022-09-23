@@ -22,24 +22,6 @@ struct MemoryContext
 	DescriptorHeapGPU SRVHeap{ D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1 , 1};
 };
 
-struct BoundGraphicsState
-{
-	bool Valid = false;
-	uint32_t PSOHash = 0;
-	bool IsCompute = false;
-};
-
-struct GraphicsContext
-{
-	ComPtr<ID3D12CommandQueue> CmdQueue;
-	ComPtr<ID3D12CommandAllocator> CmdAlloc;
-	ComPtr<ID3D12GraphicsCommandList> CmdList;
-	MemoryContext MemContext;
-	Fence CmdFence;
-
-	BoundGraphicsState BoundState;
-};
-
 struct BindTable
 {
 	std::vector<Resource*> CBVs;
@@ -67,6 +49,24 @@ struct GraphicsState
 	D3D12_COMMAND_SIGNATURE_DESC CommandSignature;
 
 	GraphicsState();
+};
+
+// Not using: Table, Pipeline, PushConstants, Samplers
+struct BoundGraphicsState : public GraphicsState
+{
+	bool Valid = false;
+	uint32_t PSOHash = 0;
+};
+
+struct GraphicsContext
+{
+	ComPtr<ID3D12CommandQueue> CmdQueue;
+	ComPtr<ID3D12CommandAllocator> CmdAlloc;
+	ComPtr<ID3D12GraphicsCommandList> CmdList;
+	MemoryContext MemContext;
+	Fence CmdFence;
+
+	BoundGraphicsState BoundState;
 };
 
 void ReleaseContextCache();

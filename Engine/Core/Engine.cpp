@@ -91,9 +91,8 @@ void Engine::Run()
 	}
 }
 
-// TODO: Integrate this
 void Engine::ReloadShaders()
 {
-	// GFX::Storage::ReloadAllShaders();
-	// m_Application->OnShaderReload(Device::Get()->GetContext());
+	GFX::ReloadAllShaders();
+	m_Application->OnShaderReload(Device::Get()->GetContext());
 }

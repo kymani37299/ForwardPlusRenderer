@@ -38,7 +38,7 @@ public:
 	void ResetAndWait();
 	void Stop();
 
-	uint32_t RemainingTaskCount() const
+	size_t RemainingTaskCount() const
 	{
 		return m_TaskQueue.Size();
 	}

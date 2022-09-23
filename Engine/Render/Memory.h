@@ -10,7 +10,7 @@ struct Resource;
 struct Shader;
 
 using CPUAllocStrategy = ElementStrategy<size_t>;
-using GPUAllocStrategy = PageStrategy<uint64_t>;
+using GPUAllocStrategy = PageStrategy<size_t>;
 
 struct DescriptorHeapCPU
 {
@@ -33,7 +33,7 @@ struct DescriptorHeapGPU
 		D3D12_GPU_DESCRIPTOR_HANDLE GPUHandle;
 	};
 
-	DescriptorHeapGPU(D3D12_DESCRIPTOR_HEAP_TYPE type, uint64_t numPages, uint64_t numDescriptors);
+	DescriptorHeapGPU(D3D12_DESCRIPTOR_HEAP_TYPE type, size_t numPages, size_t numDescriptors);
 
 	GPUAllocStrategy::Page NewPage();
 	void ReleasePage(GPUAllocStrategy::Page& page);
@@ -45,7 +45,7 @@ struct DescriptorHeapGPU
 
 	GPUAllocStrategy AllocStrategy;
 	size_t ElementSize;
-	uint32_t PageSize;
+	size_t PageSize;
 };
 
 class DeferredTrash

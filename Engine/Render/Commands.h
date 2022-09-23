@@ -34,9 +34,9 @@ namespace GFX::Cmd
 	void ClearRenderTarget(GraphicsContext& context, Texture* renderTarget);
 	void ClearDepthStencil(GraphicsContext& context, Texture* depthStencil);
 
-	void UploadToBufferCPU(Buffer* buffer, uint32_t dstOffset, const void* data, uint32_t srcOffset, size_t dataSize);
-	void UploadToBufferGPU(GraphicsContext& context, Buffer* buffer, uint32_t dstOffset, const void* data, uint32_t srcOffset, size_t dataSize);
-	void UploadToBuffer(GraphicsContext& context, Buffer* buffer, uint32_t dstOffset, const void* data, uint32_t srcOffset, size_t dataSize);
+	void UploadToBufferCPU(Buffer* buffer, uint32_t dstOffset, const void* data, uint32_t srcOffset, uint32_t dataSize);
+	void UploadToBufferGPU(GraphicsContext& context, Buffer* buffer, uint32_t dstOffset, const void* data, uint32_t srcOffset, uint32_t dataSize);
+	void UploadToBuffer(GraphicsContext& context, Buffer* buffer, uint32_t dstOffset, const void* data, uint32_t srcOffset, uint32_t dataSize);
 	void UploadToTexture(GraphicsContext& context, const void* data, Texture* texture, uint32_t mipIndex = 0, uint32_t arrayIndex = 0);
 	void CopyToTexture(GraphicsContext& context, Texture* srcTexture, Texture* dstTexture, uint32_t mipIndex = 0);
 	void CopyToBuffer(GraphicsContext& context, Buffer* srcBuffer, uint32_t srcOffset, Buffer* dstBuffer, uint32_t dstOffset, uint32_t size);

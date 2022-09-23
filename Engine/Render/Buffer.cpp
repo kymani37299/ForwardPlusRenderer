@@ -111,7 +111,7 @@ namespace GFX
 		return D3D12_RESOURCE_STATE_COMMON;
 	}
 
-	Buffer* CreateBuffer(uint64_t byteSize, uint64_t elementStride, uint64_t creationFlags, ResourceInitData* initData)
+	Buffer* CreateBuffer(uint32_t byteSize, uint32_t elementStride, uint64_t creationFlags, ResourceInitData* initData)
 	{
 		Buffer* buffer = new Buffer{};
 		buffer->Type = ResourceType::Buffer;
@@ -123,7 +123,7 @@ namespace GFX
 		return buffer;
 	}
 
-	void ResizeBuffer(GraphicsContext& context, Buffer* buffer, uint64_t byteSize)
+	void ResizeBuffer(GraphicsContext& context, Buffer* buffer, uint32_t byteSize)
 	{
 		Device* device = Device::Get();
 		DeviceMemory& memory = device->GetMemory();

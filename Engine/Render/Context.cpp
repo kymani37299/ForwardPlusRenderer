@@ -182,7 +182,7 @@ static ID3D12RootSignature* GetOrCreateRootSignature(const GraphicsState& state)
 		D3D12_ROOT_PARAMETER rootParamater;
 		rootParamater.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
 		rootParamater.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		rootParamater.Constants.Num32BitValues = state.PushConstants.size();
+		rootParamater.Constants.Num32BitValues = (uint32_t) state.PushConstants.size();
 		rootParamater.Constants.RegisterSpace = 0;
 		rootParamater.Constants.ShaderRegister = GraphicsState::PUSH_CONSTANT_BINDING;
 		rootParameters.push_back(rootParamater);
@@ -203,7 +203,7 @@ static ID3D12RootSignature* GetOrCreateRootSignature(const GraphicsState& state)
 	D3D12_ROOT_SIGNATURE_DESC rootSigDesc;
 	rootSigDesc.NumParameters = (uint32_t)rootParameters.size();
 	rootSigDesc.pParameters = rootSigDesc.NumParameters == 0 ? nullptr : rootParameters.data();
-	rootSigDesc.NumStaticSamplers = state.Samplers.size();
+	rootSigDesc.NumStaticSamplers = (uint32_t) state.Samplers.size();
 	rootSigDesc.pStaticSamplers = state.Samplers.size() == 0 ? nullptr : state.Samplers.data();
 	rootSigDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
@@ -284,6 +284,74 @@ void ReleaseContextCache()
 	PSOCache.clear();
 }
 
+struct GraphicsStateDirtyFlags
+{
+	bool PSO = true;
+	bool VertexBuffer = true;
+	bool IndexBuffer = true;
+	bool RenderTargetDepthStencil = true;
+	bool StencilRef = true;
+	bool Viewport = true;
+	bool Scissor = true;
+	bool Topology = true;
+	bool CommandSignature = true;
+};
+
+static GraphicsStateDirtyFlags CalculateDirtyFlags(const BoundGraphicsState& boundState, const GraphicsState& wantedState, const uint32_t psoHash)
+{
+	GraphicsStateDirtyFlags flags{};
+
+	// All dirty if bound state not valid
+	if (boundState.Valid) return flags;
+
+	// If this is true we need to rebind whole pipeline
+	if (boundState.PSOHash != psoHash || boundState.Compute.pShaderBytecode != wantedState.Compute.pShaderBytecode) return flags;
+
+	flags.PSO = false;
+	flags.VertexBuffer = boundState.VertexBuffers.size() != wantedState.VertexBuffers.size();
+	if (!flags.VertexBuffer)
+	{
+		for (uint32_t i = 0; i < boundState.VertexBuffers.size(); i++)
+		{
+			if (boundState.VertexBuffers[i] != wantedState.VertexBuffers[i])
+			{
+				flags.VertexBuffer = true;
+				break;
+			}
+		}
+	}
+	flags.IndexBuffer = boundState.IndexBuffer != wantedState.IndexBuffer;
+	flags.RenderTargetDepthStencil = boundState.RenderTarget != wantedState.RenderTarget || boundState.DepthStencil != wantedState.DepthStencil;
+	flags.StencilRef = boundState.StencilRef != wantedState.StencilRef;
+	flags.Viewport = memcmp(&boundState.Viewport, &wantedState.Viewport, sizeof(D3D12_VIEWPORT)) != 0;
+	flags.Scissor = memcmp(&boundState.Scissor, &wantedState.Scissor, sizeof(D3D12_RECT)) != 0;
+	flags.Topology = boundState.Primitives != wantedState.Primitives;
+	flags.CommandSignature = boundState.CommandSignature.pArgumentDescs != boundState.CommandSignature.pArgumentDescs;
+
+	return flags;
+}
+
+void CopyState(BoundGraphicsState& boundState, const GraphicsState& state, const uint32_t psoHash)
+{
+	// Commented fields are not used in bound state
+	boundState.Valid = true;
+	boundState.PSOHash = psoHash;
+	// boundState.Table = state.Table;
+	// boundState.Pipeline = state.Pipeline;
+	boundState.Compute = state.Compute;
+	boundState.VertexBuffers = state.VertexBuffers;
+	boundState.IndexBuffer = state.IndexBuffer;
+	boundState.RenderTarget = state.RenderTarget;
+	boundState.DepthStencil = state.DepthStencil;
+	boundState.StencilRef = state.StencilRef;
+	boundState.Viewport = state.Viewport;
+	boundState.Scissor = state.Scissor;
+	boundState.Primitives = state.Primitives;
+	// boundState.Samplers = state.Samplers;
+	// boundState.PushConstants = state.PushConstants;
+	boundState.CommandSignature = state.CommandSignature;
+}
+
 ID3D12CommandSignature* ApplyGraphicsState(GraphicsContext& context, const GraphicsState& state)
 {
 	Device* device = Device::Get();
@@ -302,15 +370,10 @@ ID3D12CommandSignature* ApplyGraphicsState(GraphicsContext& context, const Graph
 	uint32_t psoHash = 0;
 	ID3D12PipelineState* pipelineState = GetOrCreatePSO(state, rootSignature, psoHash);
 
-	bool rebindPSO = !context.BoundState.Valid;
-	rebindPSO = rebindPSO || context.BoundState.PSOHash != psoHash;
-	rebindPSO = rebindPSO || context.BoundState.IsCompute != useCompute;
+	GraphicsStateDirtyFlags dirtyFlags = CalculateDirtyFlags(context.BoundState, state, psoHash);
+	CopyState(context.BoundState, state, psoHash);
 
-	context.BoundState.Valid = true;
-	context.BoundState.PSOHash = psoHash;
-	context.BoundState.IsCompute = useCompute;
-
-	if (rebindPSO)
+	if (dirtyFlags.PSO)
 	{
 		ID3D12DescriptorHeap* descriptorHeaps[] = { context.MemContext.SRVHeap.Heap.Get() };
 		cmdList->SetDescriptorHeaps(1, descriptorHeaps);
@@ -343,13 +406,13 @@ ID3D12CommandSignature* ApplyGraphicsState(GraphicsContext& context, const Graph
 			GFX::Cmd::AddResourceTransition(barriers, state.DepthStencil, D3D12_RESOURCE_STATE_DEPTH_WRITE);
 		}
 
-		cmdList->OMSetRenderTargets(numRts, rtDesc, false, dsDesc);
-		cmdList->OMSetStencilRef(state.StencilRef);
-		cmdList->RSSetViewports(1, &state.Viewport);
-		cmdList->RSSetScissorRects(1, &state.Scissor);
-		cmdList->IASetPrimitiveTopology(state.Primitives);
+		if(dirtyFlags.RenderTargetDepthStencil) cmdList->OMSetRenderTargets(numRts, rtDesc, false, dsDesc);
+		if(dirtyFlags.StencilRef) cmdList->OMSetStencilRef(state.StencilRef);
+		if(dirtyFlags.Viewport) cmdList->RSSetViewports(1, &state.Viewport);
+		if(dirtyFlags.Scissor) cmdList->RSSetScissorRects(1, &state.Scissor);
+		if(dirtyFlags.Topology) cmdList->IASetPrimitiveTopology(state.Primitives);
 
-		if (state.VertexBuffers.size())
+		if (dirtyFlags.VertexBuffer && state.VertexBuffers.size())
 		{
 			std::vector<D3D12_VERTEX_BUFFER_VIEW> views;
 			views.reserve(state.VertexBuffers.size());
@@ -358,10 +421,10 @@ ID3D12CommandSignature* ApplyGraphicsState(GraphicsContext& context, const Graph
 				GFX::Cmd::AddResourceTransition(barriers, buffer, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
 				views.push_back({ buffer->GPUAddress, (uint32_t)buffer->ByteSize, (uint32_t)buffer->Stride });
 			}
-			cmdList->IASetVertexBuffers(0, views.size(), views.data());
+			cmdList->IASetVertexBuffers(0, (UINT) views.size(), views.data());
 		}
 
-		if (state.IndexBuffer)
+		if (dirtyFlags.IndexBuffer && state.IndexBuffer)
 		{
 			DXGI_FORMAT dxgiFormat = DXGI_FORMAT_UNKNOWN;
 			switch (state.IndexBuffer->Stride)
@@ -424,7 +487,7 @@ ID3D12CommandSignature* ApplyGraphicsState(GraphicsContext& context, const Graph
 	{
 		if (!barriers.empty())
 		{
-			cmdList->ResourceBarrier(barriers.size(), barriers.data());
+			cmdList->ResourceBarrier((UINT) barriers.size(), barriers.data());
 		}
 	}
 

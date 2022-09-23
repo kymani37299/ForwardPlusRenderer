@@ -7,6 +7,7 @@
 #include <Engine/Render/Device.h>
 #include <Engine/Render/Texture.h>
 #include <Engine/Render/Memory.h>
+#include <Engine/Loading/TextureLoading.h>
 
 #include "Renderers/Util/ConstantManager.h"
 #include "Renderers/Util/SamplerManager.h"
@@ -102,7 +103,7 @@ static Texture* CubemapToIrradianceMap(GraphicsContext& context, Texture* cubema
 
 static Texture* GenerateSkybox(GraphicsContext& context, const std::string& texturePath)
 {
-	Texture* skyboxPanorama = GFX::LoadTextureHDR(texturePath, RCF_None);
+	Texture* skyboxPanorama = TextureLoading::LoadTextureHDR(texturePath, RCF_None);
 	DeferredTrash::Put(skyboxPanorama);
 
 	Texture* cubemap = PanoramaToCubemap(context, skyboxPanorama, SkyboxRenderer::CUBEMAP_SIZE);

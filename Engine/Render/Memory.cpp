@@ -4,12 +4,12 @@
 #include "Render/Shader.h"
 #include "Render/Resource.h"
 
-ID3D12DescriptorHeap* CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE type, bool shaderVisible, uint64_t numDescriptors, size_t& incrementSize)
+ID3D12DescriptorHeap* CreateDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE type, bool shaderVisible, size_t numDescriptors, size_t& incrementSize)
 {
 	ID3D12DescriptorHeap* heap = nullptr;
 
 	D3D12_DESCRIPTOR_HEAP_DESC heapDesc;
-	heapDesc.NumDescriptors = numDescriptors;
+	heapDesc.NumDescriptors = (UINT) numDescriptors;
 	heapDesc.Type = type;
 	heapDesc.Flags = shaderVisible ? D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE : D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 	heapDesc.NodeMask = 0;
@@ -37,7 +37,7 @@ D3D12_CPU_DESCRIPTOR_HANDLE DescriptorHeapCPU::Alloc()
 
 void DescriptorHeapCPU::Release(D3D12_CPU_DESCRIPTOR_HANDLE& handle)
 {
-	uint32_t index = handle.ptr;
+	size_t index = handle.ptr;
 	index -= HeapStart.ptr;
 	index /= ElementSize;
 	AllocStrategy.Release(index);
@@ -45,7 +45,7 @@ void DescriptorHeapCPU::Release(D3D12_CPU_DESCRIPTOR_HANDLE& handle)
 	handle.ptr = CPUAllocStrategy::INVALID;
 }
 
-DescriptorHeapGPU::DescriptorHeapGPU(D3D12_DESCRIPTOR_HEAP_TYPE type, uint64_t numPages, uint64_t numDescriptors) :
+DescriptorHeapGPU::DescriptorHeapGPU(D3D12_DESCRIPTOR_HEAP_TYPE type, size_t numPages, size_t numDescriptors) :
 	AllocStrategy(numPages, numDescriptors)
 {
 	Heap = CreateDescriptorHeap(type, true, numPages * numDescriptors, ElementSize);
@@ -59,7 +59,7 @@ void DescriptorHeapGPU::ReleasePage(GPUAllocStrategy::Page& page) { AllocStrateg
 
 DescriptorHeapGPU::Allocation DescriptorHeapGPU::Alloc(GPUAllocStrategy::Page& page)
 {
-	uint64_t elementIndex = AllocStrategy.AllocateElement(page);
+	size_t elementIndex = AllocStrategy.AllocateElement(page);
 
 	Allocation alloc{};
 	alloc.CPUHandle = HeapStartCPU;

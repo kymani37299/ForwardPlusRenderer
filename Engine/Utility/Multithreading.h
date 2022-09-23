@@ -119,7 +119,7 @@ namespace MTR
 			m_Queue.clear();
 		}
 
-		uint32_t Size() const
+		size_t Size() const
 		{
 			return m_Queue.size();
 		}

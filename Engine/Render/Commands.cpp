@@ -89,7 +89,7 @@ namespace GFX::Cmd
 	{
 		std::vector<D3D12_RESOURCE_BARRIER> barriers{};
 		AddResourceTransition(barriers, resource, wantedState);
-		if(!barriers.empty()) context.CmdList->ResourceBarrier(barriers.size(), barriers.data());
+		if(!barriers.empty()) context.CmdList->ResourceBarrier((UINT) barriers.size(), barriers.data());
 	}
 
 	void FlushContext(GraphicsContext& context)
@@ -140,22 +140,22 @@ namespace GFX::Cmd
 		ASSERT(!state.PushConstants.empty(), "[UpdatePushConstants] Push constants are empty");
 
 		const bool useCompute = state.Compute.pShaderBytecode != nullptr;
-		if (useCompute) context.CmdList->SetComputeRoot32BitConstants(0, state.PushConstants.size(), state.PushConstants.data(), 0);
-		else  context.CmdList->SetGraphicsRoot32BitConstants(0, state.PushConstants.size(), state.PushConstants.data(), 0);
+		if (useCompute) context.CmdList->SetComputeRoot32BitConstants(0, (UINT) state.PushConstants.size(), state.PushConstants.data(), 0);
+		else  context.CmdList->SetGraphicsRoot32BitConstants(0, (UINT) state.PushConstants.size(), state.PushConstants.data(), 0);
 	}
 
 	void ClearRenderTarget(GraphicsContext& context, Texture* renderTarget)
 	{
 		TransitionResource(context, renderTarget, D3D12_RESOURCE_STATE_RENDER_TARGET);
 		float clearColor[] = { 0.0f, 0.0f, 0.0f, 0.0f };
-		D3D12_RECT rect = { 0.0f, 0.0f, renderTarget->Width, renderTarget->Height };
+		D3D12_RECT rect = { 0, 0, (long) renderTarget->Width, (long) renderTarget->Height };
 		context.CmdList->ClearRenderTargetView(renderTarget->RTV, clearColor, 1, &rect);
 	}
 
 	void ClearDepthStencil(GraphicsContext& context, Texture* depthStencil)
 	{
 		TransitionResource(context, depthStencil, D3D12_RESOURCE_STATE_DEPTH_WRITE);
-		D3D12_RECT rect = { 0.0f, 0.0f, depthStencil->Width, depthStencil->Height };
+		D3D12_RECT rect = { 0, 0, (long) depthStencil->Width, (long) depthStencil->Height };
 		context.CmdList->ClearDepthStencilView(depthStencil->DSV, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 1, &rect);
 	}
 
@@ -211,7 +211,7 @@ namespace GFX::Cmd
 		resourceDevice->Release();
 
 		// Create staging resource
-		Buffer* stagingResource = GFX::CreateBuffer(input.DataSize ? input.DataSize : resourceSize, 1, RCF_CPU_Access);
+		Buffer* stagingResource = GFX::CreateBuffer(input.DataSize ? input.DataSize : (uint32_t) resourceSize, 1, RCF_CPU_Access);
 		DeferredTrash::Put(stagingResource);
 		GFX::SetDebugName(stagingResource, "UpdateSubresource::StagingBuffer");
 
@@ -258,7 +258,7 @@ namespace GFX::Cmd
 		DeferredTrash::Put(stagingResource->Handle.Get());
 	}
 
-	void UploadToBufferCPU(Buffer* buffer, uint32_t dstOffset, const void* data, uint32_t srcOffset, size_t dataSize)
+	void UploadToBufferCPU(Buffer* buffer, uint32_t dstOffset, const void* data, uint32_t srcOffset, uint32_t dataSize)
 	{
 		ASSERT(buffer->CreationFlags & RCF_CPU_Access, "[UploadToBufferCPU] Buffer must have CPU Access in order to map it");
 
@@ -269,7 +269,7 @@ namespace GFX::Cmd
 		buffer->Handle->Unmap(0, &mapRange);
 	}
 
-	void UploadToBufferGPU(GraphicsContext& context, Buffer* buffer, uint32_t dstOffset, const void* data, uint32_t srcOffset, size_t dataSize)
+	void UploadToBufferGPU(GraphicsContext& context, Buffer* buffer, uint32_t dstOffset, const void* data, uint32_t srcOffset, uint32_t dataSize)
 	{
 		UpdateSubresourceInput updateInput{};
 		updateInput.DstResource = buffer;
@@ -282,7 +282,7 @@ namespace GFX::Cmd
 		UpdateSubresource(context, updateInput);
 	}
 
-	void UploadToBuffer(GraphicsContext& context, Buffer* buffer, uint32_t dstOffset, const void* data, uint32_t srcOffset, size_t dataSize)
+	void UploadToBuffer(GraphicsContext& context, Buffer* buffer, uint32_t dstOffset, const void* data, uint32_t srcOffset, uint32_t dataSize)
 	{
 		if (dataSize == 0) return;
 

@@ -54,7 +54,7 @@ namespace Hash
 		};
 	}
 	
-	inline uint32_t Crc32(const uint32_t crc32, const uint8_t* bytes, uint32_t byteSize)
+	inline uint32_t Crc32(const uint32_t crc32, const uint8_t* bytes, size_t byteSize)
 	{
 		uint32_t crc = crc32;
 		for (uint32_t i = 0; i < byteSize; i++)
@@ -64,7 +64,7 @@ namespace Hash
 		return crc ^ 0xFFFFFFFF;
 	}
 
-	inline uint32_t Crc32(const uint8_t* bytes, uint32_t byteSize)
+	inline uint32_t Crc32(const uint8_t* bytes, size_t byteSize)
 	{
 		return Crc32(0xFFFFFFFF, bytes, byteSize);
 	}

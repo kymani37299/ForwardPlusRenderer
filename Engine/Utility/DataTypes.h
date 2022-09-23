@@ -11,7 +11,7 @@ struct Float2
 {
 	Float2() : x(0), y(0) {}
 	Float2(float _x, float _y) : x(_x), y(_y) {}
-	Float2(DirectX::XMFLOAT3 xm) : x(xm.x), y(xm.y) {}
+	Float2(DirectX::XMFLOAT2 xm) : x(xm.x), y(xm.y) {}
 	Float2(DirectX::XMVECTOR xm)
 	{
 		DirectX::XMFLOAT2 xmf;
@@ -213,6 +213,14 @@ namespace XMUtility
 		using namespace DirectX;
 		matrix = XMMatrixTranspose(matrix);
 		return ToXMFloat4x4(matrix);
+	}
+
+	inline DirectX::XMFLOAT4X4 ToHLSLFloat4x4(DirectX::XMFLOAT4X4 matrix)
+	{
+		using namespace DirectX;
+		XMMATRIX xmMatrix = XMLoadFloat4x4(&matrix);
+		xmMatrix = XMMatrixTranspose(xmMatrix);
+		return ToXMFloat4x4(xmMatrix);
 	}
 }
 

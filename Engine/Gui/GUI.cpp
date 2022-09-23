@@ -2,6 +2,11 @@
 
 #include <Windows.h>
 
+// Hack for compiling imgui
+#ifdef WIN32
+#define ImTextureID ImU64
+#endif // WIN32
+
 #include "Render/Device.h"
 #include "Render/Memory.h"
 #include "Render/Context.h"
@@ -64,8 +69,6 @@ void GUI::Update(float dt)
 
 void GUI::Render(GraphicsContext& context, Texture* renderTarget)
 {
-	if (!m_Visible) return;
-
 	if (!m_Initialized)
 	{
 		// NOTE: If we are having multiple contexts make sure that context that initialized ImGui is used for imgui draw
@@ -77,6 +80,8 @@ void GUI::Render(GraphicsContext& context, Texture* renderTarget)
 
 		m_Initialized = true;
 	}
+
+	if (!m_Visible || m_Elements.empty()) return;
 
 	GFX::Cmd::MarkerBegin(context, "ImGUI");
 
@@ -117,11 +122,15 @@ void GUI::Render(GraphicsContext& context, Texture* renderTarget)
 	}
 
 	// Draw elements
+	uint32_t id = 0;
 	for (auto& it : m_Elements)
 	{
 		for (GUIElement* element : it.second)
 		{
+			ImGui::PushID(id);
 			element->RenderElement();
+			ImGui::PopID();
+			id++;
 		}
 	}
 

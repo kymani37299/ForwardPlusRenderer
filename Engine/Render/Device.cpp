@@ -102,7 +102,7 @@ void Device::InitDevice()
 	};
 
 	ResourceInitData initData = { m_Context.get(), fcVBData.data()};
-	m_QuadBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(fcVBData.size() * sizeof(FCVert), sizeof(FCVert), RCF_None, &initData));
+	m_QuadBuffer = ScopedRef<Buffer>(GFX::CreateBuffer((uint32_t) fcVBData.size() * sizeof(FCVert), sizeof(FCVert), RCF_None, &initData));
 	GFX::SetDebugName(m_QuadBuffer.get(), "Device::QuadBuffer");
 
 	GFX::Cmd::SubmitContext(*m_Context);

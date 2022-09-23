@@ -2,14 +2,11 @@
 
 #include "Common.h"
 
+#include <dxc/hlsl/DxilContainer.h>
+
 #include <set>
 #include <fstream>
-
 #include <d3d12shader.h>
-
-#define _SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING
-#include <dxc/hlsl/DxilContainer.h>
-#undef _SILENCE_CXX17_ITERATOR_BASE_CLASS_DEPRECATION_WARNING
 
 #include "Render/Device.h"
 #include "Utility/StringUtility.h"
@@ -96,7 +93,7 @@ namespace GFX
 				sourceBlob.Get(), path.c_str(),
 				entryPoint.c_str(), targetProfile.c_str(),
 				nullptr, 0,
-				defines.empty() ? nullptr : defines.data(), defines.size(),
+				defines.empty() ? nullptr : defines.data(), (UINT) defines.size(),
 				Compiler.IncludeHandler.Get(),
 				&result);
 
@@ -139,7 +136,7 @@ namespace GFX
 
 			bool lastPerInstance = false;
 			uint32_t multiSlotInputSlot = 0;
-			for (size_t i = 0; i < desc.InputParameters; i++)
+			for (UINT i = 0; i < desc.InputParameters; i++)
 			{
 				D3D12_SIGNATURE_PARAMETER_DESC paramDesc;
 				reflection->GetInputParameterDesc(i, &paramDesc);

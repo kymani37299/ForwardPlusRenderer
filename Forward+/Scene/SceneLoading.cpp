@@ -1,10 +1,7 @@
 #include "SceneLoading.h"
 
 #pragma warning (disable : 4996)
-#ifndef CGLTF_IMPLEMENTATION
-#define CGLTF_IMPLEMENTATION
 #include <cgltf.h>
-#endif
 
 #include <Engine/Render/Device.h>
 #include <Engine/Render/Buffer.h>

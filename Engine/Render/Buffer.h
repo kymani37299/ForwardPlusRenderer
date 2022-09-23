@@ -4,17 +4,17 @@
 
 struct Buffer : public Resource 
 {
-	uint64_t ByteSize;
-	uint64_t Stride;
+	uint32_t ByteSize;
+	uint32_t Stride;
 	D3D12_GPU_VIRTUAL_ADDRESS GPUAddress;
 };
 
 namespace GFX
 {
-	Buffer* CreateBuffer(uint64_t byteSize, uint64_t elementStride, uint64_t creationFlags, ResourceInitData* initData = nullptr);
-	void ResizeBuffer(GraphicsContext& context, Buffer* buffer, uint64_t byteSize);
+	Buffer* CreateBuffer(uint32_t byteSize, uint32_t elementStride, uint64_t creationFlags, ResourceInitData* initData = nullptr);
+	void ResizeBuffer(GraphicsContext& context, Buffer* buffer, uint32_t byteSize);
 
-	inline void ExpandBuffer(GraphicsContext& context, Buffer* buffer, uint64_t byteSize)
+	inline void ExpandBuffer(GraphicsContext& context, Buffer* buffer, uint32_t byteSize)
 	{
 		if (byteSize > buffer->ByteSize)
 		{

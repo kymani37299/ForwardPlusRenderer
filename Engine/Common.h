@@ -8,21 +8,17 @@
 #define SAFE_DELETE(X) if((X)) { delete (X); (X) = nullptr; }
 #define UNUSED(x) (void)(x)
 
-#define JOIN(X,Y) X##Y
-
-#define DELETE_COPY_CONSTRUCTOR(X) \
-X(X const&) = delete; \
-X& operator=(X const&) = delete;
+#define FORCE_CRASH *((unsigned int*)0) = 0xDEAD
 
 #ifdef DEBUG
 #define ASSERT(X,msg) if(!(X)) { std::cout << msg << std::endl; __debugbreak(); }
 #define NOT_IMPLEMENTED ASSERT(0, "NOT IMPLEMENTED")
 #else
-#define ASSERT(X, MSG)
-#define NOT_IMPLEMENTED
+#define ASSERT(X, MSG) {}
+#define NOT_IMPLEMENTED {}
 #endif // DEBUG
 
-#define FORCE_CRASH *((unsigned int*)0) = 0xDEAD
+#define ASSERT_CORE(X, msg) if(!(X)) { std::cout << msg << std::endl; FORCE_CRASH; }
 
 #define STATIC_ARRAY_SIZE(X) (sizeof(X)/(sizeof(X[0])))
 

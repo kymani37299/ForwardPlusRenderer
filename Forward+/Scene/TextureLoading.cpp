@@ -2,13 +2,14 @@
 
 #include <Engine/Render/Resource.h>
 #include <Engine/Render/Texture.h>
+#include <Engine/Loading/TextureLoading.h>
 
 void TextureLoadingTask::Run(GraphicsContext& context)
 {
 	Texture* tex = nullptr;
 	if (!m_TexturePath.empty())
 	{
-		tex = GFX::LoadTexture(context, m_TexturePath, RCF_None);
+		tex = TextureLoading::LoadTexture(context, m_TexturePath, RCF_None);
 	}
 	else
 	{

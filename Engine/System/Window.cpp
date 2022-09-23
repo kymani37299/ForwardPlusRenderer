@@ -105,7 +105,7 @@ namespace WindowInput
             {
                 s_MousePos = Float2(0.5f, 0.5f);
                 const Float2 wndCoords = GetWndCoords(s_MousePos);
-                bool success = SetCursorPos(wndCoords.x, wndCoords.y);
+                bool success = SetCursorPos((int) wndCoords.x, (int) wndCoords.y);
                 ASSERT(success, "[WinApi] SetCursorPos failed!");
             }
         }
@@ -143,7 +143,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
     LRESULT result = 0;
 
-    if (GUI::Get()->HandleWndProc(hwnd, msg, wparam, lparam))
+    if (GUI::Get()->HandleWndProc(hwnd, msg, (UINT) wparam, (long) lparam))
     {
         return true;
     }
