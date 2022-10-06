@@ -135,8 +135,8 @@ void DebugRenderer::Draw(GraphicsContext& context, Texture* colorTarget, Texture
 	}
 
 	GraphicsState geometriesState;
-	GFX::Cmd::BindRenderTarget(geometriesState, colorTarget);
-	GFX::Cmd::BindDepthStencil(geometriesState, depthTarget);
+	geometriesState.RenderTargets.push_back(colorTarget);
+	geometriesState.DepthStencil = depthTarget;
 	DrawGeometries(context, geometriesState);
 
 	if (DebugViz.LightHeatmap && RenderSettings.Culling.LightCullingEnabled)
@@ -147,17 +147,15 @@ void DebugRenderer::Draw(GraphicsContext& context, Texture* colorTarget, Texture
 		GraphicsState heatmapState;
 		heatmapState.Table.CBVs.push_back(CBManager.GetBuffer());
 		heatmapState.Table.SRVs.push_back(visibleLights);
-
-		heatmapState.Pipeline.BlendState.RenderTarget[0].BlendEnable = true;
-		heatmapState.Pipeline.BlendState.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
-		heatmapState.Pipeline.BlendState.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_MAX;
-		heatmapState.Pipeline.BlendState.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
-		heatmapState.Pipeline.BlendState.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
-		heatmapState.Pipeline.BlendState.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_SRC_ALPHA;
-		heatmapState.Pipeline.BlendState.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
-		
-		GFX::Cmd::BindRenderTarget(heatmapState, colorTarget);
-		GFX::Cmd::BindShader(heatmapState, m_LightHeatmapShader.get(), VS | PS);
+		heatmapState.RenderTargets.push_back(colorTarget);
+		heatmapState.Shader = m_LightHeatmapShader.get();
+		heatmapState.BlendState.RenderTarget[0].BlendEnable = true;
+		heatmapState.BlendState.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+		heatmapState.BlendState.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_MAX;
+		heatmapState.BlendState.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
+		heatmapState.BlendState.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+		heatmapState.BlendState.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_SRC_ALPHA;
+		heatmapState.BlendState.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
 		GFX::Cmd::DrawFC(context, heatmapState);
 	}
 }
@@ -175,16 +173,16 @@ void DebugRenderer::DrawGeometries(GraphicsContext& context, GraphicsState& stat
 		});
 
 	// Prepare pipeline
-	state.Pipeline.DepthStencilState.DepthEnable = true;
-	state.Pipeline.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
-	state.Pipeline.BlendState.RenderTarget[0].BlendEnable = true;
-	state.Pipeline.BlendState.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
-	state.Pipeline.BlendState.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_MAX;
-	state.Pipeline.BlendState.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
-	state.Pipeline.BlendState.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
-	state.Pipeline.BlendState.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_SRC_ALPHA;
-	state.Pipeline.BlendState.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
-	GFX::Cmd::BindShader(state, m_DebugGeometryShader.get(), VS | PS);
+	state.DepthStencilState.DepthEnable = true;
+	state.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+	state.BlendState.RenderTarget[0].BlendEnable = true;
+	state.BlendState.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+	state.BlendState.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_MAX;
+	state.BlendState.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
+	state.BlendState.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+	state.BlendState.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_SRC_ALPHA;
+	state.BlendState.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
+	state.Shader = m_DebugGeometryShader.get();
 
 	state.Table.CBVs.resize(1);
 	state.Table.SRVs.resize(1);

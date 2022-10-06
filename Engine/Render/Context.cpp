@@ -12,6 +12,7 @@
 // WARNING: Not multithread safe
 static std::unordered_map<uint32_t, ComPtr<ID3D12RootSignature>> RootSignatureCache;
 static std::unordered_map<uint32_t, ComPtr<ID3D12PipelineState>> PSOCache;
+static std::unordered_map<uint32_t, D3D12_CPU_DESCRIPTOR_HANDLE> SamplerCache;
 
 GraphicsState::GraphicsState()
 {
@@ -61,35 +62,13 @@ GraphicsState::GraphicsState()
 	depthStencil.FrontFace = stencilOp;
 	depthStencil.BackFace = stencilOp;
 
-	Pipeline.pRootSignature = nullptr;
-	Pipeline.VS = { nullptr, 0 };
-	Pipeline.PS = { nullptr, 0 };
-	Pipeline.DS = { nullptr, 0 };
-	Pipeline.HS = { nullptr, 0 };
-	Pipeline.GS = { nullptr, 0 };
-	Pipeline.StreamOutput = { nullptr, 0, nullptr, 0, 0 };
-	Pipeline.BlendState = blend;
-	Pipeline.SampleMask = UINT_MAX;
-	Pipeline.RasterizerState = raster;
-	Pipeline.DepthStencilState = depthStencil;
-	Pipeline.InputLayout = { nullptr, 0 };
-	Pipeline.IBStripCutValue = D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_DISABLED;
-	Pipeline.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-	Pipeline.NumRenderTargets = 1;
-	Pipeline.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-	for (uint32_t i = 1; i < 8; i++) Pipeline.RTVFormats[i] = DXGI_FORMAT_UNKNOWN;
-	Pipeline.DSVFormat = DXGI_FORMAT_R24G8_TYPELESS;
-	Pipeline.SampleDesc.Count = 1;
-	Pipeline.SampleDesc.Quality = 0;
-	Pipeline.NodeMask = 0;
-	Pipeline.CachedPSO = { nullptr, 0 };
-	Pipeline.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+	BlendState = blend;
+	RasterizerState = raster;
+	DepthStencilState = depthStencil;
 
-	Compute = { nullptr, 0 };
-	Viewport = { 0.0f, 0.0f, (float)AppConfig.WindowWidth, (float)AppConfig.WindowHeight, 0.0f, 1.0f };
-	Scissor = { 0,0, (long)AppConfig.WindowWidth, (long)AppConfig.WindowHeight };
-	Primitives = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-
+	CustomViewport = { 0.0f, 0.0f, (float)AppConfig.WindowWidth, (float)AppConfig.WindowHeight, 0.0f, 1.0f };
+	CustomScissor = { 0,0, (long)AppConfig.WindowWidth, (long)AppConfig.WindowHeight };
+	
 	CommandSignature.ByteStride = 0;
 	CommandSignature.NodeMask = 0;
 	CommandSignature.NumArgumentDescs = 0;
@@ -100,17 +79,29 @@ static std::vector<D3D12_DESCRIPTOR_RANGE> CreateDescriptorRanges(std::vector<Re
 {
 	std::vector<D3D12_DESCRIPTOR_RANGE> ranges;
 
+	uint32_t descriptorsToBind = 0;
 	for (uint32_t i = 0; i < bindings.size(); i++)
 	{
-		if (!bindings[i]) continue;
+		if (bindings[i]) descriptorsToBind++;
 
-		D3D12_DESCRIPTOR_RANGE range;
-		range.RangeType = rangeType;
-		range.BaseShaderRegister = i;
-		range.NumDescriptors = 1;
-		range.RegisterSpace = 0;
-		range.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-		ranges.push_back(range);
+		if (!bindings[i] || i == bindings.size() - 1)
+		{
+			if (descriptorsToBind != 0)
+			{
+				uint32_t baseRegister = i - descriptorsToBind + 1;
+				if (!bindings[i]) baseRegister--;
+
+				D3D12_DESCRIPTOR_RANGE range;
+				range.RangeType = rangeType;
+				range.BaseShaderRegister = baseRegister;
+				range.NumDescriptors = descriptorsToBind;
+				range.RegisterSpace = 0;
+				range.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+				ranges.push_back(range);
+
+				descriptorsToBind = 0;
+			}
+		}
 	}
 	return ranges;
 }
@@ -122,44 +113,61 @@ namespace
 		CBV,
 		SRV,
 		UAV,
+		SMP
 	};
 }
 
-static void UpdateDescriptorData(const std::vector<Resource*>& bindings, DescriptorHeapGPU& heap, GPUAllocStrategy::Page& page, BindingType bindingType)
+static D3D12_PRIMITIVE_TOPOLOGY_TYPE ToPrimitiveTopologyType(const RenderPrimitiveType primitiveType)
 {
-	const auto getDescriptor = [](Resource* resource, BindingType type)
+	switch (primitiveType)
 	{
-		switch (type)
-		{
-		case BindingType::CBV: return resource->CBV;
-		case BindingType::SRV: return resource->SRV;
-		case BindingType::UAV: return resource->UAV;
-		default: NOT_IMPLEMENTED;
-		}
-
-		return D3D12_CPU_DESCRIPTOR_HANDLE{};
-	};
-
-	for (Resource* binding : bindings)
-	{
-		if (!binding) continue;
-
-		const D3D12_CPU_DESCRIPTOR_HANDLE descriptor = getDescriptor(binding, bindingType);
-		const DescriptorHeapGPU::Allocation gpuAlloc = heap.Alloc(page);
-		Device::Get()->GetHandle()->CopyDescriptorsSimple(1, gpuAlloc.CPUHandle, descriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	case RenderPrimitiveType::PointList:			return D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
+	case RenderPrimitiveType::LineList:
+	case RenderPrimitiveType::LineListAdj:
+	case RenderPrimitiveType::LineStrip:
+	case RenderPrimitiveType::LineStripAdj:			return D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE;
+	case RenderPrimitiveType::TriangleList:
+	case RenderPrimitiveType::TriangleListAdj:
+	case RenderPrimitiveType::TriangleStrip:
+	case RenderPrimitiveType::TriangleStripAdj:		return D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	case RenderPrimitiveType::PatchList:			return D3D12_PRIMITIVE_TOPOLOGY_TYPE_PATCH;
+	default:
+		NOT_IMPLEMENTED;
 	}
+	return D3D12_PRIMITIVE_TOPOLOGY_TYPE_UNDEFINED;
+}
+
+static D3D12_PRIMITIVE_TOPOLOGY ToPrimitiveTopology(const RenderPrimitiveType primitiveType, const uint32_t numControlPoints = 4)
+{
+	switch (primitiveType)
+	{
+	case RenderPrimitiveType::PointList:			return D3D_PRIMITIVE_TOPOLOGY_POINTLIST;
+	case RenderPrimitiveType::LineList:				return D3D_PRIMITIVE_TOPOLOGY_LINELIST;
+	case RenderPrimitiveType::LineListAdj:			return D3D_PRIMITIVE_TOPOLOGY_LINELIST_ADJ;
+	case RenderPrimitiveType::LineStrip:			return D3D_PRIMITIVE_TOPOLOGY_LINESTRIP;
+	case RenderPrimitiveType::LineStripAdj:			return D3D_PRIMITIVE_TOPOLOGY_LINESTRIP;
+	case RenderPrimitiveType::TriangleList:			return D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	case RenderPrimitiveType::TriangleListAdj:		return D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST_ADJ;
+	case RenderPrimitiveType::TriangleStrip:		return D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP;
+	case RenderPrimitiveType::TriangleStripAdj:		return D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP_ADJ;
+	case RenderPrimitiveType::PatchList:			return IntToEnum<D3D12_PRIMITIVE_TOPOLOGY>(EnumToInt(D3D_PRIMITIVE_TOPOLOGY_1_CONTROL_POINT_PATCHLIST) + numControlPoints - 1);
+	default:
+		NOT_IMPLEMENTED;
+	}
+	return D3D_PRIMITIVE_TOPOLOGY_UNDEFINED;
 }
 
 static uint32_t CalcRootSignatureHash(const GraphicsState& state)
 {
 	uint32_t sigHash = Hash::Crc32(state.PushConstants.size());
-	for (const D3D12_STATIC_SAMPLER_DESC& samplerDesc : state.Samplers) sigHash = Hash::Crc32(sigHash, samplerDesc);
 	sigHash = Hash::Crc32(sigHash, "CBV");
 	for (uint32_t i = 0; i < state.Table.CBVs.size(); i++) if(state.Table.CBVs[i]) sigHash = Hash::Crc32(sigHash, i);
 	sigHash = Hash::Crc32(sigHash, "SRV");
 	for (uint32_t i = 0; i < state.Table.SRVs.size(); i++) if (state.Table.SRVs[i]) sigHash = Hash::Crc32(sigHash, i);
 	sigHash = Hash::Crc32(sigHash, "UAV");
 	for (uint32_t i = 0; i < state.Table.UAVs.size(); i++) if (state.Table.UAVs[i]) sigHash = Hash::Crc32(sigHash, i);
+	sigHash = Hash::Crc32(sigHash, "SMP");
+	for (uint32_t i = 0; i < state.Table.SMPs.size(); i++) sigHash = Hash::Crc32(sigHash, i);
 	return sigHash;
 }
 
@@ -172,10 +180,19 @@ static ID3D12RootSignature* GetOrCreateRootSignature(const GraphicsState& state)
 
 	const BindTable& table = state.Table;
 	std::vector<D3D12_ROOT_PARAMETER> rootParameters;
-	std::vector<D3D12_DESCRIPTOR_RANGE> descriptorRanges[3];
+	std::vector<D3D12_DESCRIPTOR_RANGE> descriptorRanges[4];
 	descriptorRanges[0] = CreateDescriptorRanges(table.CBVs, D3D12_DESCRIPTOR_RANGE_TYPE_CBV);
 	descriptorRanges[1] = CreateDescriptorRanges(table.SRVs, D3D12_DESCRIPTOR_RANGE_TYPE_SRV);
 	descriptorRanges[2] = CreateDescriptorRanges(table.UAVs, D3D12_DESCRIPTOR_RANGE_TYPE_UAV);
+	if (!state.Table.SMPs.empty())
+	{
+		descriptorRanges[3].resize(1);
+		descriptorRanges[3][0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+		descriptorRanges[3][0].BaseShaderRegister = 0;
+		descriptorRanges[3][0].NumDescriptors = (UINT)state.Table.SMPs.size();
+		descriptorRanges[3][0].RegisterSpace = 0;
+		descriptorRanges[3][0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+	}
 
 	if (!state.PushConstants.empty())
 	{
@@ -184,11 +201,11 @@ static ID3D12RootSignature* GetOrCreateRootSignature(const GraphicsState& state)
 		rootParamater.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		rootParamater.Constants.Num32BitValues = (uint32_t) state.PushConstants.size();
 		rootParamater.Constants.RegisterSpace = 0;
-		rootParamater.Constants.ShaderRegister = GraphicsState::PUSH_CONSTANT_BINDING;
+		rootParamater.Constants.ShaderRegister = state.PushConstantBinding;
 		rootParameters.push_back(rootParamater);
 	}
 
-	for (uint32_t i = 0; i < 3; i++)
+	for (uint32_t i = 0; i < 4; i++)
 	{
 		if (descriptorRanges[i].empty()) continue;
 
@@ -203,8 +220,8 @@ static ID3D12RootSignature* GetOrCreateRootSignature(const GraphicsState& state)
 	D3D12_ROOT_SIGNATURE_DESC rootSigDesc;
 	rootSigDesc.NumParameters = (uint32_t)rootParameters.size();
 	rootSigDesc.pParameters = rootSigDesc.NumParameters == 0 ? nullptr : rootParameters.data();
-	rootSigDesc.NumStaticSamplers = (uint32_t) state.Samplers.size();
-	rootSigDesc.pStaticSamplers = state.Samplers.size() == 0 ? nullptr : state.Samplers.data();
+	rootSigDesc.NumStaticSamplers = 0;
+	rootSigDesc.pStaticSamplers = nullptr;
 	rootSigDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
 
 	ComPtr<ID3DBlob> serializedRootSig = nullptr;
@@ -234,14 +251,13 @@ static ID3D12RootSignature* GetOrCreateRootSignature(const GraphicsState& state)
 static ID3D12PipelineState* GetOrCreatePSO(const GraphicsState& state, ID3D12RootSignature* rootSignature, uint32_t& psoHash)
 {
 	ID3D12PipelineState* pipelineState = nullptr;
+	const CompiledShader& compShader = GFX::GetCompiledShader(state.Shader, state.ShaderConfig, state.ShaderStages);
 
-	const bool useCompute = state.Compute.pShaderBytecode != nullptr;
-
-	if (useCompute)
+	if (state.ShaderStages & CS)
 	{
 		D3D12_COMPUTE_PIPELINE_STATE_DESC pipeline{};
 		pipeline.pRootSignature = rootSignature;
-		pipeline.CS = state.Compute;
+		pipeline.CS = compShader.Compute;
 		pipeline.CachedPSO = { nullptr, 0 };
 		pipeline.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
 		pipeline.NodeMask = 0;
@@ -259,8 +275,30 @@ static ID3D12PipelineState* GetOrCreatePSO(const GraphicsState& state, ID3D12Roo
 	}
 	else
 	{
-		D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline = state.Pipeline;
+		D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline{};
 		pipeline.pRootSignature = rootSignature;
+		pipeline.StreamOutput = { nullptr, 0, nullptr, 0, 0 };
+		pipeline.BlendState = state.BlendState;
+		pipeline.SampleMask = UINT_MAX;
+		pipeline.RasterizerState = state.RasterizerState;
+		pipeline.DepthStencilState = state.DepthStencilState;
+		pipeline.IBStripCutValue = D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_DISABLED;
+		pipeline.PrimitiveTopologyType = ToPrimitiveTopologyType(state.PrimitiveType);
+		pipeline.NodeMask = 0;
+		pipeline.CachedPSO = { nullptr, 0 };
+		pipeline.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+		pipeline.VS = compShader.Vertex;
+		pipeline.HS = compShader.Hull;
+		pipeline.DS = compShader.Domain;
+		pipeline.GS = compShader.Geometry;
+		pipeline.PS = compShader.Pixel;
+		pipeline.InputLayout = (state.VertexBuffers.size() > 1) ? D3D12_INPUT_LAYOUT_DESC{ compShader.InputLayoutMultiInput.data(), (uint32_t)compShader.InputLayoutMultiInput.size() } : D3D12_INPUT_LAYOUT_DESC{ compShader.InputLayout.data(), (uint32_t)compShader.InputLayout.size() };
+		pipeline.DSVFormat = state.DepthStencil ? state.DepthStencil->Format : DXGI_FORMAT_R24G8_TYPELESS;
+		pipeline.NumRenderTargets = (UINT) state.RenderTargets.size();
+		for (uint32_t i = 0; i < 8; i++) pipeline.RTVFormats[i] = i < pipeline.NumRenderTargets ? state.RenderTargets[i]->Format : DXGI_FORMAT_UNKNOWN;
+		pipeline.SampleDesc.Count = state.RenderTargets.empty() ? (state.DepthStencil ? GetSampleCount(state.DepthStencil->CreationFlags) : 1) : GetSampleCount(state.RenderTargets[0]->CreationFlags);
+		pipeline.SampleDesc.Quality = 0;
+
 		psoHash = Hash::Crc32(pipeline);
 		if (PSOCache.contains(psoHash))
 		{
@@ -271,85 +309,60 @@ static ID3D12PipelineState* GetOrCreatePSO(const GraphicsState& state, ID3D12Roo
 			API_CALL(Device::Get()->GetHandle()->CreateGraphicsPipelineState(&pipeline, IID_PPV_ARGS(&pipelineState)));
 			PSOCache[psoHash] = pipelineState;
 		}
-
-		API_CALL(Device::Get()->GetHandle()->CreateGraphicsPipelineState(&pipeline, IID_PPV_ARGS(&pipelineState)));
 	}
-
 	return pipelineState;
 }
 
-void ReleaseContextCache()
+static D3D12_CPU_DESCRIPTOR_HANDLE GetSamplerDescriptor(const Sampler& sampler)
 {
-	RootSignatureCache.clear();
-	PSOCache.clear();
-}
-
-struct GraphicsStateDirtyFlags
-{
-	bool PSO = true;
-	bool VertexBuffer = true;
-	bool IndexBuffer = true;
-	bool RenderTargetDepthStencil = true;
-	bool StencilRef = true;
-	bool Viewport = true;
-	bool Scissor = true;
-	bool Topology = true;
-	bool CommandSignature = true;
-};
-
-static GraphicsStateDirtyFlags CalculateDirtyFlags(const BoundGraphicsState& boundState, const GraphicsState& wantedState, const uint32_t psoHash)
-{
-	GraphicsStateDirtyFlags flags{};
-
-	// All dirty if bound state not valid
-	if (boundState.Valid) return flags;
-
-	// If this is true we need to rebind whole pipeline
-	if (boundState.PSOHash != psoHash || boundState.Compute.pShaderBytecode != wantedState.Compute.pShaderBytecode) return flags;
-
-	flags.PSO = false;
-	flags.VertexBuffer = boundState.VertexBuffers.size() != wantedState.VertexBuffers.size();
-	if (!flags.VertexBuffer)
+	D3D12_SAMPLER_DESC samplerDesc{};
+	samplerDesc.AddressU = sampler.AddressMode;
+	samplerDesc.AddressV = sampler.AddressMode;
+	samplerDesc.AddressW = sampler.AddressMode;
+	samplerDesc.Filter = sampler.Filter;
+	samplerDesc.BorderColor[0] = 0.0f;
+	samplerDesc.BorderColor[1] = 0.0f;
+	samplerDesc.BorderColor[2] = 0.0f;
+	samplerDesc.BorderColor[3] = 0.0f;
+	samplerDesc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+	samplerDesc.MaxAnisotropy = 16;
+	samplerDesc.MaxLOD = D3D12_FLOAT32_MAX;
+	samplerDesc.MinLOD = 0;
+	samplerDesc.MipLODBias = 0;
+	
+	const uint32_t samplerHash = Hash::Crc32(samplerDesc);
+	if (!SamplerCache.contains(samplerHash))
 	{
-		for (uint32_t i = 0; i < boundState.VertexBuffers.size(); i++)
-		{
-			if (boundState.VertexBuffers[i] != wantedState.VertexBuffers[i])
-			{
-				flags.VertexBuffer = true;
-				break;
-			}
-		}
+		SamplerCache[samplerHash] = Device::Get()->GetMemory().SMPHeap->Alloc();
+		Device::Get()->GetHandle()->CreateSampler(&samplerDesc, SamplerCache[samplerHash]);
 	}
-	flags.IndexBuffer = boundState.IndexBuffer != wantedState.IndexBuffer;
-	flags.RenderTargetDepthStencil = boundState.RenderTarget != wantedState.RenderTarget || boundState.DepthStencil != wantedState.DepthStencil;
-	flags.StencilRef = boundState.StencilRef != wantedState.StencilRef;
-	flags.Viewport = memcmp(&boundState.Viewport, &wantedState.Viewport, sizeof(D3D12_VIEWPORT)) != 0;
-	flags.Scissor = memcmp(&boundState.Scissor, &wantedState.Scissor, sizeof(D3D12_RECT)) != 0;
-	flags.Topology = boundState.Primitives != wantedState.Primitives;
-	flags.CommandSignature = boundState.CommandSignature.pArgumentDescs != boundState.CommandSignature.pArgumentDescs;
 
-	return flags;
+	return SamplerCache[samplerHash];
 }
 
-void CopyState(BoundGraphicsState& boundState, const GraphicsState& state, const uint32_t psoHash)
+static void UpdateDescriptorData(const std::vector<Resource*>& bindings, DescriptorHeapGPU& heap, GPUAllocStrategy::Page& page, BindingType bindingType)
 {
-	// Commented fields are not used in bound state
-	boundState.Valid = true;
-	boundState.PSOHash = psoHash;
-	// boundState.Table = state.Table;
-	// boundState.Pipeline = state.Pipeline;
-	boundState.Compute = state.Compute;
-	boundState.VertexBuffers = state.VertexBuffers;
-	boundState.IndexBuffer = state.IndexBuffer;
-	boundState.RenderTarget = state.RenderTarget;
-	boundState.DepthStencil = state.DepthStencil;
-	boundState.StencilRef = state.StencilRef;
-	boundState.Viewport = state.Viewport;
-	boundState.Scissor = state.Scissor;
-	boundState.Primitives = state.Primitives;
-	// boundState.Samplers = state.Samplers;
-	// boundState.PushConstants = state.PushConstants;
-	boundState.CommandSignature = state.CommandSignature;
+	const auto getDescriptor = [](Resource* resource, BindingType type)
+	{
+		switch (type)
+		{
+		case BindingType::CBV: return resource->CBV;
+		case BindingType::SRV: return resource->SRV;
+		case BindingType::UAV: return resource->UAV;
+		default: NOT_IMPLEMENTED;
+		}
+
+		return D3D12_CPU_DESCRIPTOR_HANDLE{};
+	};
+
+	for (Resource* binding : bindings)
+	{
+		if (!binding) continue;
+
+		const D3D12_CPU_DESCRIPTOR_HANDLE descriptor = getDescriptor(binding, bindingType);
+		const DescriptorHeapGPU::Allocation gpuAlloc = heap.Alloc(page);
+		Device::Get()->GetHandle()->CopyDescriptorsSimple(1, gpuAlloc.CPUHandle, descriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	}
 }
 
 ID3D12CommandSignature* ApplyGraphicsState(GraphicsContext& context, const GraphicsState& state)
@@ -359,9 +372,9 @@ ID3D12CommandSignature* ApplyGraphicsState(GraphicsContext& context, const Graph
 
 	std::vector<D3D12_RESOURCE_BARRIER> barriers;
 	
-	GPUAllocStrategy::Page pages[3];
+	GPUAllocStrategy::Page pages[4];
 
-	const bool useCompute = state.Compute.pShaderBytecode != nullptr;
+	const bool useCompute = state.ShaderStages & CS;
 
 	// Root Signature
 	ID3D12RootSignature* rootSignature = GetOrCreateRootSignature(state);
@@ -370,13 +383,14 @@ ID3D12CommandSignature* ApplyGraphicsState(GraphicsContext& context, const Graph
 	uint32_t psoHash = 0;
 	ID3D12PipelineState* pipelineState = GetOrCreatePSO(state, rootSignature, psoHash);
 
-	GraphicsStateDirtyFlags dirtyFlags = CalculateDirtyFlags(context.BoundState, state, psoHash);
-	CopyState(context.BoundState, state, psoHash);
+	const bool pipelineDirty = !context.BoundState.Valid || context.BoundState.PSOHash != psoHash;
+	context.BoundState.Valid = true;
+	context.BoundState.PSOHash = psoHash;
 
-	if (dirtyFlags.PSO)
+	if (pipelineDirty)
 	{
-		ID3D12DescriptorHeap* descriptorHeaps[] = { context.MemContext.SRVHeap.Heap.Get() };
-		cmdList->SetDescriptorHeaps(1, descriptorHeaps);
+		ID3D12DescriptorHeap* descriptorHeaps[] = { context.MemContext.SRVHeap.Heap.Get(), context.MemContext.SMPHeap.Heap.Get() };
+		cmdList->SetDescriptorHeaps(2, descriptorHeaps);
 
 		if (useCompute)
 		{
@@ -391,28 +405,53 @@ ID3D12CommandSignature* ApplyGraphicsState(GraphicsContext& context, const Graph
 
 	if (!useCompute)
 	{
-		uint32_t numRts = 0;
-		const D3D12_CPU_DESCRIPTOR_HANDLE* rtDesc = nullptr;
+		std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> rtDescs{};
+		rtDescs.reserve(state.RenderTargets.size());
 		const D3D12_CPU_DESCRIPTOR_HANDLE* dsDesc = nullptr;
-		if (state.RenderTarget)
+		
+		for (Texture* rt : state.RenderTargets)
 		{
-			numRts = 1;
-			rtDesc = &state.RenderTarget->RTV;
-			GFX::Cmd::AddResourceTransition(barriers, state.RenderTarget, D3D12_RESOURCE_STATE_RENDER_TARGET);
+			ASSERT(rt->CreationFlags & RCF_Bind_RTV, "Texture must have RCF_Bind_RTV in order to be used as a render target!");
+			GFX::Cmd::AddResourceTransition(barriers, rt, D3D12_RESOURCE_STATE_RENDER_TARGET);
+			rtDescs.push_back(rt->RTV);
 		}
+
 		if (state.DepthStencil)
 		{
-			dsDesc = &state.DepthStencil->DSV;
+			ASSERT(state.DepthStencil->CreationFlags & RCF_Bind_DSV, "Texture must have RCF_Bind_DSV in order to be used as a depth stencil!");
 			GFX::Cmd::AddResourceTransition(barriers, state.DepthStencil, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+			dsDesc = &state.DepthStencil->DSV;
 		}
 
-		if(dirtyFlags.RenderTargetDepthStencil) cmdList->OMSetRenderTargets(numRts, rtDesc, false, dsDesc);
-		if(dirtyFlags.StencilRef) cmdList->OMSetStencilRef(state.StencilRef);
-		if(dirtyFlags.Viewport) cmdList->RSSetViewports(1, &state.Viewport);
-		if(dirtyFlags.Scissor) cmdList->RSSetScissorRects(1, &state.Scissor);
-		if(dirtyFlags.Topology) cmdList->IASetPrimitiveTopology(state.Primitives);
+		cmdList->OMSetRenderTargets((UINT) rtDescs.size(), rtDescs.empty() ? nullptr : rtDescs.data(), false, dsDesc);
+		cmdList->OMSetStencilRef(state.StencilRef);
+		D3D12_VIEWPORT viewport = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f };
+		D3D12_RECT scissor = { 0, 0, 0, 0 };
+		if (state.DepthStencil)
+		{
+			viewport.Width = (float)state.DepthStencil->Width;
+			viewport.Height = (float)state.DepthStencil->Height;
+			scissor.right = (long)state.DepthStencil->Width;
+			scissor.bottom = (long)state.DepthStencil->Height;
+		}
+		if (!state.RenderTargets.empty())
+		{
+			viewport.Width = (float)state.RenderTargets[0]->Width;
+			viewport.Height = (float)state.RenderTargets[0]->Height;
+			scissor.right = (long)state.RenderTargets[0]->Width;
+			scissor.bottom = (long)state.RenderTargets[0]->Height;
+		}
+		if (state.UseCustomViewport)
+			viewport = state.CustomViewport;
 
-		if (dirtyFlags.VertexBuffer && state.VertexBuffers.size())
+		if (state.UseCustomScissor)
+			scissor = state.CustomScissor;
+
+		cmdList->RSSetViewports(1, &viewport);
+		cmdList->RSSetScissorRects(1, &scissor);
+		cmdList->IASetPrimitiveTopology(ToPrimitiveTopology(state.PrimitiveType, state.NumControlPoints));
+
+		if (state.VertexBuffers.size())
 		{
 			std::vector<D3D12_VERTEX_BUFFER_VIEW> views;
 			views.reserve(state.VertexBuffers.size());
@@ -424,7 +463,7 @@ ID3D12CommandSignature* ApplyGraphicsState(GraphicsContext& context, const Graph
 			cmdList->IASetVertexBuffers(0, (UINT) views.size(), views.data());
 		}
 
-		if (dirtyFlags.IndexBuffer && state.IndexBuffer)
+		if (state.IndexBuffer)
 		{
 			DXGI_FORMAT dxgiFormat = DXGI_FORMAT_UNKNOWN;
 			switch (state.IndexBuffer->Stride)
@@ -443,17 +482,27 @@ ID3D12CommandSignature* ApplyGraphicsState(GraphicsContext& context, const Graph
 
 	// Update descriptor data
 	{
-		ASSERT(context.MemContext.SRVHeap.AllocStrategy.CanAllocate(3), "DescriptorHeapGPU memory overflow!");
+		MemoryContext& memContext = context.MemContext;
+		ASSERT(memContext.SRVHeap.AllocStrategy.CanAllocate(3), "DescriptorHeapGPU memory overflow!");
+		ASSERT(memContext.SMPHeap.AllocStrategy.CanAllocate(1), "DescriptorHeapGPU memory overflow!");
 
 		for (uint32_t i = 0; i < 3; i++)
 		{
-			pages[i] = context.MemContext.SRVHeap.AllocStrategy.AllocatePage();
-			DeferredTrash::Put(&context.MemContext.SRVHeap, pages[i]);
+			pages[i] = memContext.SRVHeap.AllocStrategy.AllocatePage();
+			DeferredTrash::Put(&memContext.SRVHeap, pages[i]);
 		}
+		pages[3] = memContext.SMPHeap.AllocStrategy.AllocatePage();
+		DeferredTrash::Put(&memContext.SMPHeap, pages[3]);
 
-		UpdateDescriptorData(state.Table.CBVs, context.MemContext.SRVHeap, pages[0], BindingType::CBV);
-		UpdateDescriptorData(state.Table.SRVs, context.MemContext.SRVHeap, pages[1], BindingType::SRV);
-		UpdateDescriptorData(state.Table.UAVs, context.MemContext.SRVHeap, pages[2], BindingType::UAV);
+		UpdateDescriptorData(state.Table.CBVs, memContext.SRVHeap, pages[0], BindingType::CBV);
+		UpdateDescriptorData(state.Table.SRVs, memContext.SRVHeap, pages[1], BindingType::SRV);
+		UpdateDescriptorData(state.Table.UAVs, memContext.SRVHeap, pages[2], BindingType::UAV);
+		for (const Sampler& sampler : state.Table.SMPs)
+		{
+			const D3D12_CPU_DESCRIPTOR_HANDLE descriptor = GetSamplerDescriptor(sampler);
+			const DescriptorHeapGPU::Allocation gpuAlloc = memContext.SMPHeap.Alloc(pages[3]);
+			Device::Get()->GetHandle()->CopyDescriptorsSimple(1, gpuAlloc.CPUHandle, descriptor, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+		}
 
 		for (Resource* bind : state.Table.CBVs) GFX::Cmd::AddResourceTransition(barriers, bind, D3D12_RESOURCE_STATE_GENERIC_READ);
 		for (Resource* bind : state.Table.SRVs) GFX::Cmd::AddResourceTransition(barriers, bind, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
@@ -481,6 +530,14 @@ ID3D12CommandSignature* ApplyGraphicsState(GraphicsContext& context, const Graph
 			if (useCompute) cmdList->SetComputeRootDescriptorTable(nextSlot++, descriptor);
 			else cmdList->SetGraphicsRootDescriptorTable(nextSlot++, descriptor);
 		}
+		if (pages[3].AllocationIndex != 0)
+		{
+			const DescriptorHeapGPU& heap = context.MemContext.SMPHeap;
+			D3D12_GPU_DESCRIPTOR_HANDLE descriptor = { heap.HeapStartGPU };
+			descriptor.ptr += pages[3].PageIndex * heap.PageSize;
+			if (useCompute) cmdList->SetComputeRootDescriptorTable(nextSlot++, descriptor);
+			else cmdList->SetGraphicsRootDescriptorTable(nextSlot++, descriptor);
+		}
 	}
 
 	// Execute pending barriers
@@ -502,4 +559,15 @@ ID3D12CommandSignature* ApplyGraphicsState(GraphicsContext& context, const Graph
 		DeferredTrash::Put(commandSignature);
 	}
 	return commandSignature;
+}
+
+void ReleaseContextCache()
+{
+	DeviceMemory& mem = Device::Get()->GetMemory();
+
+	RootSignatureCache.clear();
+	PSOCache.clear();
+	for (const auto& [key, value] : SamplerCache)
+		DeferredTrash::Put(mem.SMPHeap.get(), value);
+	SamplerCache.clear();
 }

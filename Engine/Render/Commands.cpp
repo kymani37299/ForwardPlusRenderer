@@ -28,6 +28,7 @@ namespace GFX::Cmd
 
 		// TODO: Lower number of pages somehow
 		context->MemContext.SRVHeap = DescriptorHeapGPU{ D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 4096u , 64u };
+		context->MemContext.SMPHeap = DescriptorHeapGPU{ D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 512u , 4u };
 		context->MemContext.SRVPersistentPage = context->MemContext.SRVHeap.NewPage();
 
 		return context;
@@ -133,13 +134,11 @@ namespace GFX::Cmd
 		return ApplyGraphicsState(context, state);
 	}
 
-
-
 	void UpdatePushConstants(GraphicsContext& context, const GraphicsState& state)
 	{
 		ASSERT(!state.PushConstants.empty(), "[UpdatePushConstants] Push constants are empty");
 
-		const bool useCompute = state.Compute.pShaderBytecode != nullptr;
+		const bool useCompute = state.ShaderStages & CS;
 		if (useCompute) context.CmdList->SetComputeRoot32BitConstants(0, (UINT) state.PushConstants.size(), state.PushConstants.data(), 0);
 		else  context.CmdList->SetGraphicsRoot32BitConstants(0, (UINT) state.PushConstants.size(), state.PushConstants.data(), 0);
 	}
@@ -341,77 +340,6 @@ namespace GFX::Cmd
 		context.CmdList->DrawInstanced(6, 1, 0, 0);
 	}
 
-	void BindShader(GraphicsState& state, Shader* shader, uint8_t stages, std::vector<std::string> config, bool multiInput)
-	{
-		const CompiledShader& compShader = GFX::GetCompiledShader(shader, config, stages);
-
-		state.Pipeline.VS = compShader.Vertex;
-		state.Pipeline.HS = compShader.Hull;
-		state.Pipeline.DS = compShader.Domain;
-		state.Pipeline.GS = compShader.Geometry;
-		state.Pipeline.PS = compShader.Pixel;
-		state.Compute = compShader.Compute;
-
-		if (multiInput)
-		{
-			state.Pipeline.InputLayout = { compShader.InputLayoutMultiInput.data(), (uint32_t)compShader.InputLayoutMultiInput.size() };
-		}
-		else
-		{
-			state.Pipeline.InputLayout = { compShader.InputLayout.data(), (uint32_t)compShader.InputLayout.size() };
-		}
-	}
-
-	void BindRenderTarget(GraphicsState& state, Texture* renderTarget)
-	{
-		if (renderTarget)
-		{
-			state.RenderTarget = renderTarget;
-			state.Viewport = { 0.0f, 0.0f, (float)renderTarget->Width, (float)renderTarget->Height, 0.0f, 1.0f };
-			state.Scissor = { 0,0, (long)renderTarget->Width, (long)renderTarget->Height };
-			state.Pipeline.RTVFormats[0] = renderTarget->Format;
-			state.Pipeline.NumRenderTargets = 1;
-			state.Pipeline.SampleDesc.Count = GetSampleCount(renderTarget->CreationFlags);
-		}
-		else
-		{
-			state.RenderTarget = nullptr;
-			state.Pipeline.RTVFormats[0] = DXGI_FORMAT_UNKNOWN;
-			state.Pipeline.NumRenderTargets = 0;
-		}
-
-	}
-
-	void BindDepthStencil(GraphicsState& state, Texture* depthStencil)
-	{
-		if (!depthStencil) NOT_IMPLEMENTED;
-
-		state.DepthStencil = depthStencil;
-		state.Viewport = { 0.0f, 0.0f, (float)depthStencil->Width, (float)depthStencil->Height, 0.0f, 1.0f };
-		state.Scissor = { 0,0, (long)depthStencil->Width, (long)depthStencil->Height };
-		state.Pipeline.DSVFormat = depthStencil->Format;
-		state.Pipeline.SampleDesc.Count = GetSampleCount(depthStencil->CreationFlags);
-	}
-
-	void BindSampler(GraphicsState& state, uint32_t slot, D3D12_TEXTURE_ADDRESS_MODE addressMode, D3D12_FILTER filter)
-	{
-		D3D12_STATIC_SAMPLER_DESC samplerDesc{};
-		samplerDesc.AddressU = addressMode;
-		samplerDesc.AddressV = addressMode;
-		samplerDesc.AddressW = addressMode;
-		samplerDesc.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
-		samplerDesc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
-		samplerDesc.Filter = filter;
-		samplerDesc.MaxAnisotropy = 16;
-		samplerDesc.MaxLOD = D3D12_FLOAT32_MAX;
-		samplerDesc.MinLOD = 0;
-		samplerDesc.MipLODBias = 0;
-		samplerDesc.RegisterSpace = 0;
-		samplerDesc.ShaderRegister = slot;
-		samplerDesc.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		state.Samplers.push_back(samplerDesc);
-	}
-
 	void GenerateMips(GraphicsContext& context, Texture* texture)
 	{
 		ASSERT(texture->DepthOrArraySize == 1, "GenerateMips not supported for texture arrays!");
@@ -420,10 +348,11 @@ namespace GFX::Cmd
 
 		// Init state
 		GraphicsState state{};
+		state.RenderTargets.resize(1);
 		state.Table.SRVs.resize(1);
-		GFX::Cmd::BindSampler(state, 0, D3D12_TEXTURE_ADDRESS_MODE_CLAMP, D3D12_FILTER_MIN_MAG_MIP_LINEAR);
-		GFX::Cmd::BindShader(state, Device::Get()->GetCopyShader(), VS | PS);
-
+		state.Shader = Device::Get()->GetCopyShader();
+		state.Table.SMPs.push_back(Sampler{ D3D12_FILTER_MIN_MAG_MIP_LINEAR, D3D12_TEXTURE_ADDRESS_MODE_CLAMP });
+		
 		// Generate subresources
 		std::vector<TextureSubresource*> subresources{};
 		subresources.resize(texture->NumMips);
@@ -437,7 +366,7 @@ namespace GFX::Cmd
 		for (uint32_t mip = 1; mip < texture->NumMips; mip++)
 		{
 			state.Table.SRVs[0] = subresources[mip - 1];
-			GFX::Cmd::BindRenderTarget(state, subresources[mip]);
+			state.RenderTargets[0] = subresources[mip];
 			GFX::Cmd::DrawFC(context, state);
 		}
 

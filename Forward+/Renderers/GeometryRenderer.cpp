@@ -41,7 +41,8 @@ void GeometryRenderer::DepthPrepass(GraphicsContext& context, GraphicsState& sta
 	CBManager.Add(MainSceneGraph->MainCamera.LastCameraData);
 	CBManager.Add(MainSceneGraph->SceneInfoData);
 	state.Table.CBVs[0] = CBManager.GetBuffer();
-	state.Pipeline.DepthStencilState.DepthEnable = true;
+	state.DepthStencilState.DepthEnable = true;
+	state.Shader = m_DepthPrepassShader.get();
 
 	RenderGroupType prepassTypes[] = { RenderGroupType::Opaque, RenderGroupType::AlphaDiscard };
 	for (uint32_t i = 0; i < STATIC_ARRAY_SIZE(prepassTypes); i++)
@@ -57,7 +58,7 @@ void GeometryRenderer::DepthPrepass(GraphicsContext& context, GraphicsState& sta
 			config.push_back("ALPHA_DISCARD");
 			SSManager.Bind(state);
 		}
-		GFX::Cmd::BindShader(state, m_DepthPrepassShader.get(), VS | PS, config);
+		state.ShaderConfig = config;
 		VertPipeline->Draw(context, state, renderGroup);
 	}
 	GFX::Cmd::MarkerEnd(context);
@@ -69,8 +70,8 @@ void GeometryRenderer::Draw(GraphicsContext& context, GraphicsState& state, Text
 
 	if (state.Table.CBVs.size() < 1) state.Table.CBVs.resize(1);
 
-	D3D12_BLEND_DESC blendStateOff = state.Pipeline.BlendState;
-	D3D12_BLEND_DESC blendStateOn = state.Pipeline.BlendState;
+	D3D12_BLEND_DESC blendStateOff = state.BlendState;
+	D3D12_BLEND_DESC blendStateOn = state.BlendState;
 	blendStateOn.RenderTarget[0].BlendEnable = true;
 	blendStateOn.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
 	blendStateOn.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_MAX;
@@ -85,14 +86,14 @@ void GeometryRenderer::Draw(GraphicsContext& context, GraphicsState& state, Text
 	state.Table.CBVs[0] = CBManager.GetBuffer();
 
 	state.StencilRef = 0xff;
-	state.Pipeline.DepthStencilState.DepthEnable = true;
-	state.Pipeline.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
-	state.Pipeline.DepthStencilState.StencilEnable = true;
-	state.Pipeline.DepthStencilState.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
-	state.Pipeline.DepthStencilState.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
-	state.Pipeline.DepthStencilState.FrontFace.StencilPassOp = D3D12_STENCIL_OP_REPLACE;
-	state.Pipeline.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
-	state.Pipeline.DepthStencilState.BackFace = state.Pipeline.DepthStencilState.FrontFace;
+	state.DepthStencilState.DepthEnable = true;
+	state.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+	state.DepthStencilState.StencilEnable = true;
+	state.DepthStencilState.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+	state.DepthStencilState.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
+	state.DepthStencilState.FrontFace.StencilPassOp = D3D12_STENCIL_OP_REPLACE;
+	state.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+	state.DepthStencilState.BackFace = state.DepthStencilState.FrontFace;
 	
 	SSManager.Bind(state);
 
@@ -109,8 +110,6 @@ void GeometryRenderer::Draw(GraphicsContext& context, GraphicsState& state, Text
 		RenderGroup& renderGroup = MainSceneGraph->RenderGroups[i];
 		if (renderGroup.Drawables.GetSize() == 0) continue;
 
-		state.Pipeline.BlendState = rgType == RenderGroupType::Transparent ? blendStateOn : blendStateOff;
-
 		std::vector<std::string> configuration;
 		if (rgType == RenderGroupType::AlphaDiscard) configuration.push_back("ALPHA_DISCARD");
 		if (rgType == RenderGroupType::Transparent) configuration.push_back("ALPHA_BLEND");
@@ -118,7 +117,9 @@ void GeometryRenderer::Draw(GraphicsContext& context, GraphicsState& state, Text
 		if (RenderSettings.Shading.UsePBR) configuration.push_back("USE_PBR");
 		if (RenderSettings.Shading.UsePBR && RenderSettings.Shading.UseIBL) configuration.push_back("USE_IBL");
 		
-		GFX::Cmd::BindShader(state, m_GeometryShader.get(), VS | PS, configuration);
+		state.Shader = m_GeometryShader.get();
+		state.ShaderConfig = configuration;
+		state.BlendState = rgType == RenderGroupType::Transparent ? blendStateOn : blendStateOff;
 		VertPipeline->Draw(context, state, renderGroup);
 	}
 

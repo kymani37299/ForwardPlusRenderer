@@ -48,8 +48,9 @@ Texture* ShadowRenderer::CalculateShadowMask(GraphicsContext& context, Texture* 
 		CBManager.Add(MainSceneGraph->ShadowCamera.CameraData);
 
 		state.Table.CBVs.push_back(CBManager.GetBuffer());
-		state.Pipeline.DepthStencilState.DepthEnable = true;
-		
+		state.DepthStencilState.DepthEnable = true;
+		state.Shader = m_ShadowmapShader.get();
+
 		RenderGroupType prepassTypes[] = { RenderGroupType::Opaque, RenderGroupType::AlphaDiscard };
 		for (uint32_t i = 0; i < STATIC_ARRAY_SIZE(prepassTypes); i++)
 		{
@@ -58,15 +59,14 @@ Texture* ShadowRenderer::CalculateShadowMask(GraphicsContext& context, Texture* 
 
 			std::vector<std::string> config{};
 			config.push_back("SHADOWMAP");
-
-			GFX::Cmd::BindDepthStencil(state, m_Shadowmap.get());
+			state.DepthStencil = m_Shadowmap.get();
+			
 			if (rgType == RenderGroupType::AlphaDiscard)
 			{
 				config.push_back("ALPHA_DISCARD");
 				SSManager.Bind(state);
 			}
-
-			GFX::Cmd::BindShader(state, m_ShadowmapShader.get(), VS | PS, config, true);
+			state.ShaderConfig = config;
 			VertPipeline->Draw(context, state, renderGroup, true);
 		}
 		GFX::Cmd::MarkerEnd(context);
@@ -84,11 +84,11 @@ Texture* ShadowRenderer::CalculateShadowMask(GraphicsContext& context, Texture* 
 		state.Table.SRVs.resize(2);
 		state.Table.SRVs[0] = depth;
 		state.Table.SRVs[1] = m_Shadowmap.get();
+		state.RenderTargets.push_back(m_Shadowmask.get());
+		state.Shader = m_ShadowmaskShader.get();
 
 		GFX::Cmd::MarkerBegin(context, "Shadowmask");
 		SSManager.Bind(state);
-		GFX::Cmd::BindRenderTarget(state, m_Shadowmask.get());
-		GFX::Cmd::BindShader(state, m_ShadowmaskShader.get(), VS | PS);
 		GFX::Cmd::DrawFC(context, state);
 		GFX::Cmd::MarkerEnd(context);
 	}

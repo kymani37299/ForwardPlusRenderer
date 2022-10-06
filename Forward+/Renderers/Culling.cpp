@@ -90,9 +90,10 @@ void Culling::CullLights(GraphicsContext& context, Texture* depth)
 		state.Table.SRVs[0] = MainSceneGraph->Lights.GetBuffer();
 		state.Table.SRVs[1] = depth;
 		state.Table.UAVs[0] = m_VisibleLightsBuffer.get();
+		state.Shader = m_LightCullingShader.get();
+		state.ShaderStages = CS;
 
 		GFX::Cmd::MarkerBegin(context, "Light Culling");
-		GFX::Cmd::BindShader(state, m_LightCullingShader.get(), CS);
 		GFX::Cmd::BindState(context, state);
 		context.CmdList->Dispatch(m_NumTilesX, m_NumTilesY, 1);
 		GFX::Cmd::MarkerEnd(context);
@@ -103,7 +104,7 @@ void Culling::CullRenderGroupCPU(GraphicsContext& context, RenderGroup& rg)
 {
 	if (rg.Drawables.GetSize() == 0) return;
 
-	const uint32_t numDrawables = rg.Drawables.GetSize();
+	const uint32_t numDrawables = (uint32_t) rg.Drawables.GetSize();
 	rg.VisibilityMask = BitField{ numDrawables };
 
 	for (uint32_t i = 0; i < numDrawables; i++)
@@ -144,8 +145,9 @@ void Culling::CullRenderGroupGPU(GraphicsContext& context, RenderGroup& rg, Text
 	// CBManager.Add(AppConfig.WindowWidth);
 	// CBManager.Add(AppConfig.WindowHeight);
 	cullingState.Table.CBVs.push_back(CBManager.GetBuffer());
-
-	GFX::Cmd::BindShader(cullingState, m_GeometryCullingShader.get(), CS, config);
+	cullingState.Shader = m_GeometryCullingShader.get();
+	cullingState.ShaderStages = CS;
+	cullingState.ShaderConfig = config;
 	GFX::Cmd::BindState(context, cullingState);
 
 	context.CmdList->Dispatch(MathUtility::CeilDiv(rg.Drawables.GetSize(), WAVESIZE), 1, 1);

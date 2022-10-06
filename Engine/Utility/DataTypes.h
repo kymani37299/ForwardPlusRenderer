@@ -5,8 +5,6 @@
 #include <stdint.h>
 #include <DirectXMath.h>
 
-#include "Utility/MathUtility.h"
-
 struct Float2
 {
 	Float2() : x(0), y(0) {}
@@ -223,6 +221,8 @@ namespace XMUtility
 		return ToXMFloat4x4(xmMatrix);
 	}
 }
+
+#include "Utility/MathUtility.h"
 
 class BitField
 {

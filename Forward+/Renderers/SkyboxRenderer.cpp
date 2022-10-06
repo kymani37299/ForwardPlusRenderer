@@ -34,6 +34,7 @@ static void ProcessAllCubemapFaces(GraphicsContext& context, GraphicsState& face
 
 	faceState.VertexBuffers.push_back(CubeVB);
 	faceState.Table.CBVs.resize(1);
+	faceState.RenderTargets.resize(1);
 
 	D3D12_CPU_DESCRIPTOR_HANDLE oldRTV = cubemap->RTV;
 
@@ -55,9 +56,8 @@ static void ProcessAllCubemapFaces(GraphicsContext& context, GraphicsState& face
 		CBManager.Clear();
 		CBManager.Add(worldToClip);
 		faceState.Table.CBVs[0] = CBManager.GetBuffer();
-
 		cubemap->RTV = rtvDescriptor;
-		GFX::Cmd::BindRenderTarget(faceState, cubemap);
+		faceState.RenderTargets[0] = cubemap;
 		GFX::Cmd::BindState(context, faceState);
 		context.CmdList->DrawInstanced(CubeVB->ByteSize / CubeVB->Stride, 1, 0, 0);
 	}
@@ -73,8 +73,9 @@ static Texture* PanoramaToCubemap(GraphicsContext& context, Texture* panoramaTex
 	DeferredTrash::Put(shader);
 
 	GraphicsState state;
+	state.Shader = shader;
+
 	GFX::Cmd::MarkerBegin(context, "Panorama to cubemap");
-	GFX::Cmd::BindShader(state, shader, VS | PS);
 	state.Table.SRVs.push_back(panoramaTexture);
 	SSManager.Bind(state);
 	ProcessAllCubemapFaces(context, state, cubemapTex);
@@ -91,8 +92,9 @@ static Texture* CubemapToIrradianceMap(GraphicsContext& context, Texture* cubema
 	DeferredTrash::Put(shader);
 
 	GraphicsState state;
+	state.Shader = shader;
+
 	GFX::Cmd::MarkerBegin(context, "Calculate irradiance");
-	GFX::Cmd::BindShader(state, shader, VS | PS);
 	state.Table.SRVs.push_back(cubemapTexture);
 	SSManager.Bind(state);
 	ProcessAllCubemapFaces(context, state, cubemapTex);
@@ -125,13 +127,13 @@ void SkyboxRenderer::Init(GraphicsContext& context)
 void SkyboxRenderer::Draw(GraphicsContext& context, GraphicsState& state)
 {
 	state.StencilRef = 0xff;
-	state.Pipeline.DepthStencilState.StencilEnable = true;
-	state.Pipeline.DepthStencilState.StencilWriteMask = 0;
-	state.Pipeline.DepthStencilState.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
-	state.Pipeline.DepthStencilState.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
-	state.Pipeline.DepthStencilState.FrontFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
-	state.Pipeline.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_NOT_EQUAL;
-	state.Pipeline.DepthStencilState.BackFace = state.Pipeline.DepthStencilState.FrontFace;
+	state.DepthStencilState.StencilEnable = true;
+	state.DepthStencilState.StencilWriteMask = 0;
+	state.DepthStencilState.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+	state.DepthStencilState.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
+	state.DepthStencilState.FrontFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
+	state.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_NOT_EQUAL;
+	state.DepthStencilState.BackFace = state.DepthStencilState.FrontFace;
 
 	GFX::Cmd::MarkerBegin(context, "Skybox");
 
@@ -141,8 +143,8 @@ void SkyboxRenderer::Draw(GraphicsContext& context, GraphicsState& state)
 	state.Table.SRVs.push_back(m_SkyboxCubemap.get());
 	state.VertexBuffers.push_back(m_CubeVB.get());
 	SSManager.Bind(state);
+	state.Shader = m_SkyboxShader.get();
 
-	GFX::Cmd::BindShader(state, m_SkyboxShader.get(), VS | PS);
 	GFX::Cmd::BindState(context, state);
 	context.CmdList->DrawInstanced(m_CubeVB->ByteSize/m_CubeVB->Stride, 1, 0, 0);
 	GFX::Cmd::MarkerEnd(context);

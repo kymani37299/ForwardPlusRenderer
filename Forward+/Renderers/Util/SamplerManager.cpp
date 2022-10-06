@@ -9,20 +9,20 @@ void SamplerManager::Bind(GraphicsState& state)
 	uint32_t slot = 0;
 	
 	// s_LinearWrap
-	GFX::Cmd::BindSampler(state, slot++, D3D12_TEXTURE_ADDRESS_MODE_WRAP, D3D12_FILTER_MIN_MAG_MIP_LINEAR);
-
+	state.Table.SMPs.push_back({ D3D12_FILTER_MIN_MAG_MIP_LINEAR , D3D12_TEXTURE_ADDRESS_MODE_WRAP });
+	
 	// s_AnisoWrap
-	GFX::Cmd::BindSampler(state, slot++, D3D12_TEXTURE_ADDRESS_MODE_WRAP, D3D12_FILTER_ANISOTROPIC);
+	state.Table.SMPs.push_back({ D3D12_FILTER_ANISOTROPIC , D3D12_TEXTURE_ADDRESS_MODE_WRAP });
 
 	// s_PointWrap
-	GFX::Cmd::BindSampler(state, slot++, D3D12_TEXTURE_ADDRESS_MODE_WRAP, D3D12_FILTER_MIN_MAG_MIP_POINT);
+	state.Table.SMPs.push_back({ D3D12_FILTER_MIN_MAG_MIP_POINT , D3D12_TEXTURE_ADDRESS_MODE_WRAP });
 
 	// s_PointBorder
-	GFX::Cmd::BindSampler(state, slot++, D3D12_TEXTURE_ADDRESS_MODE_BORDER, D3D12_FILTER_MIN_MAG_MIP_POINT);
+	state.Table.SMPs.push_back({ D3D12_FILTER_MIN_MAG_MIP_POINT , D3D12_TEXTURE_ADDRESS_MODE_BORDER });
 
 	// s_LinearBorder
-	GFX::Cmd::BindSampler(state, slot++, D3D12_TEXTURE_ADDRESS_MODE_BORDER, D3D12_FILTER_MIN_MAG_MIP_LINEAR);
+	state.Table.SMPs.push_back({ D3D12_FILTER_MIN_MAG_MIP_LINEAR , D3D12_TEXTURE_ADDRESS_MODE_BORDER });
 
 	// s_PointClamp
-	GFX::Cmd::BindSampler(state, slot++, D3D12_TEXTURE_ADDRESS_MODE_CLAMP, D3D12_FILTER_MIN_MAG_MIP_POINT);
+	state.Table.SMPs.push_back({ D3D12_FILTER_MIN_MAG_MIP_POINT , D3D12_TEXTURE_ADDRESS_MODE_CLAMP });
 }

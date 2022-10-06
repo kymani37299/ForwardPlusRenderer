@@ -17,6 +17,7 @@ struct DeviceMemory
 	ScopedRef<DescriptorHeapCPU> SRVHeap;
 	ScopedRef<DescriptorHeapCPU> RTVHeap;
 	ScopedRef<DescriptorHeapCPU> DSVHeap;
+	ScopedRef<DescriptorHeapCPU> SMPHeap;
 };
 
 class DeferredTaskExecutor

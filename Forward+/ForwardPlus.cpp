@@ -246,16 +246,17 @@ Texture* ForwardPlus::OnDraw(GraphicsContext& context)
 	// Depth prepass
 	const bool drawMotionVectors = RenderSettings.AntialiasingMode == AntiAliasingMode::TAA;
 	GraphicsState depthPrepassState{};
-	GFX::Cmd::BindRenderTarget(depthPrepassState, drawMotionVectors ? m_MotionVectorRT.get() : nullptr);
-	GFX::Cmd::BindDepthStencil(depthPrepassState, m_MainRT_DepthMS.get());
+	if (drawMotionVectors) 	depthPrepassState.RenderTargets.push_back(m_MotionVectorRT.get());
+	depthPrepassState.DepthStencil = m_MainRT_DepthMS.get();
+
 	m_GeometryRenderer.DepthPrepass(context, depthPrepassState);
 	
 	// Resolve depth
 	if (RenderSettings.AntialiasingMode == AntiAliasingMode::MSAA)
 	{
 		GraphicsState resolveState{};
-		resolveState.Pipeline.DepthStencilState.DepthEnable = true;
-		resolveState.Pipeline.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+		resolveState.DepthStencilState.DepthEnable = true;
+		resolveState.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_ALWAYS;
 
 		CBManager.Clear();
 		CBManager.Add(AppConfig.WindowWidth);
@@ -265,8 +266,8 @@ Texture* ForwardPlus::OnDraw(GraphicsContext& context)
 		resolveState.Table.CBVs.push_back(CBManager.GetBuffer());
 	
 		GFX::Cmd::MarkerBegin(context, "Resolve depth");
-		GFX::Cmd::BindDepthStencil(resolveState, m_MainRT_Depth.get());
-		GFX::Cmd::BindShader(resolveState, m_DepthResolveShader.get(), VS | PS);
+		resolveState.DepthStencil = m_MainRT_Depth.get();
+		resolveState.Shader = m_DepthResolveShader.get();
 	
 		GFX::Cmd::DrawFC(context, resolveState);
 		GFX::Cmd::MarkerEnd(context);
@@ -286,14 +287,14 @@ Texture* ForwardPlus::OnDraw(GraphicsContext& context)
 
 	// Geometry
 	GraphicsState geometryState;
-	GFX::Cmd::BindRenderTarget(geometryState, m_MainRT_HDR.get());
-	GFX::Cmd::BindDepthStencil(geometryState, m_MainRT_DepthMS.get());
+	geometryState.RenderTargets.push_back(m_MainRT_HDR.get());
+	geometryState.DepthStencil = m_MainRT_DepthMS.get();
 	m_GeometryRenderer.Draw(context, geometryState, shadowMask, m_Culling.GetVisibleLightsBuffer(), irradianceMap, ssaoTexture);
 	
 	// Skybox
 	GraphicsState skyboxState{};
-	GFX::Cmd::BindRenderTarget(skyboxState, m_MainRT_HDR.get());
-	GFX::Cmd::BindDepthStencil(skyboxState, m_MainRT_DepthMS.get());
+	skyboxState.RenderTargets.push_back(m_MainRT_HDR.get());
+	skyboxState.DepthStencil = m_MainRT_DepthMS.get();
 	m_SkyboxRenderer.Draw(context, skyboxState);
 
 	// Debug

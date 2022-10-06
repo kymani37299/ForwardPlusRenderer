@@ -177,6 +177,7 @@
     <ClCompile Include="Gui\Imgui\imgui_impl_win32.cpp" />
     <ClCompile Include="Gui\Imgui\imgui_tables.cpp" />
     <ClCompile Include="Gui\Imgui\imgui_widgets.cpp" />
+    <ClCompile Include="Loading\AnimationOperations.cpp" />
     <ClCompile Include="Loading\ModelLoading.cpp" />
     <ClCompile Include="Loading\TextureLoading.cpp" />
     <ClCompile Include="Render\Buffer.cpp" />
@@ -205,6 +206,7 @@
     <ClInclude Include="Gui\Imgui\imstb_rectpack.h" />
     <ClInclude Include="Gui\Imgui\imstb_textedit.h" />
     <ClInclude Include="Gui\Imgui\imstb_truetype.h" />
+    <ClInclude Include="Loading\AnimationOperations.h" />
     <ClInclude Include="Loading\ModelLoading.h" />
     <ClInclude Include="Loading\TextureLoading.h" />
     <ClInclude Include="Render\Buffer.h" />

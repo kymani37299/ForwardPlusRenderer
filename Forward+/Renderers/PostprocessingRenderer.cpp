@@ -79,6 +79,7 @@ Texture* PostprocessingRenderer::Process(GraphicsContext& context, Texture* colo
 	GraphicsState state;
 	state.Table.SRVs.resize(3);
 	state.Table.CBVs.resize(1);
+	state.RenderTargets.resize(1);
 	SSManager.Bind(state);
 
 	// Bloom
@@ -95,9 +96,10 @@ Texture* PostprocessingRenderer::Process(GraphicsContext& context, Texture* colo
 			CBManager.Add(RenderSettings.Exposure);
 			state.Table.CBVs[0] = CBManager.GetBuffer();
 			state.Table.SRVs[0] = hdrRT;
+			state.RenderTargets[0] = m_BloomTexturesDownsample[0].get();
+			state.Shader = m_BloomShader.get();
+			state.ShaderConfig = { "PREFILTER" };
 
-			GFX::Cmd::BindRenderTarget(state, m_BloomTexturesDownsample[0].get());
-			GFX::Cmd::BindShader(state, m_BloomShader.get(), VS | PS, {"PREFILTER"});
 			GFX::Cmd::DrawFC(context, state);
 			GFX::Cmd::MarkerEnd(context);
 		}
@@ -105,7 +107,8 @@ Texture* PostprocessingRenderer::Process(GraphicsContext& context, Texture* colo
 		// Downsample
 		{
 			GFX::Cmd::MarkerBegin(context, "Downsample");
-			GFX::Cmd::BindShader(state, m_BloomShader.get(), VS | PS, {"DOWNSAMPLE"});
+			state.Shader = m_BloomShader.get();
+			state.ShaderConfig = { "DOWNSAMPLE" };
 			for (uint32_t i = 1; i < BLOOM_NUM_SAMPLES; i++)
 			{
 				CBManager.Clear();
@@ -113,8 +116,7 @@ Texture* PostprocessingRenderer::Process(GraphicsContext& context, Texture* colo
 				CBManager.Add(RenderSettings.Exposure);
 				state.Table.CBVs[0] = CBManager.GetBuffer();
 				state.Table.SRVs[0] = m_BloomTexturesDownsample[i - 1].get();
-
-				GFX::Cmd::BindRenderTarget(state, m_BloomTexturesDownsample[i].get());
+				state.RenderTargets[0] = m_BloomTexturesDownsample[i].get();
 				GFX::Cmd::DrawFC(context, state);
 			}
 			GFX::Cmd::MarkerEnd(context);
@@ -123,16 +125,17 @@ Texture* PostprocessingRenderer::Process(GraphicsContext& context, Texture* colo
 		// Upsample
 		{
 			GFX::Cmd::MarkerBegin(context, "Upsample");
-			GFX::Cmd::BindShader(state, m_BloomShader.get(), VS | PS, {"UPSAMPLE"});
-
+			
 			CBManager.Clear();
 			CBManager.Add(GetBloomInput(m_BloomTexturesDownsample[BLOOM_NUM_SAMPLES - 1].get()));
 			CBManager.Add(RenderSettings.Exposure);
 			state.Table.CBVs[0] = CBManager.GetBuffer();
 			state.Table.SRVs[0] = m_BloomTexturesDownsample[BLOOM_NUM_SAMPLES - 1].get();
 			state.Table.SRVs[1] = m_BloomTexturesDownsample[BLOOM_NUM_SAMPLES - 2].get();
+			state.Shader = m_BloomShader.get();
+			state.ShaderConfig = { "UPSAMPLE" };
+			state.RenderTargets[0] = m_BloomTexturesUpsample[BLOOM_NUM_SAMPLES - 2].get();
 
-			GFX::Cmd::BindRenderTarget(state, m_BloomTexturesUpsample[BLOOM_NUM_SAMPLES - 2].get());
 			GFX::Cmd::DrawFC(context, state);
 
 			for (int32_t i = BLOOM_NUM_SAMPLES - 3; i >= 0; i--)
@@ -143,8 +146,7 @@ Texture* PostprocessingRenderer::Process(GraphicsContext& context, Texture* colo
 				state.Table.CBVs[0] = CBManager.GetBuffer();
 				state.Table.SRVs[0] = m_BloomTexturesDownsample[i + 1].get();
 				state.Table.SRVs[1] = m_BloomTexturesDownsample[i].get();
-
-				GFX::Cmd::BindRenderTarget(state, m_BloomTexturesUpsample[i].get());
+				state.RenderTargets[0] = m_BloomTexturesUpsample[i].get();
 				GFX::Cmd::DrawFC(context, state);
 			}
 
@@ -163,13 +165,14 @@ Texture* PostprocessingRenderer::Process(GraphicsContext& context, Texture* colo
 		state.Table.CBVs[0] = CBManager.GetBuffer();
 		state.Table.SRVs[0] = hdrRT;
 		state.Table.SRVs[1] = m_BloomTexturesUpsample[0].get();
+		state.RenderTargets[0] = GetOutputTexture();
+		state.Shader = m_PostprocessShader.get();
 
 		std::vector<std::string> config{};
 		config.push_back("TONEMAPPING");
 		if (RenderSettings.Bloom.Enabled) config.push_back("APPLY_BLOOM");
+		state.ShaderConfig = config;
 
-		GFX::Cmd::BindRenderTarget(state, GetOutputTexture());
-		GFX::Cmd::BindShader(state, m_PostprocessShader.get(), PS | VS, config);
 		GFX::Cmd::DrawFC(context, state);
 		GFX::Cmd::MarkerEnd(context);
 
@@ -179,6 +182,8 @@ Texture* PostprocessingRenderer::Process(GraphicsContext& context, Texture* colo
 	// TAA
 	if (RenderSettings.AntialiasingMode == AntiAliasingMode::TAA)
 	{
+		GFX::Cmd::MarkerBegin(context, "TAA");
+
 		// TAA History
 		GFX::Cmd::CopyToTexture(context, m_TAAHistory[0].get(), m_TAAHistory[1].get());
 		GFX::Cmd::CopyToTexture(context, GetInputTexture(), m_TAAHistory[0].get());
@@ -186,10 +191,10 @@ Texture* PostprocessingRenderer::Process(GraphicsContext& context, Texture* colo
 		state.Table.SRVs[0] = m_TAAHistory[0].get();
 		state.Table.SRVs[1] = m_TAAHistory[1].get();
 		state.Table.SRVs[2] = motionVectorInput;
+		state.RenderTargets[0] = GetOutputTexture();
+		state.Shader = m_PostprocessShader.get();
+		state.ShaderConfig = { "TAA" };
 
-		GFX::Cmd::MarkerBegin(context, "TAA");
-		GFX::Cmd::BindRenderTarget(state, GetOutputTexture());
-		GFX::Cmd::BindShader(state, m_PostprocessShader.get(), VS | PS, {"TAA"});
 		GFX::Cmd::DrawFC(context, state);
 		GFX::Cmd::MarkerEnd(context);
 

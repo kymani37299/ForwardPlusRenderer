@@ -43,11 +43,6 @@ namespace GFX::Cmd
 
 	void DrawFC(GraphicsContext& context, GraphicsState& state);
 
-	void BindShader(GraphicsState& state, Shader* shader, uint8_t stages, std::vector<std::string> config = {}, bool multiInput = false);
-	void BindRenderTarget(GraphicsState& state, Texture* renderTarget);
-	void BindDepthStencil(GraphicsState& state, Texture* depthStencil);
-	void BindSampler(GraphicsState& state, uint32_t slot, D3D12_TEXTURE_ADDRESS_MODE addressMode, D3D12_FILTER filter);
-
 	void GenerateMips(GraphicsContext& context, Texture* texture);
 	void ResolveTexture(GraphicsContext& context, Texture* inputTexture, Texture* outputTexture);
 }

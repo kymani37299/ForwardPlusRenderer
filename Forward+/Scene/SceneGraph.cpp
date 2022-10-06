@@ -547,8 +547,8 @@ void TextureStorage::UpdateTexture(GraphicsContext& context, Allocation alloc, T
 	GFX::Cmd::MarkerBegin(context, "CopyTexture");
 	SSManager.Bind(updateState);
 	updateState.Table.SRVs.push_back(texture);
-	GFX::Cmd::BindShader(updateState, Device::Get()->GetCopyShader(), VS | PS);
-	GFX::Cmd::BindRenderTarget(updateState, m_StagingTexture.get());
+	updateState.Shader = Device::Get()->GetCopyShader();
+	updateState.RenderTargets.push_back(m_StagingTexture.get());
 	GFX::Cmd::DrawFC(context, updateState);
 	GFX::Cmd::MarkerEnd(context);
 	GFX::Cmd::GenerateMips(context, m_StagingTexture.get());

@@ -62,6 +62,7 @@ void Device::InitDevice()
 	m_Memory.SRVHeap = ScopedRef<DescriptorHeapCPU>(new DescriptorHeapCPU{ D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 20 * 1024u });
 	m_Memory.RTVHeap = ScopedRef<DescriptorHeapCPU>(new DescriptorHeapCPU{ D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 256u });
 	m_Memory.DSVHeap = ScopedRef<DescriptorHeapCPU>(new DescriptorHeapCPU{ D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 64u });
+	m_Memory.SMPHeap = ScopedRef<DescriptorHeapCPU>(new DescriptorHeapCPU{ D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 256u });
 
 	// Create swapchain
 	DXGI_SWAP_CHAIN_DESC desc;
@@ -166,15 +167,13 @@ void Device::RecreateSwapchain()
 
 void Device::EndFrame(Texture* texture)
 {
-	const CompiledShader& copyShader = GFX::GetCompiledShader(m_CopyShader.get(), {}, VS | PS);
-	
 	// Copy to swapchain
 	GFX::Cmd::MarkerBegin(*m_Context, "Copy to swapchain");
 	GraphicsState copyState;
 	copyState.Table.SRVs.push_back(texture);
-	GFX::Cmd::BindSampler(copyState, 0, D3D12_TEXTURE_ADDRESS_MODE_CLAMP, D3D12_FILTER_MIN_MAG_MIP_POINT);
-	GFX::Cmd::BindRenderTarget(copyState, m_SwapchainBuffers[m_CurrentSwapchainBuffer].get());
-	GFX::Cmd::BindShader(copyState, m_CopyShader.get(), VS | PS);
+	copyState.RenderTargets.push_back(m_SwapchainBuffers[m_CurrentSwapchainBuffer].get());
+	copyState.Shader = m_CopyShader.get();
+	copyState.Table.SMPs.push_back(Sampler{ D3D12_FILTER_MIN_MAG_MIP_POINT, D3D12_TEXTURE_ADDRESS_MODE_CLAMP });
 	GFX::Cmd::DrawFC(*m_Context, copyState);
 	GFX::Cmd::TransitionResource(*m_Context, m_SwapchainBuffers[m_CurrentSwapchainBuffer].get(), D3D12_RESOURCE_STATE_PRESENT);
 	GFX::Cmd::MarkerEnd(*m_Context);

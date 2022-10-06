@@ -97,7 +97,9 @@ void VertexPipeline::Draw_GPU(GraphicsContext& context, GraphicsState& state, Re
 		config.push_back("PREPARE_ARGUMENTS");
 		if (skipCulling) config.push_back("DRAW_ALL");
 
-		GFX::Cmd::BindShader(prepareState, m_PrepareArgsShader.get(), CS, { "PREPARE_ARGUMENTS" });
+		prepareState.Shader = m_PrepareArgsShader.get();
+		prepareState.ShaderStages = CS;
+		prepareState.ShaderConfig = { "PREPARE_ARGUMENTS" };
 		GFX::Cmd::BindState(context, prepareState);
 		context.CmdList->Dispatch(MathUtility::CeilDiv(rg.Drawables.GetSize(), WAVESIZE), 1, 1);
 
