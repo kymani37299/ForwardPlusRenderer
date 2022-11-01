@@ -56,7 +56,7 @@ namespace AnimationOperations
 
 	static float floatMod(float a, float b)
 	{
-		const uint32_t div = a / b;
+		const uint32_t div = (uint32_t) (a / b);
 		return a - div * b;
 	}
 

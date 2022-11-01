@@ -283,7 +283,7 @@ public:
 			lookupInitialized = true;
 		}
 		const uint8_t* bytePtr = reinterpret_cast<uint8_t*>(m_Data.data());
-		const uint32_t byteSize = MathUtility::CeilDiv(m_NumBits, 8);
+		const uint32_t byteSize = MathUtility::CeilDiv(m_NumBits, 8u);
 		uint32_t bitCount = 0;
 		for (uint32_t i = 0; i < byteSize; i++) bitCount += lookupTable[bytePtr[i]];
 		return bitCount;

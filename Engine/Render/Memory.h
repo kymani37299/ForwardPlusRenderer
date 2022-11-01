@@ -9,52 +9,62 @@
 struct Resource;
 struct Shader;
 
-using CPUAllocStrategy = ElementStrategy<size_t>;
-using GPUAllocStrategy = PageStrategy<size_t>;
-
-struct DescriptorHeapCPU
+struct DescriptorAllocation
 {
-	DescriptorHeapCPU(D3D12_DESCRIPTOR_HEAP_TYPE type, size_t numDescriptors);
-	D3D12_CPU_DESCRIPTOR_HANDLE Alloc();
-	void Release(D3D12_CPU_DESCRIPTOR_HANDLE& handle);
-
-	ComPtr<ID3D12DescriptorHeap> Heap;
-	D3D12_CPU_DESCRIPTOR_HANDLE HeapStart;
-
-	CPUAllocStrategy AllocStrategy;
-	size_t ElementSize;
+	bool Transient = false;
+	RangeAllocation HeapAlloc;
 };
 
-struct DescriptorHeapGPU
+class DescriptorHeapCPU
 {
-	struct Allocation
-	{
-		D3D12_CPU_DESCRIPTOR_HANDLE CPUHandle;
-		D3D12_GPU_DESCRIPTOR_HANDLE GPUHandle;
-	};
+public:
+	DescriptorHeapCPU(D3D12_DESCRIPTOR_HEAP_TYPE type, size_t numDescriptors);
+	D3D12_CPU_DESCRIPTOR_HANDLE Allocate();
+	void Release(D3D12_CPU_DESCRIPTOR_HANDLE& handle);
 
-	DescriptorHeapGPU(D3D12_DESCRIPTOR_HEAP_TYPE type, size_t numPages, size_t numDescriptors);
+	ID3D12DescriptorHeap* GetHeap() const { return m_Heap.Get(); }
 
-	GPUAllocStrategy::Page NewPage();
-	void ReleasePage(GPUAllocStrategy::Page& page);
-	Allocation Alloc(GPUAllocStrategy::Page& page);
+private:
+	ComPtr<ID3D12DescriptorHeap> m_Heap;
+	D3D12_CPU_DESCRIPTOR_HANDLE m_HeapStart;
 
-	ComPtr<ID3D12DescriptorHeap> Heap;
-	D3D12_CPU_DESCRIPTOR_HANDLE HeapStartCPU;
-	D3D12_GPU_DESCRIPTOR_HANDLE HeapStartGPU;
+	ElementStrategy m_AllocStrategy;
+	size_t m_ElementSize;
+};
 
-	GPUAllocStrategy AllocStrategy;
-	size_t ElementSize;
-	size_t PageSize;
+class DescriptorHeapGPU
+{
+public:
+	DescriptorHeapGPU(D3D12_DESCRIPTOR_HEAP_TYPE type, size_t numDescriptors, size_t numTransientDescriptors);
+
+	DescriptorAllocation Allocate(size_t numDescriptors, bool transient = false);
+	void Release(DescriptorAllocation& allocation);
+
+	D3D12_GPU_DESCRIPTOR_HANDLE GetGPUHandle(const DescriptorAllocation& alloc, size_t rangeIndex = 0);
+	D3D12_CPU_DESCRIPTOR_HANDLE GetCPUHandle(const DescriptorAllocation& alloc, size_t rangeIndex = 0);
+
+	ID3D12DescriptorHeap* GetHeap() const { return m_Heap.Get(); }
+private:
+	ComPtr<ID3D12DescriptorHeap> m_Heap;
+
+	D3D12_CPU_DESCRIPTOR_HANDLE m_HeapStartCPU;
+	D3D12_GPU_DESCRIPTOR_HANDLE m_HeapStartGPU;
+
+	D3D12_CPU_DESCRIPTOR_HANDLE m_HeapStartCPUTransient;
+	D3D12_GPU_DESCRIPTOR_HANDLE m_HeapStartGPUTransient;
+
+	RangeStrategy m_AllocStrategy;
+	RingRangeStrategy m_AllocStrategyTransient;
+	size_t m_ElementSize;
 };
 
 class DeferredTrash
 {
 private:
-	struct DescriptorPagesEntry
+	struct DescriptorAllocationEntry
 	{
 		DescriptorHeapGPU* DescriptorHeap;
-		GPUAllocStrategy::Page Page;
+		DescriptorAllocation DescriptorAlloc;
 	};
 
 	struct DescriptorEntry
@@ -66,14 +76,14 @@ private:
 	struct TrashBucket
 	{
 		std::vector<ComPtr<IUnknown>> DXResources;
-		std::vector<DescriptorPagesEntry> DescriptorPages;
+		std::vector<DescriptorAllocationEntry> DescriptorAllocations;
 		std::vector<DescriptorEntry> Descriptors;
 		std::vector<Shader*> Shaders;
 		std::vector<Resource*> Resources;
 	};
 public:
 	static void Put(IUnknown* resouce) { Buckets[CurrentBucket].DXResources.push_back(resouce); }
-	static void Put(DescriptorHeapGPU* heap, GPUAllocStrategy::Page page) { Buckets[CurrentBucket].DescriptorPages.push_back({heap, page}); }
+	static void Put(DescriptorHeapGPU* heap, DescriptorAllocation descriptorAlloc) { Buckets[CurrentBucket].DescriptorAllocations.push_back({heap, descriptorAlloc }); }
 	static void Put(DescriptorHeapCPU* heap, D3D12_CPU_DESCRIPTOR_HANDLE handle) { Buckets[CurrentBucket].Descriptors.push_back({heap, handle }); }
 	static void Put(Shader* shader) { Buckets[CurrentBucket].Shaders.push_back(shader); }
 	static void Put(Resource* resource) { Buckets[CurrentBucket].Resources.push_back(resource); }

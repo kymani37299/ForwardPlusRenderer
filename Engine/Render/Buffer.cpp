@@ -40,7 +40,7 @@ namespace GFX
 
 		// SRV
 		{
-			buffer->SRV = memory.SRVHeap->Alloc();
+			buffer->SRV = memory.SRVHeap->Allocate();
 
 			D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
 			srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
@@ -67,7 +67,7 @@ namespace GFX
 
 		if (buffer->CreationFlags & RCF_Bind_UAV)
 		{
-			buffer->UAV = memory.SRVHeap->Alloc();
+			buffer->UAV = memory.SRVHeap->Allocate();
 
 			D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
 			uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
@@ -95,7 +95,7 @@ namespace GFX
 
 		if (buffer->CreationFlags & RCF_Bind_CBV)
 		{
-			buffer->CBV = memory.SRVHeap->Alloc();
+			buffer->CBV = memory.SRVHeap->Allocate();
 
 			D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc{};
 			cbvDesc.BufferLocation = buffer->GPUAddress;

@@ -26,10 +26,8 @@ namespace GFX::Cmd
 		API_CALL(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(context->CmdFence.Handle.GetAddressOf())));
 		context->CmdFence.Value = 0;
 
-		// TODO: Lower number of pages somehow
-		context->MemContext.SRVHeap = DescriptorHeapGPU{ D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 4096u , 64u };
-		context->MemContext.SMPHeap = DescriptorHeapGPU{ D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 512u , 4u };
-		context->MemContext.SRVPersistentPage = context->MemContext.SRVHeap.NewPage();
+		context->MemContext.SRVHeap = DescriptorHeapGPU{ D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 64u * 1024, 256u * 1024u };
+		context->MemContext.SMPHeap = DescriptorHeapGPU{ D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 256u,  1024u };
 
 		return context;
 	}
@@ -319,8 +317,8 @@ namespace GFX::Cmd
 
 		D3D12_TEXTURE_COPY_LOCATION dstCopy{};
 		dstCopy.pResource = dstTexture->Handle.Get();
-		srcCopy.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-		srcCopy.SubresourceIndex = GFX::GetSubresourceIndex(dstTexture, mipIndex, 0);
+		dstCopy.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+		dstCopy.SubresourceIndex = GFX::GetSubresourceIndex(dstTexture, mipIndex, 0);
 
 		context.CmdList->CopyTextureRegion(&dstCopy, 0, 0, 0, &srcCopy, nullptr);
 	}
@@ -343,6 +341,7 @@ namespace GFX::Cmd
 	void GenerateMips(GraphicsContext& context, Texture* texture)
 	{
 		ASSERT(texture->DepthOrArraySize == 1, "GenerateMips not supported for texture arrays!");
+		ASSERT(texture->CreationFlags & RCF_Bind_RTV && texture->CreationFlags & RCF_GenerateMips, "RCF_Bind_RTV and RCF_GenerateMips flags needed for GenerateMips function!");
 
 		GFX::Cmd::MarkerBegin(context, "GenerateMips");
 
@@ -384,6 +383,39 @@ namespace GFX::Cmd
 		TransitionResource(context, inputTexture, D3D12_RESOURCE_STATE_RESOLVE_SOURCE);
 		TransitionResource(context, outputTexture, D3D12_RESOURCE_STATE_RESOLVE_DEST);
 		context.CmdList->ResolveSubresource(outputTexture->Handle.Get(), 0, inputTexture->Handle.Get(), 0, outputTexture->Format);
+	}
+
+	template<typename T>
+	BindlessTable CreateBindlessTable(GraphicsContext& context, std::vector<T*> resources, uint32_t registerSpace)
+	{
+		ASSERT(registerSpace > 0u, "[CreateBindlessTable] Bindless resources must exist on space that is not 0");
+		ASSERT(!resources.empty(), "[CreateBindlessTable] Cannot create bindless table with no resources!");
+
+		DescriptorHeapGPU& heap = context.MemContext.SRVHeap;
+
+		BindlessTable table;
+		table.DescriptorTable = heap.Allocate(resources.size());
+		table.RegisterSpace = registerSpace;
+		table.DescriptorCount = (uint32_t) resources.size();
+
+		// Fill descriptor table
+		for (uint32_t i = 0; i < resources.size(); i++)
+		{
+			const D3D12_CPU_DESCRIPTOR_HANDLE srcDescriptor = resources[i]->SRV;
+			const D3D12_CPU_DESCRIPTOR_HANDLE dstDescriptor = heap.GetCPUHandle(table.DescriptorTable, i);
+			Device::Get()->GetHandle()->CopyDescriptorsSimple(1, dstDescriptor, srcDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		}
+		
+		return table;
+	}
+
+	BindlessTable CreateBindlessTable(GraphicsContext& context, std::vector<Texture*> textures, uint32_t registerSpace) { return CreateBindlessTable<Texture>(context, textures, registerSpace); }
+	BindlessTable CreateBindlessTable(GraphicsContext& context, std::vector<Buffer*> buffers, uint32_t registerSpace) { return CreateBindlessTable<Buffer>(context, buffers, registerSpace); }
+
+	void ReleaseBindlessTable(GraphicsContext& context, const BindlessTable& table)
+	{
+		if(table.DescriptorTable.HeapAlloc.NumElements != INVALID_ALLOCATION)
+			DeferredTrash::Put(&context.MemContext.SRVHeap, table.DescriptorTable);
 	}
 
 }

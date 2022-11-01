@@ -17,10 +17,10 @@ struct VertexPipelinePushConstants
     uint DrawableID;
 };
 
-Texture2DArray Textures : register(t123);
 StructuredBuffer<Entity> Entities : register(t124);
 StructuredBuffer<Material> Materials : register(t125);
 StructuredBuffer<Drawable> Drawables : register(t126);
+Texture2D Textures[] : register(t0, space1);
 
 ConstantBuffer<VertexPipelinePushConstants> PushConstants : register(b128);
 

@@ -121,7 +121,7 @@ namespace SceneLoading
 		{
 			ASSERT(meshData->type == cgltf_primitive_type_triangles, "[SceneLoading] Scene contains quad meshes. We are supporting just triangle meshes.");
 
-			const uint32_t vertCount = meshData->attributes[0].data->count;
+			const uint32_t vertCount = (uint32_t) meshData->attributes[0].data->count;
 
 			Float3* positionData = nullptr;
 			Float2* uvData = nullptr;
@@ -175,11 +175,11 @@ namespace SceneLoading
 			}
 
 			MeshStorage& meshStorage = context.LoadingRG->MeshData;
-			MeshStorage::Allocation alloc = meshStorage.Allocate(*context.GfxContext, vertCount, indices.size());
+			MeshStorage::Allocation alloc = meshStorage.Allocate(*context.GfxContext, vertCount, (uint32_t) indices.size());
 
 			Mesh mesh;
 			mesh.VertCount = vertCount;
-			mesh.IndexCount = indices.size();
+			mesh.IndexCount = (uint32_t) indices.size();
 			mesh.VertOffset = alloc.VertexOffset;
 			mesh.IndexOffset = alloc.IndexOffset;
 			mesh.MeshletCullData = cullData;
@@ -194,7 +194,7 @@ namespace SceneLoading
 		BoundingSphere CalculateBoundingSphere(cgltf_primitive* meshData)
 		{
 			Float3* vertexData = nullptr;
-			uint32_t vertexCount = meshData->attributes[0].data->count;
+			uint32_t vertexCount = (uint32_t) meshData->attributes[0].data->count;
 
 			for (size_t i = 0; i < meshData->attributes_count && vertexData == nullptr; i++)
 			{
@@ -237,7 +237,7 @@ namespace SceneLoading
 
 		uint32_t LoadTexture(const LoadingContext& context, cgltf_texture* texture, ColorUNORM defaultColor = {1.0f, 1.0f, 1.0f, 1.0f})
 		{
-			TextureStorage::Allocation alloc = context.LoadingRG->TextureData.AllocTexture(*context.GfxContext);
+			uint32_t textureIndex = context.LoadingRG->TextureData.AllocTexture();
 
 			std::string texturePath = "";
 			if (texture)
@@ -248,14 +248,14 @@ namespace SceneLoading
 
 			if (AppConfig.Settings.contains("MTR_LOADING"))
 			{
-				RenderThreadPool::Get()->Submit(new TextureLoadingTask(texturePath, alloc, context.LoadingRG->TextureData, defaultColor));
+				RenderThreadPool::Get()->Submit(new TextureLoadingTask(texturePath, textureIndex, context.LoadingRG->TextureData, defaultColor));
 			}
 			else
 			{
-				Device::Get()->GetTaskExecutor().Submit(new TextureLoadingTask(texturePath, alloc, context.LoadingRG->TextureData, defaultColor));
+				Device::Get()->GetTaskExecutor().Submit(new TextureLoadingTask(texturePath, textureIndex, context.LoadingRG->TextureData, defaultColor));
 			}
 			
-			return alloc.TextureIndex;
+			return textureIndex;
 		}
 
 		RenderGroupType GetRenderGroupType(const Material& material)
@@ -312,7 +312,7 @@ namespace SceneLoading
 			}
 
 			XMMATRIX transform = XMMatrixIdentity();
-			for (int32_t i = hierarchy.size()-1; i >= 0; i--)
+			for (int32_t i = (int32_t) hierarchy.size()-1; i >= 0; i--)
 			{
 				cgltf_node* node = hierarchy[i];
 				if (node->has_matrix)
@@ -337,7 +337,7 @@ namespace SceneLoading
 			std::vector<LoadedObject> objects;
 			if (nodeData->mesh)
 			{
-				uint32_t entityIndex = sceneRef.Entities.size();
+				uint32_t entityIndex = (uint32_t) sceneRef.Entities.size();
 
 				Entity e;
 				e.BaseTransform = CalcBaseTransform(nodeData);

@@ -45,4 +45,9 @@ namespace GFX::Cmd
 
 	void GenerateMips(GraphicsContext& context, Texture* texture);
 	void ResolveTexture(GraphicsContext& context, Texture* inputTexture, Texture* outputTexture);
+
+	// Bindless table can only be used with context it is created
+	BindlessTable CreateBindlessTable(GraphicsContext& context, std::vector<Texture*> textures, uint32_t registerSpace);
+	BindlessTable CreateBindlessTable(GraphicsContext& context, std::vector<Buffer*> buffers, uint32_t registerSpace);
+	void ReleaseBindlessTable(GraphicsContext& context, const BindlessTable& table);
 }

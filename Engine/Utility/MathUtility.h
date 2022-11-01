@@ -5,7 +5,8 @@
 namespace MathUtility
 {
 	// ceil(a/b)
-	inline uint32_t CeilDiv(uint32_t a, uint32_t b) { return (a + b - 1) / b; }
+	template<typename T>
+	inline T CeilDiv(T a, T b) { return (a + b - 1) / b; }
 
 	template<typename T>
 	T Lerp(const T& a, const T& b, float t) { return a + t * (b - a); }

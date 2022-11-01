@@ -76,7 +76,7 @@ void PS(VertexOut IN)
 {
 #ifdef ALPHA_DISCARD
 	const Material matParams = Materials[IN.MaterialIndex];
-	const float alpha = Textures.Sample(s_AnisoWrap, float3(IN.Texcoord, matParams.Albedo)).a;
+	const float alpha = Textures[matParams.Albedo].Sample(s_AnisoWrap, IN.Texcoord).a;
 
 	if (alpha < 0.05f)
 		clip(-1.0f);

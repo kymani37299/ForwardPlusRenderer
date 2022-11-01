@@ -33,7 +33,7 @@ void VertexPipeline::Init(GraphicsContext& context)
 
 void VertexPipeline::Draw(GraphicsContext& context, GraphicsState& state, RenderGroup& rg, bool skipCulling)
 {
-	if (rg.Drawables.GetSize() == 0) return;
+	if (rg.Drawables.GetSize() == 0u) return;
 
 	if (RenderSettings.Culling.GeometryCullingOnCPU)
 	{
@@ -75,9 +75,7 @@ void VertexPipeline::Draw_GPU(GraphicsContext& context, GraphicsState& state, Re
 {
 	// Prepare args
 	{
-		GFX::Cmd::MarkerBegin(context, "VertexPipeline::Prepare");
-
-		GFX::ExpandBuffer(context, m_IndirectArgumentsBuffer.get(), INDIRECT_ARGUMENTS_STRIDE * rg.Drawables.GetSize());
+		GFX::ExpandBuffer(context, m_IndirectArgumentsBuffer.get(), INDIRECT_ARGUMENTS_STRIDE * (UINT) rg.Drawables.GetSize());
 
 		const uint32_t clearValue = 0;
 		GFX::Cmd::UploadToBuffer(context, m_IndirectArgumentsCountBuffer.get(), 0, &clearValue, 0, sizeof(uint32_t));
@@ -99,18 +97,14 @@ void VertexPipeline::Draw_GPU(GraphicsContext& context, GraphicsState& state, Re
 
 		prepareState.Shader = m_PrepareArgsShader.get();
 		prepareState.ShaderStages = CS;
-		prepareState.ShaderConfig = { "PREPARE_ARGUMENTS" };
+		prepareState.ShaderConfig = config;
 		GFX::Cmd::BindState(context, prepareState);
-		context.CmdList->Dispatch(MathUtility::CeilDiv(rg.Drawables.GetSize(), WAVESIZE), 1, 1);
-
-		GFX::Cmd::MarkerEnd(context);
+		context.CmdList->Dispatch(MathUtility::CeilDiv(rg.Drawables.GetSize(), (uint32_t) WAVESIZE), 1, 1);
 	}
 
 
 	// Execute draws
 	{
-		GFX::Cmd::MarkerBegin(context, "VertexPipeline::Execute");
-
 		D3D12_INDIRECT_ARGUMENT_DESC indirectArguments[2];
 		indirectArguments[0].Type = D3D12_INDIRECT_ARGUMENT_TYPE_CONSTANT;
 		indirectArguments[0].Constant.DestOffsetIn32BitValues = 0;
@@ -133,8 +127,6 @@ void VertexPipeline::Draw_GPU(GraphicsContext& context, GraphicsState& state, Re
 		GFX::Cmd::TransitionResource(context, m_IndirectArgumentsBuffer.get(), D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
 
 		ID3D12CommandSignature* commandSignature = GFX::Cmd::BindState(context, state);
-		context.CmdList->ExecuteIndirect(commandSignature, rg.Drawables.GetSize(), m_IndirectArgumentsBuffer->Handle.Get(), 0, m_IndirectArgumentsCountBuffer->Handle.Get(), 0);
-
-		GFX::Cmd::MarkerEnd(context);
+		context.CmdList->ExecuteIndirect(commandSignature, (UINT) rg.Drawables.GetSize(), m_IndirectArgumentsBuffer->Handle.Get(), 0, m_IndirectArgumentsCountBuffer->Handle.Get(), 0u);
 	}
 }

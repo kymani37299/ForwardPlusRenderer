@@ -25,7 +25,7 @@ struct BloomSettings
 
 struct SSAOSettings
 {
-	bool Enabled = true;
+	bool Enabled = false;
 	float DepthBias = 0.0001f;
 	float SampleRadius = 0.5f;
 	float Power = 1.5f;

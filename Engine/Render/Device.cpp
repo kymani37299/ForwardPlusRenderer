@@ -153,7 +153,7 @@ void Device::RecreateSwapchain()
 		m_SwapchainBuffers[i]->Format = SWAPCHAIN_DEFAULT_FORMAT;
 		// m_SwapchainBuffers[i]->RowPitch = TODO
 		// m_SwapchainBuffers[i]->SlicePitch = 
-		m_SwapchainBuffers[i]->RTV = m_Memory.RTVHeap->Alloc();
+		m_SwapchainBuffers[i]->RTV = m_Memory.RTVHeap->Allocate();
 
 		D3D12_RENDER_TARGET_VIEW_DESC rtViewDesc{};
 		rtViewDesc.Format = SWAPCHAIN_DEFAULT_FORMAT;

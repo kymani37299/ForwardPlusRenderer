@@ -64,6 +64,15 @@ namespace
 		const float DEG_2_RAD = 3.1415f / 180.0f;
 		return deg * DEG_2_RAD;
 	}
+
+	Float4 CreateFrustumPlane(Float3 p0, Float3 p1, Float3 p2)
+	{
+		const Float3 v = p1 - p0;
+		const Float3 u = p2 - p0;
+		const Float3 normal = v.Cross(u).Normalize();
+
+		return Float4(normal.x, normal.y, normal.z, -normal.Dot(p0));
+	}
 }
 
 void ViewFrustum::Update(const Camera& c)
@@ -91,12 +100,12 @@ void ViewFrustum::Update(const Camera& c)
 	const Float3 nbl = nc - (hnear / 2.0f) * t.Up - (wnear / 2.0f) * t.Right;
 	const Float3 nbr = nc - (hnear / 2.0f) * t.Up + (wnear / 2.0f) * t.Right;
 
-	Planes[0] = FrustumPlane{ ntr, ntl, ftl };	// Top
-	Planes[1] = FrustumPlane{ nbl, nbr, fbr };	// Bottom
-	Planes[2] = FrustumPlane{ ntl, nbl, fbl };	// Left
-	Planes[3] = FrustumPlane{ nbr, ntr, fbr };	// Right
-	Planes[4] = FrustumPlane{ ntl, ntr, nbr };	// Near
-	Planes[5] = FrustumPlane{ ftr, ftl, fbl };	// Far
+	Planes[0] = CreateFrustumPlane( ntr, ntl, ftl );	// Top
+	Planes[1] = CreateFrustumPlane( nbl, nbr, fbr );	// Bottom
+	Planes[2] = CreateFrustumPlane( ntl, nbl, fbl );	// Left
+	Planes[3] = CreateFrustumPlane( nbr, ntr, fbr );	// Right
+	Planes[4] = CreateFrustumPlane( ntl, ntr, nbr );	// Near
+	Planes[5] = CreateFrustumPlane(ftr, ftl, fbl);	// Far
 }
 
 void Material::UpdateBuffer(GraphicsContext& context, RenderGroup& renderGroup)
@@ -207,7 +216,7 @@ Camera Camera::CreateOrtho(float rectWidth, float rectHeight, float znear, float
 	cam.RectWidth = rectWidth;
 	cam.RectHeight = rectHeight;
 	cam.ZNear = znear;
-	cam.ZFar;
+	cam.ZFar = zfar;
 	return cam;
 }
 
@@ -280,7 +289,7 @@ void RenderGroup::Initialize(GraphicsContext& context)
 	Meshes.Initialize("ElementBuffer::Meshes");
 	Drawables.Initialize("ElementBuffer::Drawables");
 	MeshData.Initialize();
-	TextureData.Initialize();
+	TextureData.Initialize(context);
 
 	VisibilityMaskBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_UAV));
 }
@@ -304,7 +313,7 @@ uint32_t RenderGroup::AddMaterial(GraphicsContext& context, Material& material)
 
 uint32_t RenderGroup::AddMesh(GraphicsContext& context, Mesh& mesh)
 {
-	const uint32_t index = Meshes.Next();
+	const uint32_t index = (uint32_t) Meshes.Next();
 	mesh.MeshIndex = index;
 	Meshes[index] = mesh;
 
@@ -367,12 +376,13 @@ void RenderGroup::AddDraw(GraphicsContext& context, uint32_t materialIndex, uint
 
 void RenderGroup::SetupPipelineInputs(GraphicsState& state)
 {
-	if(state.Table.SRVs.size() < 127) state.Table.SRVs.resize(127);
+	if (state.Table.SRVs.size() < 127) state.Table.SRVs.resize(127);
+	if (state.BindlessTables.empty()) state.BindlessTables.resize(1);
 
-	state.Table.SRVs[123] = TextureData.GetBuffer();
 	state.Table.SRVs[124] = MainSceneGraph->Entities.GetBuffer();
 	state.Table.SRVs[125] = Materials.GetBuffer();
 	state.Table.SRVs[126] = Drawables.GetBuffer();
+	state.BindlessTables[0] = TextureData.GetBindlessTable();
 }
 
 SceneGraph::SceneGraph() :
@@ -400,6 +410,12 @@ void SceneGraph::FrameUpdate(GraphicsContext& context)
 {
 	MainCamera.FrameUpdate(context);
 
+	// Render group date
+	for (uint32_t i = 0; i < EnumToInt(RenderGroupType::Count); i++)
+	{
+		RenderGroups[i].TextureData.Update(context);
+	}
+
 	// Shadow camera
 	{
 		ShadowCamera.NextTransform.Position = MainCamera.CurrentTranform.Position;
@@ -421,7 +437,7 @@ void SceneGraph::FrameUpdate(GraphicsContext& context)
 
 uint32_t SceneGraph::AddEntity(GraphicsContext& context, Entity entity)
 {
-	const uint32_t index = Entities.Next();
+	const uint32_t index = (uint32_t) Entities.Next();
 	entity.EntityIndex = index;
 	Entities[index] = entity;
 	
@@ -509,67 +525,53 @@ MeshStorage::Allocation MeshStorage::Allocate(GraphicsContext& context, uint32_t
 	return alloc;
 }
 
-TextureStorage::TextureStorage()
-{
-
-}
-
 TextureStorage::~TextureStorage()
 {
-
+	for (Texture* tex : m_Textures) 
+		if(tex != m_EmptyTexture.get()) 
+			delete tex;
 }
 
-void TextureStorage::Initialize()
+void TextureStorage::Initialize(GraphicsContext& context)
 {
-	m_Data = ScopedRef<Texture>(GFX::CreateTextureArray(TEXTURE_SIZE, TEXTURE_SIZE, MAX_TEXTURES, RCF_None, TEXTURE_MIPS));
-	m_StagingTexture = ScopedRef<Texture>(GFX::CreateTexture(TEXTURE_SIZE, TEXTURE_SIZE, RCF_Bind_RTV | RCF_GenerateMips, TEXTURE_MIPS));
+	ColorUNORM defaultColor{ (unsigned char) 0, 0, 0, 255 };
+	ResourceInitData initData = { &context, &defaultColor };
+	m_EmptyTexture = ScopedRef<Texture>(GFX::CreateTexture(1, 1, RCF_None, 1, DXGI_FORMAT_R8G8B8A8_UNORM, &initData));
+	m_Textures.resize(MAX_TEXTURE_COUNT);
+
+	for(uint32_t i=0;i<MAX_TEXTURE_COUNT;i++)
+		m_Textures[i] = m_EmptyTexture.get();
 }
 
-TextureStorage::Allocation TextureStorage::AddTexture(GraphicsContext& context, Texture* texture)
+void TextureStorage::Update(GraphicsContext& context)
 {
-	Allocation alloc = AllocTexture(context);
-	UpdateTexture(context, alloc, texture);
-	return alloc;
+	while (m_TableDirty)
+	{
+		m_TableDirty = false;
+		GFX::Cmd::ReleaseBindlessTable(context, m_Table);
+		m_Table = GFX::Cmd::CreateBindlessTable(context, m_Textures, REGISTER_SPACE);
+	}
 }
 
-TextureStorage::Allocation TextureStorage::AllocTexture(GraphicsContext& context)
+uint32_t TextureStorage::AllocTexture()
 {
 	const uint32_t textureIndex = m_NextAllocation++;
-	ASSERT(textureIndex < MAX_TEXTURES, "textureIndex < SceneGraph::MAX_TEXTURES");
-	return { textureIndex };
+	ASSERT(m_NextAllocation < MAX_TEXTURE_COUNT, "[TextureStorage] Too many textures!");
+	m_Textures[textureIndex] = m_EmptyTexture.get();
+	m_TableDirty = true;
+	return textureIndex;
 }
 
-void TextureStorage::UpdateTexture(GraphicsContext& context, Allocation alloc, Texture* texture)
+void TextureStorage::UpdateTexture(uint32_t textureIndex, Texture* texture)
 {
-	GraphicsState updateState{};
+	m_Textures[textureIndex] = texture;
+	m_TableDirty = true;
+}
 
-	// Resize texture and generate mips
-	GFX::Cmd::MarkerBegin(context, "CopyTexture");
-	SSManager.Bind(updateState);
-	updateState.Table.SRVs.push_back(texture);
-	updateState.Shader = Device::Get()->GetCopyShader();
-	updateState.RenderTargets.push_back(m_StagingTexture.get());
-	GFX::Cmd::DrawFC(context, updateState);
-	GFX::Cmd::MarkerEnd(context);
-	GFX::Cmd::GenerateMips(context, m_StagingTexture.get());
+uint32_t TextureStorage::AddTexture(Texture* texture)
+{
+	const uint32_t texIndex = AllocTexture();
+	UpdateTexture(texIndex, texture);
+	return texIndex;
 
-	// Copy to the array
-	ASSERT(m_StagingTexture->Format == texture->Format, "m_StagingTexture->Format == texture->Format");
-
-	GFX::Cmd::TransitionResource(context, m_StagingTexture.get(), D3D12_RESOURCE_STATE_COPY_SOURCE);
-	GFX::Cmd::TransitionResource(context, m_Data.get(), D3D12_RESOURCE_STATE_COPY_DEST);
-	for (uint32_t mip = 0; mip < TEXTURE_MIPS; mip++)
-	{
-		D3D12_TEXTURE_COPY_LOCATION srcCopy{};
-		srcCopy.pResource = m_StagingTexture->Handle.Get();
-		srcCopy.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-		srcCopy.SubresourceIndex = GFX::GetSubresourceIndex(m_StagingTexture.get(), mip, 0);
-
-		D3D12_TEXTURE_COPY_LOCATION dstCopy{};
-		dstCopy.pResource = m_Data->Handle.Get();
-		dstCopy.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-		dstCopy.SubresourceIndex = GFX::GetSubresourceIndex(m_Data.get(), mip, alloc.TextureIndex);
-
-		context.CmdList->CopyTextureRegion(&dstCopy, 0, 0, 0, &srcCopy, nullptr);
-	}
 }

@@ -20,7 +20,7 @@ static Buffer* GenerateSphereVB(GraphicsContext& context)
 {
 	constexpr uint32_t parallels = 11;
 	constexpr uint32_t meridians = 22;
-	constexpr float PI = 3.14159265358979323846;
+	constexpr float PI = 3.14159265358979323846f;
 
 	std::vector<Float3> verticesRaw;
 	std::vector<Float3> vertices;
@@ -33,7 +33,7 @@ static Buffer* GenerateSphereVB(GraphicsContext& context)
 		float cp = std::cos(polar);
 		for (uint32_t i = 0; i < meridians; ++i)
 		{
-			float azimuth = 2.0 * PI * float(i) / float(meridians);
+			float azimuth = 2.0f * PI * float(i) / float(meridians);
 			float sa = std::sin(azimuth);
 			float ca = std::cos(azimuth);
 			float x = sp * ca;
@@ -82,7 +82,7 @@ static Buffer* GenerateSphereVB(GraphicsContext& context)
 	}
 
 	ResourceInitData initData{ &context , vertices.data() };
-	return GFX::CreateVertexBuffer<Float3>(vertices.size(), &initData);
+	return GFX::CreateVertexBuffer<Float3>((uint32_t) vertices.size(), &initData);
 }
 
 Buffer* GenerateCubeVB(GraphicsContext& context)
@@ -119,7 +119,8 @@ void DebugRenderer::Draw(GraphicsContext& context, Texture* colorTarget, Texture
 				const float maxScale = MAX(MAX(e.Scale.x, e.Scale.y), e.Scale.z);
 
 				BoundingSphere bs = e.GetBoundingVolume();
-				DrawSphere(bs.Center, Float4(Random::UNorm(i), Random::UNorm(i + 1), Random::UNorm(i + 2), 0.2f), { bs.Radius, bs.Radius, bs.Radius });
+				const float fi = (float)i;
+				DrawSphere(bs.Center, Float4(Random::UNorm(fi), Random::UNorm(fi + 1.0f), Random::UNorm(fi + 2.0f), 0.2f), { bs.Radius, bs.Radius, bs.Radius });
 			}
 		}
 	}
@@ -208,9 +209,9 @@ void DebugRenderer::DrawGeometries(GraphicsContext& context, GraphicsState& stat
 
 		if (debugGeometries.size() > m_DebugGeometriesBuffer->ByteSize / m_DebugGeometriesBuffer->Stride)
 		{
-			GFX::ResizeBuffer(context, m_DebugGeometriesBuffer.get(), debugGeometries.size() * m_DebugGeometriesBuffer->Stride);
+			GFX::ResizeBuffer(context, m_DebugGeometriesBuffer.get(), (uint32_t) debugGeometries.size() * m_DebugGeometriesBuffer->Stride);
 		}
-		GFX::Cmd::UploadToBuffer(context, m_DebugGeometriesBuffer.get(), 0, debugGeometries.data(), 0, debugGeometries.size() * m_DebugGeometriesBuffer->Stride);
+		GFX::Cmd::UploadToBuffer(context, m_DebugGeometriesBuffer.get(), 0, debugGeometries.data(), 0, (uint32_t) debugGeometries.size() * m_DebugGeometriesBuffer->Stride);
 		state.Table.SRVs[0] = m_DebugGeometriesBuffer.get();
 
 		CBManager.Clear();
@@ -218,7 +219,7 @@ void DebugRenderer::DrawGeometries(GraphicsContext& context, GraphicsState& stat
 		state.Table.CBVs[0] = CBManager.GetBuffer();
 		state.VertexBuffers[0] = typeToVB[i];
 		GFX::Cmd::BindState(context, state);
-		context.CmdList->DrawInstanced(m_SphereVB->ByteSize / m_SphereVB->Stride, debugGeometries.size(), 0, 0);
+		context.CmdList->DrawInstanced(m_SphereVB->ByteSize / m_SphereVB->Stride, (uint32_t) debugGeometries.size(), 0, 0);
 		debugGeometries.clear();
 	}
 

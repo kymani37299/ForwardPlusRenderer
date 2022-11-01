@@ -41,7 +41,7 @@ static void ProcessAllCubemapFaces(GraphicsContext& context, GraphicsState& face
 	for (uint32_t i = 0; i < 6; i++)
 	{
 		DescriptorHeapCPU* heap = Device::Get()->GetMemory().RTVHeap.get();
-		D3D12_CPU_DESCRIPTOR_HANDLE rtvDescriptor = heap->Alloc();
+		D3D12_CPU_DESCRIPTOR_HANDLE rtvDescriptor = heap->Allocate();
 		DeferredTrash::Put(heap, rtvDescriptor);
 
 		D3D12_RENDER_TARGET_VIEW_DESC rtvDesc{};

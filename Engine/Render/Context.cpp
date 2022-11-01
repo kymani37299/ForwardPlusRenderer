@@ -106,6 +106,27 @@ static std::vector<D3D12_DESCRIPTOR_RANGE> CreateDescriptorRanges(std::vector<Re
 	return ranges;
 }
 
+static std::vector<D3D12_DESCRIPTOR_RANGE> CreateDescriptorRanges(const std::vector<BindlessTable>& bindlessTables, D3D12_DESCRIPTOR_RANGE_TYPE rangeType)
+{
+	ASSERT(rangeType == D3D12_DESCRIPTOR_RANGE_TYPE_SRV, "Bindless tables only supported for SRVs!");
+
+	std::vector<D3D12_DESCRIPTOR_RANGE> ranges;
+
+	for (const BindlessTable& table : bindlessTables)
+	{
+		ASSERT(table.RegisterSpace != 0 && table.DescriptorCount != 0, "table.RegisterSpace != 0 && table.DescriptorCount != 0");
+
+		D3D12_DESCRIPTOR_RANGE range;
+		range.RangeType = rangeType;
+		range.BaseShaderRegister = 0;
+		range.NumDescriptors = table.DescriptorCount;
+		range.RegisterSpace = table.RegisterSpace;
+		range.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+		ranges.push_back(range);
+	}
+	return ranges;
+}
+
 namespace
 {
 	enum class BindingType
@@ -168,6 +189,16 @@ static uint32_t CalcRootSignatureHash(const GraphicsState& state)
 	for (uint32_t i = 0; i < state.Table.UAVs.size(); i++) if (state.Table.UAVs[i]) sigHash = Hash::Crc32(sigHash, i);
 	sigHash = Hash::Crc32(sigHash, "SMP");
 	for (uint32_t i = 0; i < state.Table.SMPs.size(); i++) sigHash = Hash::Crc32(sigHash, i);
+	sigHash = Hash::Crc32(sigHash, "BTS");
+	for (const BindlessTable& table : state.BindlessTables)
+	{
+		sigHash = Hash::Crc32(sigHash, "1");
+		sigHash = Hash::Crc32(sigHash, table.RegisterSpace);
+		sigHash = Hash::Crc32(sigHash, "2");
+		sigHash = Hash::Crc32(sigHash, table.DescriptorCount);
+		sigHash = Hash::Crc32(sigHash, "3");
+		sigHash = Hash::Crc32(sigHash, table.DescriptorTable);
+	}
 	return sigHash;
 }
 
@@ -178,9 +209,10 @@ static ID3D12RootSignature* GetOrCreateRootSignature(const GraphicsState& state)
 
 	ID3D12RootSignature* rootSignature = nullptr;
 
+	constexpr uint32_t NumDescriptorTables = 5;
 	const BindTable& table = state.Table;
 	std::vector<D3D12_ROOT_PARAMETER> rootParameters;
-	std::vector<D3D12_DESCRIPTOR_RANGE> descriptorRanges[4];
+	std::vector<D3D12_DESCRIPTOR_RANGE> descriptorRanges[NumDescriptorTables];
 	descriptorRanges[0] = CreateDescriptorRanges(table.CBVs, D3D12_DESCRIPTOR_RANGE_TYPE_CBV);
 	descriptorRanges[1] = CreateDescriptorRanges(table.SRVs, D3D12_DESCRIPTOR_RANGE_TYPE_SRV);
 	descriptorRanges[2] = CreateDescriptorRanges(table.UAVs, D3D12_DESCRIPTOR_RANGE_TYPE_UAV);
@@ -193,6 +225,7 @@ static ID3D12RootSignature* GetOrCreateRootSignature(const GraphicsState& state)
 		descriptorRanges[3][0].RegisterSpace = 0;
 		descriptorRanges[3][0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 	}
+	descriptorRanges[4] = CreateDescriptorRanges(state.BindlessTables, D3D12_DESCRIPTOR_RANGE_TYPE_SRV);
 
 	if (!state.PushConstants.empty())
 	{
@@ -205,7 +238,7 @@ static ID3D12RootSignature* GetOrCreateRootSignature(const GraphicsState& state)
 		rootParameters.push_back(rootParamater);
 	}
 
-	for (uint32_t i = 0; i < 4; i++)
+	for (uint32_t i = 0; i < NumDescriptorTables; i++)
 	{
 		if (descriptorRanges[i].empty()) continue;
 
@@ -333,14 +366,14 @@ static D3D12_CPU_DESCRIPTOR_HANDLE GetSamplerDescriptor(const Sampler& sampler)
 	const uint32_t samplerHash = Hash::Crc32(samplerDesc);
 	if (!SamplerCache.contains(samplerHash))
 	{
-		SamplerCache[samplerHash] = Device::Get()->GetMemory().SMPHeap->Alloc();
+		SamplerCache[samplerHash] = Device::Get()->GetMemory().SMPHeap->Allocate();
 		Device::Get()->GetHandle()->CreateSampler(&samplerDesc, SamplerCache[samplerHash]);
 	}
 
 	return SamplerCache[samplerHash];
 }
 
-static void UpdateDescriptorData(const std::vector<Resource*>& bindings, DescriptorHeapGPU& heap, GPUAllocStrategy::Page& page, BindingType bindingType)
+static DescriptorAllocation CreateDescriptorTable(GraphicsContext& context, const std::vector<Resource*>& bindings, BindingType bindingType)
 {
 	const auto getDescriptor = [](Resource* resource, BindingType type)
 	{
@@ -355,14 +388,21 @@ static void UpdateDescriptorData(const std::vector<Resource*>& bindings, Descrip
 		return D3D12_CPU_DESCRIPTOR_HANDLE{};
 	};
 
+	std::vector<Resource*> bindingsToUpload{};
 	for (Resource* binding : bindings)
 	{
-		if (!binding) continue;
-
-		const D3D12_CPU_DESCRIPTOR_HANDLE descriptor = getDescriptor(binding, bindingType);
-		const DescriptorHeapGPU::Allocation gpuAlloc = heap.Alloc(page);
-		Device::Get()->GetHandle()->CopyDescriptorsSimple(1, gpuAlloc.CPUHandle, descriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		if (binding) bindingsToUpload.push_back(binding);
 	}
+	DescriptorHeapGPU& heap = context.MemContext.SRVHeap;
+	DescriptorAllocation alloc = heap.Allocate(bindingsToUpload.size(), true);
+
+	for (size_t i = 0; i < bindingsToUpload.size(); i++)
+	{
+		const D3D12_CPU_DESCRIPTOR_HANDLE srcDescriptor = getDescriptor(bindingsToUpload[i], bindingType);
+		const D3D12_CPU_DESCRIPTOR_HANDLE dstDescriptor = heap.GetCPUHandle(alloc, i);
+		Device::Get()->GetHandle()->CopyDescriptorsSimple(1, dstDescriptor, srcDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	}
+	return alloc;
 }
 
 ID3D12CommandSignature* ApplyGraphicsState(GraphicsContext& context, const GraphicsState& state)
@@ -372,8 +412,6 @@ ID3D12CommandSignature* ApplyGraphicsState(GraphicsContext& context, const Graph
 
 	std::vector<D3D12_RESOURCE_BARRIER> barriers;
 	
-	GPUAllocStrategy::Page pages[4];
-
 	const bool useCompute = state.ShaderStages & CS;
 
 	// Root Signature
@@ -389,17 +427,13 @@ ID3D12CommandSignature* ApplyGraphicsState(GraphicsContext& context, const Graph
 
 	if (pipelineDirty)
 	{
-		ID3D12DescriptorHeap* descriptorHeaps[] = { context.MemContext.SRVHeap.Heap.Get(), context.MemContext.SMPHeap.Heap.Get() };
-		cmdList->SetDescriptorHeaps(2, descriptorHeaps);
+		std::vector<ID3D12DescriptorHeap*> descriptorHeaps{};
+		descriptorHeaps.push_back(context.MemContext.SRVHeap.GetHeap());
+		descriptorHeaps.push_back(context.MemContext.SMPHeap.GetHeap());
+		cmdList->SetDescriptorHeaps((UINT) descriptorHeaps.size(), descriptorHeaps.data());
 
-		if (useCompute)
-		{
-			cmdList->SetComputeRootSignature(rootSignature);
-		}
-		else
-		{
-			cmdList->SetGraphicsRootSignature(rootSignature);
-		}
+		if (useCompute) cmdList->SetComputeRootSignature(rootSignature);
+		else cmdList->SetGraphicsRootSignature(rootSignature);
 		cmdList->SetPipelineState(pipelineState);
 	}
 
@@ -480,63 +514,57 @@ ID3D12CommandSignature* ApplyGraphicsState(GraphicsContext& context, const Graph
 		}
 	}
 
-	// Update descriptor data
 	{
+		DescriptorAllocation descriptorTables[4];
+
+		// Allocate and populate descriptor tables
 		MemoryContext& memContext = context.MemContext;
-		ASSERT(memContext.SRVHeap.AllocStrategy.CanAllocate(3), "DescriptorHeapGPU memory overflow!");
-		ASSERT(memContext.SMPHeap.AllocStrategy.CanAllocate(1), "DescriptorHeapGPU memory overflow!");
+		descriptorTables[0] = CreateDescriptorTable(context, state.Table.CBVs, BindingType::CBV);
+		descriptorTables[1] = CreateDescriptorTable(context, state.Table.SRVs, BindingType::SRV);
+		descriptorTables[2] = CreateDescriptorTable(context, state.Table.UAVs, BindingType::UAV);
+		descriptorTables[3] = memContext.SMPHeap.Allocate(state.Table.SMPs.size(), true);
 
-		for (uint32_t i = 0; i < 3; i++)
+		for (size_t i = 0; i < state.Table.SMPs.size(); i++)
 		{
-			pages[i] = memContext.SRVHeap.AllocStrategy.AllocatePage();
-			DeferredTrash::Put(&memContext.SRVHeap, pages[i]);
-		}
-		pages[3] = memContext.SMPHeap.AllocStrategy.AllocatePage();
-		DeferredTrash::Put(&memContext.SMPHeap, pages[3]);
-
-		UpdateDescriptorData(state.Table.CBVs, memContext.SRVHeap, pages[0], BindingType::CBV);
-		UpdateDescriptorData(state.Table.SRVs, memContext.SRVHeap, pages[1], BindingType::SRV);
-		UpdateDescriptorData(state.Table.UAVs, memContext.SRVHeap, pages[2], BindingType::UAV);
-		for (const Sampler& sampler : state.Table.SMPs)
-		{
-			const D3D12_CPU_DESCRIPTOR_HANDLE descriptor = GetSamplerDescriptor(sampler);
-			const DescriptorHeapGPU::Allocation gpuAlloc = memContext.SMPHeap.Alloc(pages[3]);
-			Device::Get()->GetHandle()->CopyDescriptorsSimple(1, gpuAlloc.CPUHandle, descriptor, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+			const D3D12_CPU_DESCRIPTOR_HANDLE srcDescriptor = GetSamplerDescriptor(state.Table.SMPs[i]);
+			const D3D12_CPU_DESCRIPTOR_HANDLE dstDescriptor = memContext.SMPHeap.GetCPUHandle(descriptorTables[3], i);
+			Device::Get()->GetHandle()->CopyDescriptorsSimple(1, dstDescriptor, srcDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
 		}
 
+		// Add resource transitions
 		for (Resource* bind : state.Table.CBVs) GFX::Cmd::AddResourceTransition(barriers, bind, D3D12_RESOURCE_STATE_GENERIC_READ);
 		for (Resource* bind : state.Table.SRVs) GFX::Cmd::AddResourceTransition(barriers, bind, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 		for (Resource* bind : state.Table.UAVs) GFX::Cmd::AddResourceTransition(barriers, bind, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-	}
 
-	// Bind root table
-	{
+		// Bind to root table
 		uint32_t nextSlot = 0;
+		const auto bindDescriptor = [&nextSlot, &useCompute, &cmdList](const D3D12_GPU_DESCRIPTOR_HANDLE& descriptor)
+		{
+			if (useCompute) cmdList->SetComputeRootDescriptorTable(nextSlot++, descriptor);
+			else cmdList->SetGraphicsRootDescriptorTable(nextSlot++, descriptor);
+		};
 
 		if (!state.PushConstants.empty())
 		{
 			GFX::Cmd::UpdatePushConstants(context, state);
 			nextSlot++;
 		}
-
 		for (uint32_t i = 0; i < 3; i++)
 		{
-			if (pages[i].AllocationIndex == 0) continue;
+			if (descriptorTables[i].HeapAlloc.NumElements == 0) continue;
 
-			const DescriptorHeapGPU& heap = context.MemContext.SRVHeap;
-			D3D12_GPU_DESCRIPTOR_HANDLE descriptor = { heap.HeapStartGPU };
-			descriptor.ptr += pages[i].PageIndex * heap.PageSize;
-
-			if (useCompute) cmdList->SetComputeRootDescriptorTable(nextSlot++, descriptor);
-			else cmdList->SetGraphicsRootDescriptorTable(nextSlot++, descriptor);
+			const D3D12_GPU_DESCRIPTOR_HANDLE descriptor = context.MemContext.SRVHeap.GetGPUHandle(descriptorTables[i]);
+			bindDescriptor(descriptor);
 		}
-		if (pages[3].AllocationIndex != 0)
+		if (descriptorTables[3].HeapAlloc.NumElements != 0)
 		{
-			const DescriptorHeapGPU& heap = context.MemContext.SMPHeap;
-			D3D12_GPU_DESCRIPTOR_HANDLE descriptor = { heap.HeapStartGPU };
-			descriptor.ptr += pages[3].PageIndex * heap.PageSize;
-			if (useCompute) cmdList->SetComputeRootDescriptorTable(nextSlot++, descriptor);
-			else cmdList->SetGraphicsRootDescriptorTable(nextSlot++, descriptor);
+			const D3D12_GPU_DESCRIPTOR_HANDLE descriptor = context.MemContext.SMPHeap.GetGPUHandle(descriptorTables[3]);
+			bindDescriptor(descriptor);
+		}
+		for (const BindlessTable& table : state.BindlessTables)
+		{
+			const D3D12_GPU_DESCRIPTOR_HANDLE descriptor = context.MemContext.SRVHeap.GetGPUHandle(table.DescriptorTable);
+			bindDescriptor(descriptor);
 		}
 	}
 

@@ -21,40 +21,12 @@ struct BoundingSphere
 	float Radius{ 1.0f };
 };
 
-// Ax + By + Cz + D
-struct FrustumPlane
-{
-	float A;
-	float B;
-	float C;
-	float D;
-
-	FrustumPlane() = default;
-
-	FrustumPlane(Float3 p0, Float3 p1, Float3 p2)
-	{
-		const Float3 v = p1 - p0;
-		const Float3 u = p2 - p0;
-		const Float3 normal = v.Cross(u).Normalize();
-
-		A = normal.x;
-		B = normal.y;
-		C = normal.z;
-		D = -A * p0.x - B * p0.y - C * p0.z;
-	}
-
-	float SignedDistance(const Float3& p) const
-	{
-		return A * p.x + B * p.y + C * p.z + D;
-	}
-};
-
 struct Camera;
 
 struct ViewFrustum
 {
 	// Top Bottom Left Right Near Far
-	FrustumPlane Planes[6];
+	Float4 Planes[6];
 
 	void Update(const Camera& camera);
 
@@ -62,12 +34,12 @@ struct ViewFrustum
 	{
 		for (uint32_t i = 0; i < 6; i++)
 		{
-			const float distance = Planes[i].SignedDistance(sphere.Center);
-			if (distance < -sphere.Radius)
+			const float signedDistance = Planes[i].Dot(Float4(sphere.Center.x, sphere.Center.y, sphere.Center.z, 1.0f));
+			if (signedDistance < -sphere.Radius)
 				return false;
 			
 			// Intersects plane
-			if (distance < sphere.Radius)
+			if (signedDistance < sphere.Radius)
 				return true;
 
 		}
@@ -251,10 +223,10 @@ public:
 
 	T& operator [] (uint32_t index) { return m_Storage[index]; }
 
-	size_t GetSize() const { return m_NextIndex; }
-	size_t Next() 
+	uint32_t GetSize() const { return m_NextIndex; }
+	uint32_t Next() 
 	{ 
-		size_t index = m_NextIndex++;
+		uint32_t index = m_NextIndex++;
 		ASSERT(index < m_MaxElements, "index < m_MaxElements");
 		return index; 
 	}
@@ -313,27 +285,26 @@ private:
 class TextureStorage
 {
 public:
-	struct Allocation
-	{
-		uint32_t TextureIndex;
-	};
+	static constexpr uint32_t REGISTER_SPACE = 1;
+	static constexpr uint32_t MAX_TEXTURE_COUNT = 512;
 
-	static constexpr uint32_t MAX_TEXTURES = 500;
-	static constexpr uint32_t TEXTURE_MIPS = 8;
-	static constexpr uint32_t TEXTURE_SIZE = 1024;
-
-	TextureStorage();
 	~TextureStorage();
 
-	void Initialize();
-	Allocation AddTexture(GraphicsContext& context, Texture* texture);
-	Allocation AllocTexture(GraphicsContext& context);
-	void UpdateTexture(GraphicsContext& context, Allocation alloc,  Texture* texture);
-	Texture* GetBuffer() const { return m_Data.get(); }
+	void Initialize(GraphicsContext& context);
+	void Update(GraphicsContext& context);
+
+	uint32_t AllocTexture();
+	void UpdateTexture(uint32_t textureIndex, Texture* texture);
+	uint32_t AddTexture(Texture* texture);
+
+	const BindlessTable& GetBindlessTable() const { return m_Table; }
 
 private:
-	ScopedRef<Texture> m_Data;
-	ScopedRef<Texture> m_StagingTexture;
+	bool m_TableDirty = true;
+	BindlessTable m_Table;
+
+	ScopedRef<Texture> m_EmptyTexture;
+	std::vector<Texture*> m_Textures;
 	std::atomic<uint32_t> m_NextAllocation = 0;
 };
 

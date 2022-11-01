@@ -6,8 +6,8 @@
 #include "Render/RenderAPI.h"
 
 class RenderTask;
+class DescriptorHeapCPU;
 struct GraphicsContext;
-struct DescriptorHeapCPU;
 struct Texture;
 struct Shader;
 struct Buffer;

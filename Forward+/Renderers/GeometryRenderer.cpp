@@ -108,7 +108,7 @@ void GeometryRenderer::Draw(GraphicsContext& context, GraphicsState& state, Text
 	{
 		RenderGroupType rgType = IntToEnum<RenderGroupType>(i);
 		RenderGroup& renderGroup = MainSceneGraph->RenderGroups[i];
-		if (renderGroup.Drawables.GetSize() == 0) continue;
+		if (renderGroup.Drawables.GetSize() == 0u) continue;
 
 		std::vector<std::string> configuration;
 		if (rgType == RenderGroupType::AlphaDiscard) configuration.push_back("ALPHA_DISCARD");

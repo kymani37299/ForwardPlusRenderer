@@ -10,9 +10,9 @@ struct GraphicsContext;
 class TextureLoadingTask : public RenderTask
 {
 public:
-	TextureLoadingTask(const std::string& texturePath, TextureStorage::Allocation alloc, TextureStorage& textureStorage, ColorUNORM defaultColor = {0.0f, 0.0f, 0.0f, 0.0f}) :
+	TextureLoadingTask(const std::string& texturePath, uint32_t textureIndex, TextureStorage& textureStorage, ColorUNORM defaultColor = {0.0f, 0.0f, 0.0f, 0.0f}) :
 		m_TexturePath(texturePath),
-		m_Allocation(alloc),
+		m_TextureIndex(textureIndex),
 		m_TextureStorage(textureStorage),
 		m_DefaultColor(defaultColor) {}
 
@@ -20,7 +20,7 @@ public:
 
 private:
 	std::string m_TexturePath;
-	TextureStorage::Allocation m_Allocation;
+	uint32_t m_TextureIndex;
 	TextureStorage& m_TextureStorage;
 	ColorUNORM m_DefaultColor;
 };

@@ -32,8 +32,8 @@ void Culling::Init(GraphicsContext& context)
 
 void Culling::UpdateResources(GraphicsContext& context)
 {
-	m_NumTilesX = MathUtility::CeilDiv(AppConfig.WindowWidth, TILE_SIZE);
-	m_NumTilesY = MathUtility::CeilDiv(AppConfig.WindowHeight, TILE_SIZE);
+	m_NumTilesX = MathUtility::CeilDiv(AppConfig.WindowWidth, (uint32_t) TILE_SIZE);
+	m_NumTilesY = MathUtility::CeilDiv(AppConfig.WindowHeight, (uint32_t) TILE_SIZE);
 	m_VisibleLightsBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(m_NumTilesX * m_NumTilesY * (MAX_LIGHTS_PER_TILE + 1) * sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_UAV));
 	GFX::SetDebugName(m_VisibleLightsBuffer.get(), "Culling::VisibleLightsBuffer");
 }
@@ -120,7 +120,7 @@ void Culling::CullRenderGroupCPU(GraphicsContext& context, RenderGroup& rg)
 
 void Culling::CullRenderGroupGPU(GraphicsContext& context, RenderGroup& rg, Texture* depth)
 {
-	if (rg.Drawables.GetSize() == 0) return;
+	if (rg.Drawables.GetSize() == 0u) return;
 
 	std::vector<std::string> config{};
 	config.push_back("GEO_CULLING");
@@ -150,7 +150,7 @@ void Culling::CullRenderGroupGPU(GraphicsContext& context, RenderGroup& rg, Text
 	cullingState.ShaderConfig = config;
 	GFX::Cmd::BindState(context, cullingState);
 
-	context.CmdList->Dispatch(MathUtility::CeilDiv(rg.Drawables.GetSize(), WAVESIZE), 1, 1);
+	context.CmdList->Dispatch((UINT) MathUtility::CeilDiv(rg.Drawables.GetSize(), (uint32_t) WAVESIZE), 1u, 1u);
 
 	GFX::Cmd::CopyToBuffer(context, m_CullingStatsBuffer.get(), 0, m_CullingStatsReadback.get(), 0, sizeof(uint32_t));
 

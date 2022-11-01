@@ -77,18 +77,18 @@ struct Resource
 	~Resource()
 	{
 		DeviceMemory& mem = Device::Get()->GetMemory();
-		if(CBV.ptr != CPUAllocStrategy::INVALID) mem.SRVHeap->Release(CBV);
-		if(SRV.ptr != CPUAllocStrategy::INVALID) mem.SRVHeap->Release(SRV);
-		if(UAV.ptr != CPUAllocStrategy::INVALID) mem.SRVHeap->Release(UAV);
-		if(RTV.ptr != CPUAllocStrategy::INVALID) mem.RTVHeap->Release(RTV);
-		if(DSV.ptr != CPUAllocStrategy::INVALID) mem.DSVHeap->Release(DSV);
+		if(CBV.ptr != INVALID_ALLOCATION) mem.SRVHeap->Release(CBV);
+		if(SRV.ptr != INVALID_ALLOCATION) mem.SRVHeap->Release(SRV);
+		if(UAV.ptr != INVALID_ALLOCATION) mem.SRVHeap->Release(UAV);
+		if(RTV.ptr != INVALID_ALLOCATION) mem.RTVHeap->Release(RTV);
+		if (DSV.ptr != INVALID_ALLOCATION) mem.DSVHeap->Release(DSV);
 	}
 
-	D3D12_CPU_DESCRIPTOR_HANDLE CBV = { CPUAllocStrategy::INVALID };
-	D3D12_CPU_DESCRIPTOR_HANDLE SRV = { CPUAllocStrategy::INVALID };
-	D3D12_CPU_DESCRIPTOR_HANDLE UAV = { CPUAllocStrategy::INVALID };
-	D3D12_CPU_DESCRIPTOR_HANDLE RTV = { CPUAllocStrategy::INVALID };
-	D3D12_CPU_DESCRIPTOR_HANDLE DSV = { CPUAllocStrategy::INVALID };
+	D3D12_CPU_DESCRIPTOR_HANDLE CBV = { INVALID_ALLOCATION };
+	D3D12_CPU_DESCRIPTOR_HANDLE SRV = { INVALID_ALLOCATION };
+	D3D12_CPU_DESCRIPTOR_HANDLE UAV = { INVALID_ALLOCATION };
+	D3D12_CPU_DESCRIPTOR_HANDLE RTV = { INVALID_ALLOCATION };
+	D3D12_CPU_DESCRIPTOR_HANDLE DSV = { INVALID_ALLOCATION };
 
 #ifdef DEBUG
 	std::string DebugName = "Unknown Resource";

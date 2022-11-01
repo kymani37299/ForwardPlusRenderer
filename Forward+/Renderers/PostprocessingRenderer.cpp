@@ -12,22 +12,23 @@
 #include "Renderers/Util/SamplerManager.h"
 #include "Scene/SceneGraph.h"
 
-static const Float2 HaltonSequence[16] = { {0.500000,0.333333},
-						{0.250000,0.666667},
-						{0.750000,0.111111},
-						{0.125000,0.444444},
-						{0.625000,0.777778},
-						{0.375000,0.222222},
-						{0.875000,0.555556},
-						{0.062500,0.888889},
-						{0.562500,0.037037},
-						{0.312500,0.370370},
-						{0.812500,0.703704},
-						{0.187500,0.148148},
-						{0.687500,0.481481},
-						{0.437500,0.814815},
-						{0.937500,0.259259},
-						{0.031250,0.592593} };
+static const Float2 HaltonSequence[16] = { 
+						{0.500000f,0.333333f},
+						{0.250000f,0.666667f},
+						{0.750000f,0.111111f},
+						{0.125000f,0.444444f},
+						{0.625000f,0.777778f},
+						{0.375000f,0.222222f},
+						{0.875000f,0.555556f},
+						{0.062500f,0.888889f},
+						{0.562500f,0.037037f},
+						{0.312500f,0.370370f},
+						{0.812500f,0.703704f},
+						{0.187500f,0.148148f},
+						{0.687500f,0.481481f},
+						{0.437500f,0.814815f},
+						{0.937500f,0.259259f},
+						{0.031250f,0.592593f} };
 
 struct BloomInputRenderData
 {
@@ -223,7 +224,7 @@ void PostprocessingRenderer::ReloadTextureResources(GraphicsContext& context)
 
 	// Bloom
 	const float aspect = (float)size[0] / size[1];
-	uint32_t bloomTexSize[2] = { 512 * aspect, 512 };
+	uint32_t bloomTexSize[2] = { (uint32_t)(512 * aspect), 512 };
 	for (uint32_t i = 0; i < BLOOM_NUM_SAMPLES; i++)
 	{
 		m_BloomTexturesDownsample[i] = ScopedRef<Texture>(GFX::CreateTexture(bloomTexSize[0], bloomTexSize[1], RCF_Bind_RTV, 1, DXGI_FORMAT_R16G16B16A16_FLOAT));
@@ -240,7 +241,7 @@ void PostprocessingRenderer::ReloadTextureResources(GraphicsContext& context)
 	MainSceneGraph->MainCamera.UseJitter = RenderSettings.AntialiasingMode == AntiAliasingMode::TAA;
 	for (uint32_t i = 0; i < 16; i++)
 	{
-		MainSceneGraph->MainCamera.Jitter[i] = 2.0f * ((HaltonSequence[i] - Float2{ 0.5f, 0.5f }) / Float2(AppConfig.WindowWidth, AppConfig.WindowHeight));
+		MainSceneGraph->MainCamera.Jitter[i] = 2.0f * ((HaltonSequence[i] - Float2{ 0.5f, 0.5f }) / Float2((float) AppConfig.WindowWidth, (float) AppConfig.WindowHeight));
 	}
 }
 

@@ -102,7 +102,7 @@ namespace ForwardPlusPrivate
 			app->OnShaderReload(Device::Get()->GetContext());
 		}
 
-		if (Input::IsKeyJustPressed(VK_TAB))
+		if (Input::IsKeyJustPressed('F'))
 		{
 			if (AppConfig.Settings.contains("HIDE_GUI"))
 			{

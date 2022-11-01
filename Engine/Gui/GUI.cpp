@@ -75,8 +75,10 @@ void GUI::Render(GraphicsContext& context, Texture* renderTarget)
 		Device* device = Device::Get();
 		MemoryContext& memContext = device->GetContext().MemContext;
 		DescriptorHeapGPU& srvHeap = memContext.SRVHeap;
-		DescriptorHeapGPU::Allocation alloc = srvHeap.Alloc(memContext.SRVPersistentPage);
-		ImGui_ImplDX12_Init(device->GetHandle(), Device::SWAPCHAIN_BUFFER_COUNT, renderTarget->Format, srvHeap.Heap.Get(), alloc.CPUHandle, alloc.GPUHandle);
+		DescriptorAllocation alloc = memContext.SRVHeap.Allocate(256u);
+		D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = memContext.SRVHeap.GetCPUHandle(alloc);
+		D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = memContext.SRVHeap.GetGPUHandle(alloc);
+		ImGui_ImplDX12_Init(device->GetHandle(), Device::SWAPCHAIN_BUFFER_COUNT, renderTarget->Format, srvHeap.GetHeap(), cpuHandle, gpuHandle);
 
 		m_Initialized = true;
 	}
@@ -88,7 +90,7 @@ void GUI::Render(GraphicsContext& context, Texture* renderTarget)
 	// Prepare imgui context
 	{
 		// Bind Descriptor heaps
-		ID3D12DescriptorHeap* descriptorHeaps[] = { context.MemContext.SRVHeap.Heap.Get() };
+		ID3D12DescriptorHeap* descriptorHeaps[] = { context.MemContext.SRVHeap.GetHeap() };
 		context.CmdList->SetDescriptorHeaps(1, descriptorHeaps);
 
 		// Bind render target

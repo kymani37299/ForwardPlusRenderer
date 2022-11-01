@@ -58,7 +58,7 @@ float3 ApplyFog(float3 color, float depth, float3 fogColor)
 float4 PS(VertexOut IN) : SV_TARGET
 {
 	const Material matParams = Materials[IN.MaterialIndex];
-	const float4 albedo = Textures.Sample(s_AnisoWrap, float3(IN.UV, matParams.Albedo));
+	const float4 albedo = Textures[matParams.Albedo].Sample(s_AnisoWrap, IN.UV);
 
 #ifdef ALPHA_DISCARD
 	if (albedo.a < 0.05f)
@@ -67,7 +67,7 @@ float4 PS(VertexOut IN) : SV_TARGET
 
 	const float2 screenUV = IN.Position.xy / SceneInfoData.ScreenSize;
 
-	float2 metallicRoughness = Textures.Sample(s_LinearWrap, float3(IN.UV, matParams.MetallicRoughness)).rg;
+	float2 metallicRoughness = Textures[matParams.MetallicRoughness].Sample(s_LinearWrap, IN.UV).rg;
 
 	MaterialInput mat;
 	mat.Albedo = albedo;
@@ -80,7 +80,7 @@ float4 PS(VertexOut IN) : SV_TARGET
 	mat.AO = AmbientOcclusion.Sample(s_LinearWrap, screenUV);
 
 	const float3x3 TBN = float3x3(normalize(IN.Tangent), normalize(IN.Bitangent), normalize(IN.Normal));
-	const float3 normalValue = 2.0f * Textures.Sample(s_LinearWrap, float3(IN.UV, matParams.Normal)).rgb - 1.0f;
+	const float3 normalValue = 2.0f * Textures[matParams.Normal].Sample(s_LinearWrap, IN.UV).rgb - 1.0f;
 
 	const float3 normal = normalize(mul(normalValue, TBN));
 	const float3 view = normalize(MainCamera.Position - IN.WorldPosition);

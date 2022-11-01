@@ -6,7 +6,7 @@ SamplerManager SSManager;
 
 void SamplerManager::Bind(GraphicsState& state)
 {
-	uint32_t slot = 0;
+	state.Table.SMPs.clear();
 	
 	// s_LinearWrap
 	state.Table.SMPs.push_back({ D3D12_FILTER_MIN_MAG_MIP_LINEAR , D3D12_TEXTURE_ADDRESS_MODE_WRAP });

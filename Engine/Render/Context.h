@@ -20,8 +20,8 @@ struct Fence
 
 struct MemoryContext
 {
-	GPUAllocStrategy::Page SRVPersistentPage;
-	DescriptorHeapGPU SRVHeap{ D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1 , 1};
+	// Pernament descriptors
+	DescriptorHeapGPU SRVHeap{ D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1, 1 };
 	DescriptorHeapGPU SMPHeap{ D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 1, 1 };
 };
 
@@ -37,6 +37,13 @@ struct BindTable
 	std::vector<Resource*> SRVs;
 	std::vector<Resource*> UAVs;
 	std::vector<Sampler>   SMPs;
+};
+
+struct BindlessTable
+{
+	uint32_t RegisterSpace = 1;
+	uint32_t DescriptorCount = 0;
+	DescriptorAllocation DescriptorTable;
 };
 
 enum class RenderPrimitiveType
@@ -65,6 +72,7 @@ struct GraphicsState
 	std::vector<Texture*> RenderTargets;
 	Texture* DepthStencil = nullptr;
 	uint32_t PushConstantBinding = 128;
+	std::vector<BindlessTable> BindlessTables = {};
 	std::vector<uint32_t> PushConstants;
 
 	// Shader

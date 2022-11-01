@@ -126,7 +126,7 @@ void RenderStatsGUI::Update(float dt)
 	DTHistory.push_back(dt);
 	if (lastUpdate > UpdateInterval)
 	{
-		uint32_t count = DTHistory.size();
+		size_t count = DTHistory.size();
 		float sum = 0.0f;
 		for (float _dt : DTHistory)
 		{

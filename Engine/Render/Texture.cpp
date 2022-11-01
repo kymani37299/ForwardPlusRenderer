@@ -32,7 +32,7 @@ namespace GFX
 
 	static D3D12_CPU_DESCRIPTOR_HANDLE CreateSRV(Texture* texture, uint32_t firstMip, uint32_t mipCount, uint32_t firstElement, uint32_t elementCount)
 	{
-		D3D12_CPU_DESCRIPTOR_HANDLE SRV = Device::Get()->GetMemory().SRVHeap->Alloc();
+		D3D12_CPU_DESCRIPTOR_HANDLE SRV = Device::Get()->GetMemory().SRVHeap->Allocate();
 
 		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
 		srvDesc.Format = texture->Format;
@@ -87,7 +87,7 @@ namespace GFX
 
 	static D3D12_CPU_DESCRIPTOR_HANDLE CreateUAV(Texture* texture, uint32_t firstMip, uint32_t firstElementOrSlice, uint32_t numSlices)
 	{
-		D3D12_CPU_DESCRIPTOR_HANDLE UAV = Device::Get()->GetMemory().SRVHeap->Alloc();
+		D3D12_CPU_DESCRIPTOR_HANDLE UAV = Device::Get()->GetMemory().SRVHeap->Allocate();
 
 		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
 		uavDesc.Format = texture->Format;
@@ -129,7 +129,7 @@ namespace GFX
 		ASSERT(!(texture->CreationFlags & RCF_Texture3D), "RTV not implemented for Texture3D!");
 		ASSERT(texture->DepthOrArraySize == 1, "RTV not implemented for TextureArray!");
 
-		D3D12_CPU_DESCRIPTOR_HANDLE RTV = Device::Get()->GetMemory().RTVHeap->Alloc();
+		D3D12_CPU_DESCRIPTOR_HANDLE RTV = Device::Get()->GetMemory().RTVHeap->Allocate();
 
 		D3D12_RENDER_TARGET_VIEW_DESC rtvDesc{};
 		rtvDesc.Format = texture->Format;
@@ -145,7 +145,7 @@ namespace GFX
 	{
 		ASSERT(texture->DepthOrArraySize == 1, "DSV not implemented for TextureArray!");
 
-		D3D12_CPU_DESCRIPTOR_HANDLE DSV = Device::Get()->GetMemory().DSVHeap->Alloc();
+		D3D12_CPU_DESCRIPTOR_HANDLE DSV = Device::Get()->GetMemory().DSVHeap->Allocate();
 
 		D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc{};
 		dsvDesc.Format = DepthFormat;
