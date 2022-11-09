@@ -24,7 +24,7 @@ Buffer* ConstantManager::GetBuffer()
 {
 	uint32_t bufferSize = (m_DataSize + 255) & ~255;
 	Buffer* buffer = GFX::CreateBuffer(bufferSize, bufferSize, RCF_Bind_CBV | RCF_CPU_Access);
-	DeferredTrash::Put(buffer);
+	DeferredTrash::Get()->Put(buffer);
 	GFX::SetDebugName(buffer, "ConstantManager::Buffer");
 	GFX::Cmd::UploadToBufferCPU(buffer, 0, m_Data.data(), 0, bufferSize);
 	return buffer;

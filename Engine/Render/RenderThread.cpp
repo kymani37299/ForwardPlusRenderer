@@ -33,9 +33,12 @@ void RenderThread::Run()
 		m_CurrentTask.load()->SetRunning(true);
 		m_CurrentTask.load()->Run(*context);
 		m_CurrentTask.load()->SetRunning(false);
+
+		// TODO: In flight tasks
 		GFX::Cmd::SubmitContext(*context);
 		GFX::Cmd::FlushContext(*context);
 		GFX::Cmd::ResetContext(*context.get());
+		DeferredTrash::Get()->ClearAll();
 
 		RenderTask* lastTask = m_CurrentTask.exchange(nullptr);
 		delete lastTask;
@@ -86,14 +89,6 @@ RenderThreadPool::~RenderThreadPool()
 
 void RenderThreadPool::Submit(RenderTask* task)
 {
-	uint32_t minTasks = UINT32_MAX;
-	uint32_t choosenThread = 0;
-	for (uint32_t i = 0; i < m_NumThreads; i++)
-	{
-		if (m_LoadingThreads[i]->RemainingTaskCount() < minTasks)
-		{
-			choosenThread = i;
-		}
-	}
-	m_LoadingThreads[choosenThread]->Submit(task);
+	const uint32_t randomThread = rand() % m_NumThreads;
+	m_LoadingThreads[randomThread]->Submit(task);
 }

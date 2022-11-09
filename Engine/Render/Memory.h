@@ -5,6 +5,7 @@
 
 #include "Render/RenderAPI.h"
 #include "Utility/MemoryStrategies.h"
+#include "Utility/Multithreading.h"
 
 struct Resource;
 struct Shader;
@@ -81,17 +82,29 @@ private:
 		std::vector<Shader*> Shaders;
 		std::vector<Resource*> Resources;
 	};
-public:
-	static void Put(IUnknown* resouce) { Buckets[CurrentBucket].DXResources.push_back(resouce); }
-	static void Put(DescriptorHeapGPU* heap, DescriptorAllocation descriptorAlloc) { Buckets[CurrentBucket].DescriptorAllocations.push_back({heap, descriptorAlloc }); }
-	static void Put(DescriptorHeapCPU* heap, D3D12_CPU_DESCRIPTOR_HANDLE handle) { Buckets[CurrentBucket].Descriptors.push_back({heap, handle }); }
-	static void Put(Shader* shader) { Buckets[CurrentBucket].Shaders.push_back(shader); }
-	static void Put(Resource* resource) { Buckets[CurrentBucket].Resources.push_back(resource); }
 
-	static void Clear();
-	static void ClearAll();
+private:
+	static std::unordered_map<MTR::ThreadID, DeferredTrash*> s_Instances;
+
+public:
+	static DeferredTrash* Get()
+	{
+		MTR::ThreadID threadID = MTR::CurrentThreadID();
+		if (!s_Instances.contains(threadID))
+			s_Instances[threadID] = new DeferredTrash();
+		return s_Instances[threadID];
+	}
+
+	void Put(IUnknown* resouce) { Buckets[CurrentBucket].DXResources.push_back(resouce); }
+	void Put(DescriptorHeapGPU* heap, DescriptorAllocation descriptorAlloc) { Buckets[CurrentBucket].DescriptorAllocations.push_back({heap, descriptorAlloc }); }
+	void Put(DescriptorHeapCPU* heap, D3D12_CPU_DESCRIPTOR_HANDLE handle) { Buckets[CurrentBucket].Descriptors.push_back({heap, handle }); }
+	void Put(Shader* shader) { Buckets[CurrentBucket].Shaders.push_back(shader); }
+	void Put(Resource* resource) { Buckets[CurrentBucket].Resources.push_back(resource); }
+
+	void Clear();
+	void ClearAll();
 private:
 	static constexpr uint32_t NUM_BUCKETS = 2;
-	static uint32_t CurrentBucket;
-	static TrashBucket Buckets[NUM_BUCKETS];
+	uint32_t CurrentBucket = 0;
+	TrashBucket Buckets[NUM_BUCKETS];
 };

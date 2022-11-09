@@ -1,14 +1,32 @@
 #pragma once
 
+#include <unordered_map>
+
 #include <Engine/Common.h>
 
-struct RenderGroup;
+#include "Scene/SceneGraph.h"
+
 struct GraphicsContext;
 struct GraphicsState;
 struct Texture;
 struct Buffer;
 struct Shader;
 
+struct RenderGroupCullingData;
+struct ViewFrustum;
+
+struct GeometryCullingInput
+{
+	GeometryCullingInput(Camera& cam):
+		Cam(cam)
+	{ }
+
+	Texture* Depth = nullptr; // If null, only frustum culling will be performed
+	Camera& Cam;
+};
+
+// TODO: Fix stats
+// Bonus: Add stats for shadows too
 class Culling
 {
 public:
@@ -18,16 +36,16 @@ public:
 	void Init(GraphicsContext& context);
 	void UpdateResources(GraphicsContext& context);
 
-	void CullGeometries(GraphicsContext& context, Texture* depth);
+	void CullGeometries(GraphicsContext& context, GeometryCullingInput& input);
 	void CullLights(GraphicsContext& context, Texture* depth);
 
 	Buffer* GetVisibleLightsBuffer() const { return m_VisibleLightsBuffer.get(); }
 
 private:
-	void CullRenderGroupCPU(GraphicsContext& context, RenderGroup& rg);
-	void CullRenderGroupGPU(GraphicsContext& context, RenderGroup& rg, Texture* depth);
+	void CullRenderGroupCPU(GraphicsContext& context, RenderGroupType rgType, GeometryCullingInput& input);
+	void CullRenderGroupGPU(GraphicsContext& context, RenderGroupType rgType, GeometryCullingInput& input);
 
-	void UpdateStats(GraphicsContext& context);
+	void UpdateStats(GraphicsContext& context, CameraCullingData& cullingData);
 
 private:
 
@@ -39,6 +57,4 @@ private:
 	ScopedRef<Buffer> m_VisibleLightsBuffer;
 
 	ScopedRef<Shader> m_GeometryCullingShader;
-	ScopedRef<Buffer> m_CullingStatsBuffer;
-	ScopedRef<Buffer> m_CullingStatsReadback;
 };

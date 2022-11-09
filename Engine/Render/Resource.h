@@ -16,9 +16,10 @@ enum ResourceCreationFlags : uint64_t
 	RCF_Bind_DSV = RCF_Bind_RTV << 1,
 	RCF_Bind_CBV = RCF_Bind_DSV << 1,
 	RCF_Bind_RAW = RCF_Bind_CBV << 1,
+	RCF_No_SRV = RCF_Bind_RAW << 1,
 
 	// Misc
-	RCF_CPU_Access = RCF_Bind_RAW << 1,
+	RCF_CPU_Access = RCF_No_SRV << 1,
 	RCF_Readback = RCF_CPU_Access << 1,
 	RCF_GenerateMips = RCF_Readback << 1,
 	RCF_Cubemap = RCF_GenerateMips << 1,

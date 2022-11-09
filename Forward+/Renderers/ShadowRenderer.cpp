@@ -67,7 +67,7 @@ Texture* ShadowRenderer::CalculateShadowMask(GraphicsContext& context, Texture* 
 				SSManager.Bind(state);
 			}
 			state.ShaderConfig = config;
-			VertPipeline->Draw(context, state, renderGroup, true);
+			VertPipeline->Draw(context, state, renderGroup, MainSceneGraph->ShadowCamera.CullingData[rgType]);
 		}
 		GFX::Cmd::MarkerEnd(context);
 	}

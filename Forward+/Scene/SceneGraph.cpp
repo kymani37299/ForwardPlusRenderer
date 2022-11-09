@@ -15,50 +15,6 @@ SceneGraph* MainSceneGraph = nullptr;
 
 namespace
 {
-	struct EntitySB
-	{
-		DirectX::XMFLOAT4X4 ModelToWorld;
-
-		// BoundingVolume
-		DirectX::XMFLOAT3 Center;
-		float Radius;
-	};
-
-	struct MaterialSB
-	{
-		DirectX::XMFLOAT3 AlbedoFactor;
-		DirectX::XMFLOAT3 FresnelR0;
-		float MetallicFactor;
-		float RoughnessFactor;
-		uint32_t Albedo;
-		uint32_t MetallicRoughness;
-		uint32_t Normal;
-	};
-	
-	struct MeshSB
-	{
-		uint32_t VertexOffset;
-		uint32_t IndexOffset;
-		uint32_t IndexCount;
-	};
-
-	struct DrawableSB
-	{
-		uint32_t EntityIndex;
-		uint32_t MaterialIndex;
-		uint32_t MeshIndex;
-	};
-
-	struct LightSB
-	{
-		bool IsSpot;
-		DirectX::XMFLOAT3 Position;
-		DirectX::XMFLOAT3 Radiance;
-		DirectX::XMFLOAT2 Falloff;
-		DirectX::XMFLOAT3 Direction;
-		float SpotPower;
-	};
-
 	float DegreesToRadians(float deg)
 	{
 		const float DEG_2_RAD = 3.1415f / 180.0f;
@@ -80,11 +36,30 @@ void ViewFrustum::Update(const Camera& c)
 	const Camera::CameraTransform& t = c.CurrentTranform;
 
 	// Near and far plane dimensions
-	const float fovTan = tanf(DegreesToRadians(c.FOV / 2.0f));
-	const float hnear = 2.0f * fovTan * c.ZNear;
-	const float wnear = hnear * c.AspectRatio;
-	const float hfar = 2.0f * fovTan * c.ZFar;
-	const float wfar = hfar * c.AspectRatio;
+	float hnear = 0.0f;
+	float wnear = 0.0f;
+	float hfar = 0.0f;
+	float wfar = 0.0f;
+
+	switch (c.Type)
+	{
+	case Camera::CameraType::Ortho:
+		hnear = hfar = c.RectWidth;
+		wnear = wfar = c.RectHeight;
+		break;
+	case Camera::CameraType::Perspective:
+	{
+		const float fovTan = tanf(DegreesToRadians(c.FOV / 2.0f));
+		hnear = 2.0f * fovTan * c.ZNear;
+		wnear = hnear * c.AspectRatio;
+		hfar = 2.0f * fovTan * c.ZFar;
+		wfar = hfar * c.AspectRatio;
+	} break;
+	default:
+		NOT_IMPLEMENTED;
+		break;
+
+	}
 
 	// 8 points of the frustum
 	const Float3 fc = t.Position + c.ZFar * t.Forward;
@@ -100,40 +75,12 @@ void ViewFrustum::Update(const Camera& c)
 	const Float3 nbl = nc - (hnear / 2.0f) * t.Up - (wnear / 2.0f) * t.Right;
 	const Float3 nbr = nc - (hnear / 2.0f) * t.Up + (wnear / 2.0f) * t.Right;
 
-	Planes[0] = CreateFrustumPlane( ntr, ntl, ftl );	// Top
-	Planes[1] = CreateFrustumPlane( nbl, nbr, fbr );	// Bottom
-	Planes[2] = CreateFrustumPlane( ntl, nbl, fbl );	// Left
-	Planes[3] = CreateFrustumPlane( nbr, ntr, fbr );	// Right
-	Planes[4] = CreateFrustumPlane( ntl, ntr, nbr );	// Near
+	Planes[0] = CreateFrustumPlane(ntr, ntl, ftl);	// Top
+	Planes[1] = CreateFrustumPlane(nbl, nbr, fbr);	// Bottom
+	Planes[2] = CreateFrustumPlane(ntl, nbl, fbl);	// Left
+	Planes[3] = CreateFrustumPlane(nbr, ntr, fbr);	// Right
+	Planes[4] = CreateFrustumPlane(ntl, ntr, nbr);	// Near
 	Planes[5] = CreateFrustumPlane(ftr, ftl, fbl);	// Far
-}
-
-void Material::UpdateBuffer(GraphicsContext& context, RenderGroup& renderGroup)
-{
-	using namespace DirectX;
-	
-	Material& mat = renderGroup.Materials[MaterialIndex];
-
-	MaterialSB matSB{};
-	matSB.AlbedoFactor = mat.AlbedoFactor.ToXMFA();
-	matSB.FresnelR0 = mat.FresnelR0.ToXMFA();
-	matSB.MetallicFactor = mat.MetallicFactor;
-	matSB.RoughnessFactor = mat.RoughnessFactor;
-	matSB.Albedo = mat.Albedo;
-	matSB.MetallicRoughness = mat.MetallicRoughness;
-	matSB.Normal = mat.Normal;
-	GFX::Cmd::UploadToBuffer(context, renderGroup.Materials.GetBuffer(), MaterialIndex * sizeof(MaterialSB), &matSB, 0, sizeof(MaterialSB));
-}
-
-void Mesh::UpdateBuffer(GraphicsContext& context, RenderGroup& renderGroup)
-{
-	using namespace DirectX;
-
-	MeshSB meshSB{};
-	meshSB.VertexOffset = VertOffset;
-	meshSB.IndexOffset = IndexOffset;
-	meshSB.IndexCount = IndexCount;
-	GFX::Cmd::UploadToBuffer(context, renderGroup.Meshes.GetBuffer(), sizeof(MeshSB) * MeshIndex, &meshSB, 0, sizeof(MeshSB));
 }
 
 BoundingSphere Entity::GetBoundingVolume() const
@@ -154,48 +101,6 @@ BoundingSphere Entity::GetBoundingVolume() const
 	bs.Radius = bv.Radius * maxScale;
 
 	return bs;
-}
-
-void Entity::UpdateBuffer(GraphicsContext& context)
-{
-	using namespace DirectX;
-	
-	XMMATRIX baseTransform = XMLoadFloat4x4(&BaseTransform);
-	XMMATRIX modelToWorld = XMMatrixAffineTransformation(Scale.ToXM(), Float3(0.0f, 0.0f, 0.0f).ToXM(), Float4(0.0f, 0.0f, 0.0f, 0.0f).ToXM(), Position.ToXM());
-	modelToWorld = XMMatrixMultiply(baseTransform, modelToWorld);
-
-	::BoundingSphere bs = GetBoundingVolume();
-
-	EntitySB entitySB{};
-	entitySB.ModelToWorld = XMUtility::ToHLSLFloat4x4(modelToWorld);
-	entitySB.Center = bs.Center.ToXMF();
-	entitySB.Radius = bs.Radius;
-	GFX::Cmd::UploadToBuffer(context, MainSceneGraph->Entities.GetBuffer(), sizeof(EntitySB) * EntityIndex, &entitySB, 0, sizeof(EntitySB));
-}
-
-void Drawable::UpdateBuffer(GraphicsContext& context, RenderGroup& renderGroup)
-{
-	using namespace DirectX;
-
-	DrawableSB drawableSB{};
-	drawableSB.EntityIndex = EntityIndex;
-	drawableSB.MaterialIndex = MaterialIndex;
-	drawableSB.MeshIndex = MeshIndex;
-	GFX::Cmd::UploadToBuffer(context, renderGroup.Drawables.GetBuffer(), sizeof(DrawableSB) * DrawableIndex, &drawableSB, 0, sizeof(DrawableSB));
-}
-
-void Light::UpdateBuffer(GraphicsContext& context)
-{
-	using namespace DirectX;
-
-	LightSB lightSB{};
-	lightSB.IsSpot = IsSpot;
-	lightSB.Position = Position.ToXMF();
-	lightSB.Radiance = Radiance.ToXMF();
-	lightSB.Falloff = Falloff.ToXMF();
-	lightSB.Direction = Direction.ToXMF();
-	lightSB.SpotPower = SpotPower;
-	GFX::Cmd::UploadToBuffer(context, MainSceneGraph->Lights.GetBuffer(), sizeof(LightSB) * LightIndex, &lightSB, 0, sizeof(LightSB));
 }
 
 Camera Camera::CreatePerspective(float fov, float aspect, float znear, float zfar)
@@ -276,9 +181,9 @@ void Camera::FrameUpdate(GraphicsContext& context)
 }
 
 RenderGroup::RenderGroup():
-	Materials(MAX_DRAWABLES, sizeof(MaterialSB)),
-	Meshes(MAX_DRAWABLES, sizeof(MeshSB)),
-	Drawables(MAX_DRAWABLES, sizeof(DrawableSB))
+	Materials(MAX_DRAWABLES),
+	Meshes(MAX_DRAWABLES),
+	Drawables(MAX_DRAWABLES)
 {
 
 }
@@ -290,8 +195,6 @@ void RenderGroup::Initialize(GraphicsContext& context)
 	Drawables.Initialize("ElementBuffer::Drawables");
 	MeshData.Initialize();
 	TextureData.Initialize(context);
-
-	VisibilityMaskBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_UAV));
 }
 
 uint32_t RenderGroup::AddMaterial(GraphicsContext& context, Material& material)
@@ -299,15 +202,7 @@ uint32_t RenderGroup::AddMaterial(GraphicsContext& context, Material& material)
 	const uint32_t index = Materials.Next();
 	material.MaterialIndex = index;
 	Materials[index] = material;
-
-	if (Device::Get()->IsMainContext(context))
-	{
-		material.UpdateBuffer(context, *this);
-	}
-	else
-	{
-		NOT_IMPLEMENTED;
-	}
+	Materials.MarkDirty(index);
 	return index;
 }
 
@@ -316,16 +211,7 @@ uint32_t RenderGroup::AddMesh(GraphicsContext& context, Mesh& mesh)
 	const uint32_t index = (uint32_t) Meshes.Next();
 	mesh.MeshIndex = index;
 	Meshes[index] = mesh;
-
-	if (Device::Get()->IsMainContext(context))
-	{
-		mesh.UpdateBuffer(context, *this);
-	}
-	else
-	{
-		NOT_IMPLEMENTED;
-	}
-
+	Meshes.MarkDirty(index);
 	return index;
 }
 
@@ -339,9 +225,8 @@ public:
 	void Run(GraphicsContext& context) override
 	{
 		Entity& e = MainSceneGraph->Entities[m_Drawable.EntityIndex];
-
-		e.UpdateBuffer(context);
-		m_Drawable.UpdateBuffer(context, m_RenderGroup);
+		MainSceneGraph->Entities.MarkDirty(m_Drawable.EntityIndex);
+		m_RenderGroup.Drawables.MarkDirty(m_Drawable.DrawableIndex);
 	}
 
 private:
@@ -364,14 +249,24 @@ void RenderGroup::AddDraw(GraphicsContext& context, uint32_t materialIndex, uint
 
 	e.BaseBoundingSphere = boundingSphere;
 
-	if (Device::Get()->IsMainContext(context))
+	if (AppConfig.Settings.contains("LOADING_USE_LESS_MEMORY"))
 	{
-		Device::Get()->GetTaskExecutor().Submit(new RenderGroupAddDrawRenderTask(Drawables[index], *this));
+		MainSceneGraph->Entities.MarkDirty(entityIndex);
+		Drawables.MarkDirty(index);
 	}
 	else
 	{
-		RenderThreadPool::Get()->Submit(new RenderGroupAddDrawRenderTask(Drawables[index], *this));
+		if (Device::Get()->IsMainContext(context))
+		{
+			Device::Get()->GetTaskExecutor().Submit(new RenderGroupAddDrawRenderTask(Drawables[index], *this));
+		}
+		else
+		{
+			RenderThreadPool::Get()->Submit(new RenderGroupAddDrawRenderTask(Drawables[index], *this));
+		}
 	}
+
+
 }
 
 void RenderGroup::SetupPipelineInputs(GraphicsState& state)
@@ -386,8 +281,8 @@ void RenderGroup::SetupPipelineInputs(GraphicsState& state)
 }
 
 SceneGraph::SceneGraph() :
-	Entities(MAX_ENTITIES, sizeof(EntitySB)),
-	Lights(MAX_LIGHTS, sizeof(LightSB))
+	Entities(MAX_ENTITIES),
+	Lights(MAX_LIGHTS)
 {
 
 }
@@ -410,10 +305,17 @@ void SceneGraph::FrameUpdate(GraphicsContext& context)
 {
 	MainCamera.FrameUpdate(context);
 
+	Entities.SyncGPUBuffer(context);
+	Lights.SyncGPUBuffer(context);
+
 	// Render group date
 	for (uint32_t i = 0; i < EnumToInt(RenderGroupType::Count); i++)
 	{
 		RenderGroups[i].TextureData.Update(context);
+
+		RenderGroups[i].Materials.SyncGPUBuffer(context);
+		RenderGroups[i].Drawables.SyncGPUBuffer(context);
+		RenderGroups[i].Meshes.SyncGPUBuffer(context);
 	}
 
 	// Shadow camera
@@ -440,16 +342,7 @@ uint32_t SceneGraph::AddEntity(GraphicsContext& context, Entity entity)
 	const uint32_t index = (uint32_t) Entities.Next();
 	entity.EntityIndex = index;
 	Entities[index] = entity;
-	
-	if (Device::Get()->IsMainContext(context))
-	{
-		entity.UpdateBuffer(context);
-	}
-	else
-	{
-		NOT_IMPLEMENTED;
-	}
-
+	Entities.MarkDirty(index);
 	return index;
 }
 
@@ -467,17 +360,8 @@ Light SceneGraph::CreateLight(GraphicsContext& context, Light light)
 {
 	const uint32_t lightIndex = Lights.Next();
 	light.LightIndex = lightIndex;
-
 	Lights[lightIndex] = light;
-
-	if (Device::Get()->IsMainContext(context))
-	{
-		light.UpdateBuffer(context);
-	}
-	else
-	{
-		NOT_IMPLEMENTED;
-	}
+	Lights.MarkDirty(lightIndex);
 	return light;
 }
 
@@ -491,6 +375,11 @@ namespace ElementBufferHelp
 	}
 
 	void DeleteBuffer(Buffer* buffer) { delete buffer; }
+
+	void BufferUpdateElement(GraphicsContext& context, Buffer* buffer, uint32_t index, const void* data)
+	{
+		GFX::Cmd::UploadToBuffer(context, buffer, index * buffer->Stride, data, 0, buffer->Stride);
+	}
 }
 
 MeshStorage::MeshStorage()

@@ -31,21 +31,21 @@ void VertexPipeline::Init(GraphicsContext& context)
 	m_PrepareArgsShader = ScopedRef<Shader>(new Shader{ "Forward+/Shaders/geometry_culling.hlsl" });
 }
 
-void VertexPipeline::Draw(GraphicsContext& context, GraphicsState& state, RenderGroup& rg, bool skipCulling)
+void VertexPipeline::Draw(GraphicsContext& context, GraphicsState& state, RenderGroup& rg, RenderGroupCullingData& cullingData)
 {
 	if (rg.Drawables.GetSize() == 0u) return;
 
 	if (RenderSettings.Culling.GeometryCullingOnCPU)
 	{
-		Draw_CPU(context, state, rg, skipCulling);
+		Draw_CPU(context, state, rg, cullingData);
 	}
 	else
 	{
-		Draw_GPU(context, state, rg, skipCulling);
+		Draw_GPU(context, state, rg, cullingData);
 	}
 }
 
-void VertexPipeline::Draw_CPU(GraphicsContext& context, GraphicsState& state, RenderGroup& rg, bool skipCulling)
+void VertexPipeline::Draw_CPU(GraphicsContext& context, GraphicsState& state, RenderGroup& rg, RenderGroupCullingData& cullingData)
 {
 	GFX::Cmd::MarkerBegin(context, "VertexPipeline::Execute");
 
@@ -54,11 +54,11 @@ void VertexPipeline::Draw_CPU(GraphicsContext& context, GraphicsState& state, Re
 	state.VertexBuffers[0] = rg.MeshData.GetVertexBuffer();
 	state.IndexBuffer = rg.MeshData.GetIndexBuffer();
 	state.PushConstants.resize(1);
-	GFX::Cmd::BindState(context, state);
+	context.ApplyState(state);
 
 	for (uint32_t i = 0; i < rg.Drawables.GetSize(); i++)
 	{
-		if (!skipCulling && !rg.VisibilityMask.Get(i)) continue;
+		if (!cullingData.VisibilityMask.Get(i)) continue;
 
 		const Drawable& d = rg.Drawables[i];
 		const Mesh& m = rg.Meshes[d.MeshIndex];
@@ -71,7 +71,7 @@ void VertexPipeline::Draw_CPU(GraphicsContext& context, GraphicsState& state, Re
 	GFX::Cmd::MarkerEnd(context);
 }
 
-void VertexPipeline::Draw_GPU(GraphicsContext& context, GraphicsState& state, RenderGroup& rg, bool skipCulling)
+void VertexPipeline::Draw_GPU(GraphicsContext& context, GraphicsState& state, RenderGroup& rg, RenderGroupCullingData& cullingData)
 {
 	// Prepare args
 	{
@@ -83,7 +83,7 @@ void VertexPipeline::Draw_GPU(GraphicsContext& context, GraphicsState& state, Re
 		GraphicsState prepareState{};
 		prepareState.Table.SRVs.push_back(rg.Drawables.GetBuffer());
 		prepareState.Table.SRVs.push_back(rg.Meshes.GetBuffer());
-		prepareState.Table.SRVs.push_back(rg.VisibilityMaskBuffer.get());
+		prepareState.Table.SRVs.push_back(cullingData.VisibilityMaskBuffer.get());
 		prepareState.Table.UAVs.push_back(m_IndirectArgumentsBuffer.get());
 		prepareState.Table.UAVs.push_back(m_IndirectArgumentsCountBuffer.get());
 
@@ -93,12 +93,11 @@ void VertexPipeline::Draw_GPU(GraphicsContext& context, GraphicsState& state, Re
 
 		std::vector<std::string> config{};
 		config.push_back("PREPARE_ARGUMENTS");
-		if (skipCulling) config.push_back("DRAW_ALL");
-
+		
 		prepareState.Shader = m_PrepareArgsShader.get();
 		prepareState.ShaderStages = CS;
 		prepareState.ShaderConfig = config;
-		GFX::Cmd::BindState(context, prepareState);
+		context.ApplyState(prepareState);
 		context.CmdList->Dispatch(MathUtility::CeilDiv(rg.Drawables.GetSize(), (uint32_t) WAVESIZE), 1, 1);
 	}
 
@@ -126,7 +125,7 @@ void VertexPipeline::Draw_GPU(GraphicsContext& context, GraphicsState& state, Re
 		GFX::Cmd::TransitionResource(context, m_IndirectArgumentsCountBuffer.get(), D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
 		GFX::Cmd::TransitionResource(context, m_IndirectArgumentsBuffer.get(), D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
 
-		ID3D12CommandSignature* commandSignature = GFX::Cmd::BindState(context, state);
+		ID3D12CommandSignature* commandSignature = context.ApplyState(state);
 		context.CmdList->ExecuteIndirect(commandSignature, (UINT) rg.Drawables.GetSize(), m_IndirectArgumentsBuffer->Handle.Get(), 0, m_IndirectArgumentsCountBuffer->Handle.Get(), 0u);
 	}
 }

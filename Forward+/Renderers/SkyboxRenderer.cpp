@@ -18,7 +18,7 @@ Buffer* GenerateCubeVB(GraphicsContext& context);
 static void ProcessAllCubemapFaces(GraphicsContext& context, GraphicsState& faceState, Texture* cubemap)
 {
 	Buffer* CubeVB = GenerateCubeVB(context);
-	DeferredTrash::Put(CubeVB);
+	DeferredTrash::Get()->Put(CubeVB);
 
 	const auto getCameraForFace = [](uint32_t faceIndex)
 	{
@@ -42,7 +42,7 @@ static void ProcessAllCubemapFaces(GraphicsContext& context, GraphicsState& face
 	{
 		DescriptorHeapCPU* heap = Device::Get()->GetMemory().RTVHeap.get();
 		D3D12_CPU_DESCRIPTOR_HANDLE rtvDescriptor = heap->Allocate();
-		DeferredTrash::Put(heap, rtvDescriptor);
+		DeferredTrash::Get()->Put(heap, rtvDescriptor);
 
 		D3D12_RENDER_TARGET_VIEW_DESC rtvDesc{};
 		rtvDesc.Format = cubemap->Format;
@@ -58,7 +58,7 @@ static void ProcessAllCubemapFaces(GraphicsContext& context, GraphicsState& face
 		faceState.Table.CBVs[0] = CBManager.GetBuffer();
 		cubemap->RTV = rtvDescriptor;
 		faceState.RenderTargets[0] = cubemap;
-		GFX::Cmd::BindState(context, faceState);
+		context.ApplyState(faceState);
 		context.CmdList->DrawInstanced(CubeVB->ByteSize / CubeVB->Stride, 1, 0, 0);
 	}
 
@@ -70,7 +70,7 @@ static Texture* PanoramaToCubemap(GraphicsContext& context, Texture* panoramaTex
 	Texture* cubemapTex = GFX::CreateTextureArray(cubemapSize, cubemapSize, 6, RCF_Bind_RTV | RCF_Cubemap);
 
 	Shader* shader = new Shader("Forward+/Shaders/quadrilateral2cubemap.hlsl");
-	DeferredTrash::Put(shader);
+	DeferredTrash::Get()->Put(shader);
 
 	GraphicsState state;
 	state.Shader = shader;
@@ -89,7 +89,7 @@ static Texture* CubemapToIrradianceMap(GraphicsContext& context, Texture* cubema
 	Texture* cubemapTex = GFX::CreateTextureArray(cubemapSize, cubemapSize, 6, RCF_Bind_RTV | RCF_Cubemap, 1, DXGI_FORMAT_R11G11B10_FLOAT);
 
 	Shader* shader = new Shader("Forward+/Shaders/calculate_irradiance.hlsl");
-	DeferredTrash::Put(shader);
+	DeferredTrash::Get()->Put(shader);
 
 	GraphicsState state;
 	state.Shader = shader;
@@ -106,7 +106,7 @@ static Texture* CubemapToIrradianceMap(GraphicsContext& context, Texture* cubema
 static Texture* GenerateSkybox(GraphicsContext& context, const std::string& texturePath)
 {
 	Texture* skyboxPanorama = TextureLoading::LoadTextureHDR(texturePath, RCF_None);
-	DeferredTrash::Put(skyboxPanorama);
+	DeferredTrash::Get()->Put(skyboxPanorama);
 
 	Texture* cubemap = PanoramaToCubemap(context, skyboxPanorama, SkyboxRenderer::CUBEMAP_SIZE);
 	return cubemap;
@@ -145,7 +145,7 @@ void SkyboxRenderer::Draw(GraphicsContext& context, GraphicsState& state)
 	SSManager.Bind(state);
 	state.Shader = m_SkyboxShader.get();
 
-	GFX::Cmd::BindState(context, state);
+	context.ApplyState(state);
 	context.CmdList->DrawInstanced(m_CubeVB->ByteSize/m_CubeVB->Stride, 1, 0, 0);
 	GFX::Cmd::MarkerEnd(context);
 }

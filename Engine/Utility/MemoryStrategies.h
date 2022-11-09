@@ -2,6 +2,7 @@
 
 #include <stack>
 #include <list>
+#include <mutex>
 
 static constexpr size_t INVALID_ALLOCATION = static_cast<size_t>(-1);
 
@@ -25,6 +26,7 @@ public:
 
 	size_t Allocate()
 	{
+		m_Mutex.lock();
 		size_t allocationIndex = INVALID_ALLOCATION;
 
 		if (!m_FreeAllocations.empty())
@@ -37,23 +39,31 @@ public:
 			allocationIndex = m_NextAllocation;
 			m_NextAllocation++;
 		}
+		m_Mutex.unlock();
 		return allocationIndex;
 	}
 
 	bool CanAllocate(size_t numElements)
 	{
-		return m_FreeAllocations.size() + (m_NumElements - m_NextAllocation) > numElements;
+		m_Mutex.lock();
+		bool canAlloocate = m_FreeAllocations.size() + (m_NumElements - m_NextAllocation) > numElements;
+		m_Mutex.unlock();
+		return canAlloocate;
 	}
 
 	void Release(size_t alloc)
 	{
+		m_Mutex.lock();
 		m_FreeAllocations.push(alloc);
+		m_Mutex.unlock();
 	}
 
 	void Clear()
 	{
+		m_Mutex.lock();
 		while (!m_FreeAllocations.empty()) m_FreeAllocations.pop();
 		m_NextAllocation = 0;
+		m_Mutex.unlock();
 	}
 
 private:
@@ -61,6 +71,7 @@ private:
 
 	size_t m_NextAllocation = 0;
 	std::stack<size_t> m_FreeAllocations;
+	std::mutex m_Mutex;
 };
 
 class PageStrategy

@@ -39,7 +39,6 @@ Engine::~Engine()
 	m_Application->OnDestroy(context);
 	GUI::Destroy();
 	delete m_Application;
-	ReleaseContextCache();
 	RenderThreadPool::Destroy();
 	GFX::DestroyShaderCompiler();
 	Device::Destroy();
@@ -65,7 +64,7 @@ void Engine::Run()
 		// Graphics frame init
 		GFX::Cmd::FlushContext(context);
 		GFX::Cmd::ResetContext(context);
-		DeferredTrash::Clear();
+		DeferredTrash::Get()->Clear();
 
 		// Update window size if needed
 		if (AppConfig.WindowSizeDirty)
@@ -80,7 +79,7 @@ void Engine::Run()
 		if (!finalRT)
 		{
 			finalRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV);
-			DeferredTrash::Put(finalRT);
+			DeferredTrash::Get()->Put(finalRT);
 		}
 		
 		GUI::Get()->Render(context, finalRT); // TODO: First copy the finalRT to the texture with good format then render gui to that texture

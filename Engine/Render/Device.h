@@ -83,6 +83,6 @@ private:
 	ScopedRef<Shader> m_CopyShader;
 	ScopedRef<Buffer> m_QuadBuffer;
 
-	static constexpr uint32_t MAX_DEFERRED_TASKS = 5;
+	static constexpr uint32_t MAX_DEFERRED_TASKS = 32;
 	DeferredTaskExecutor m_TaskExecutor{ MAX_DEFERRED_TASKS };
 };

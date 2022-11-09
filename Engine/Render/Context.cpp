@@ -8,12 +8,6 @@
 #include "Render/Shader.h"
 #include "Utility/Hash.h"
 
-// TODO: APPLY TO TO MTR
-// WARNING: Not multithread safe
-static std::unordered_map<uint32_t, ComPtr<ID3D12RootSignature>> RootSignatureCache;
-static std::unordered_map<uint32_t, ComPtr<ID3D12PipelineState>> PSOCache;
-static std::unordered_map<uint32_t, D3D12_CPU_DESCRIPTOR_HANDLE> SamplerCache;
-
 GraphicsState::GraphicsState()
 {
 	D3D12_BLEND_DESC blend;
@@ -202,10 +196,11 @@ static uint32_t CalcRootSignatureHash(const GraphicsState& state)
 	return sigHash;
 }
 
-static ID3D12RootSignature* GetOrCreateRootSignature(const GraphicsState& state)
+static ID3D12RootSignature* GetOrCreateRootSignature(GraphicsContext& context, const GraphicsState& state)
 {
 	uint32_t rootSignatureHash = CalcRootSignatureHash(state);
-	if (RootSignatureCache.contains(rootSignatureHash)) return RootSignatureCache[rootSignatureHash].Get();
+	if (context.RootSignatureCache.contains(rootSignatureHash)) 
+		return context.RootSignatureCache[rootSignatureHash].Get();
 
 	ID3D12RootSignature* rootSignature = nullptr;
 
@@ -276,12 +271,12 @@ static ID3D12RootSignature* GetOrCreateRootSignature(const GraphicsState& state)
 
 	API_CALL(device->GetHandle()->CreateRootSignature(0, serializedRootSig->GetBufferPointer(), serializedRootSig->GetBufferSize(), IID_PPV_ARGS(&rootSignature)));
 
-	RootSignatureCache[rootSignatureHash] = rootSignature;
+	context.RootSignatureCache[rootSignatureHash] = rootSignature;
 
 	return rootSignature;
 }
 
-static ID3D12PipelineState* GetOrCreatePSO(const GraphicsState& state, ID3D12RootSignature* rootSignature, uint32_t& psoHash)
+static ID3D12PipelineState* GetOrCreatePSO(GraphicsContext& context, const GraphicsState& state, ID3D12RootSignature* rootSignature, uint32_t& psoHash)
 {
 	ID3D12PipelineState* pipelineState = nullptr;
 	const CompiledShader& compShader = GFX::GetCompiledShader(state.Shader, state.ShaderConfig, state.ShaderStages);
@@ -296,14 +291,14 @@ static ID3D12PipelineState* GetOrCreatePSO(const GraphicsState& state, ID3D12Roo
 		pipeline.NodeMask = 0;
 
 		psoHash = Hash::Crc32(pipeline);
-		if (PSOCache.contains(psoHash))
+		if (context.PSOCache.contains(psoHash))
 		{
-			pipelineState = PSOCache[psoHash].Get();
+			pipelineState = context.PSOCache[psoHash].Get();
 		}
 		else
 		{
 			API_CALL(Device::Get()->GetHandle()->CreateComputePipelineState(&pipeline, IID_PPV_ARGS(&pipelineState)));
-			PSOCache[psoHash] = pipelineState;
+			context.PSOCache[psoHash] = pipelineState;
 		}
 	}
 	else
@@ -333,20 +328,20 @@ static ID3D12PipelineState* GetOrCreatePSO(const GraphicsState& state, ID3D12Roo
 		pipeline.SampleDesc.Quality = 0;
 
 		psoHash = Hash::Crc32(pipeline);
-		if (PSOCache.contains(psoHash))
+		if (context.PSOCache.contains(psoHash))
 		{
-			pipelineState = PSOCache[psoHash].Get();
+			pipelineState = context.PSOCache[psoHash].Get();
 		}
 		else
 		{
 			API_CALL(Device::Get()->GetHandle()->CreateGraphicsPipelineState(&pipeline, IID_PPV_ARGS(&pipelineState)));
-			PSOCache[psoHash] = pipelineState;
+			context.PSOCache[psoHash] = pipelineState;
 		}
 	}
 	return pipelineState;
 }
 
-static D3D12_CPU_DESCRIPTOR_HANDLE GetSamplerDescriptor(const Sampler& sampler)
+static D3D12_CPU_DESCRIPTOR_HANDLE GetSamplerDescriptor(GraphicsContext& context, const Sampler& sampler)
 {
 	D3D12_SAMPLER_DESC samplerDesc{};
 	samplerDesc.AddressU = sampler.AddressMode;
@@ -364,13 +359,13 @@ static D3D12_CPU_DESCRIPTOR_HANDLE GetSamplerDescriptor(const Sampler& sampler)
 	samplerDesc.MipLODBias = 0;
 	
 	const uint32_t samplerHash = Hash::Crc32(samplerDesc);
-	if (!SamplerCache.contains(samplerHash))
+	if (!context.SamplerCache.contains(samplerHash))
 	{
-		SamplerCache[samplerHash] = Device::Get()->GetMemory().SMPHeap->Allocate();
-		Device::Get()->GetHandle()->CreateSampler(&samplerDesc, SamplerCache[samplerHash]);
+		context.SamplerCache[samplerHash] = Device::Get()->GetMemory().SMPHeap->Allocate();
+		Device::Get()->GetHandle()->CreateSampler(&samplerDesc, context.SamplerCache[samplerHash]);
 	}
 
-	return SamplerCache[samplerHash];
+	return context.SamplerCache[samplerHash];
 }
 
 static DescriptorAllocation CreateDescriptorTable(GraphicsContext& context, const std::vector<Resource*>& bindings, BindingType bindingType)
@@ -405,31 +400,31 @@ static DescriptorAllocation CreateDescriptorTable(GraphicsContext& context, cons
 	return alloc;
 }
 
-ID3D12CommandSignature* ApplyGraphicsState(GraphicsContext& context, const GraphicsState& state)
+ID3D12CommandSignature* GraphicsContext::ApplyState(const GraphicsState& state)
 {
 	Device* device = Device::Get();
-	ID3D12GraphicsCommandList* cmdList = context.CmdList.Get();
+	ID3D12GraphicsCommandList* cmdList = CmdList.Get();
 
 	std::vector<D3D12_RESOURCE_BARRIER> barriers;
 	
 	const bool useCompute = state.ShaderStages & CS;
 
 	// Root Signature
-	ID3D12RootSignature* rootSignature = GetOrCreateRootSignature(state);
+	ID3D12RootSignature* rootSignature = GetOrCreateRootSignature(*this, state);
 	
 	// Pipeline state
 	uint32_t psoHash = 0;
-	ID3D12PipelineState* pipelineState = GetOrCreatePSO(state, rootSignature, psoHash);
+	ID3D12PipelineState* pipelineState = GetOrCreatePSO(*this, state, rootSignature, psoHash);
 
-	const bool pipelineDirty = !context.BoundState.Valid || context.BoundState.PSOHash != psoHash;
-	context.BoundState.Valid = true;
-	context.BoundState.PSOHash = psoHash;
+	const bool pipelineDirty = !BoundState.Valid || BoundState.PSOHash != psoHash;
+	BoundState.Valid = true;
+	BoundState.PSOHash = psoHash;
 
 	if (pipelineDirty)
 	{
 		std::vector<ID3D12DescriptorHeap*> descriptorHeaps{};
-		descriptorHeaps.push_back(context.MemContext.SRVHeap.GetHeap());
-		descriptorHeaps.push_back(context.MemContext.SMPHeap.GetHeap());
+		descriptorHeaps.push_back(MemContext.SRVHeap.GetHeap());
+		descriptorHeaps.push_back(MemContext.SMPHeap.GetHeap());
 		cmdList->SetDescriptorHeaps((UINT) descriptorHeaps.size(), descriptorHeaps.data());
 
 		if (useCompute) cmdList->SetComputeRootSignature(rootSignature);
@@ -518,15 +513,15 @@ ID3D12CommandSignature* ApplyGraphicsState(GraphicsContext& context, const Graph
 		DescriptorAllocation descriptorTables[4];
 
 		// Allocate and populate descriptor tables
-		MemoryContext& memContext = context.MemContext;
-		descriptorTables[0] = CreateDescriptorTable(context, state.Table.CBVs, BindingType::CBV);
-		descriptorTables[1] = CreateDescriptorTable(context, state.Table.SRVs, BindingType::SRV);
-		descriptorTables[2] = CreateDescriptorTable(context, state.Table.UAVs, BindingType::UAV);
+		MemoryContext& memContext = MemContext;
+		descriptorTables[0] = CreateDescriptorTable(*this, state.Table.CBVs, BindingType::CBV);
+		descriptorTables[1] = CreateDescriptorTable(*this, state.Table.SRVs, BindingType::SRV);
+		descriptorTables[2] = CreateDescriptorTable(*this, state.Table.UAVs, BindingType::UAV);
 		descriptorTables[3] = memContext.SMPHeap.Allocate(state.Table.SMPs.size(), true);
 
 		for (size_t i = 0; i < state.Table.SMPs.size(); i++)
 		{
-			const D3D12_CPU_DESCRIPTOR_HANDLE srcDescriptor = GetSamplerDescriptor(state.Table.SMPs[i]);
+			const D3D12_CPU_DESCRIPTOR_HANDLE srcDescriptor = GetSamplerDescriptor(*this, state.Table.SMPs[i]);
 			const D3D12_CPU_DESCRIPTOR_HANDLE dstDescriptor = memContext.SMPHeap.GetCPUHandle(descriptorTables[3], i);
 			Device::Get()->GetHandle()->CopyDescriptorsSimple(1, dstDescriptor, srcDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
 		}
@@ -546,24 +541,24 @@ ID3D12CommandSignature* ApplyGraphicsState(GraphicsContext& context, const Graph
 
 		if (!state.PushConstants.empty())
 		{
-			GFX::Cmd::UpdatePushConstants(context, state);
+			GFX::Cmd::UpdatePushConstants(*this, state);
 			nextSlot++;
 		}
 		for (uint32_t i = 0; i < 3; i++)
 		{
 			if (descriptorTables[i].HeapAlloc.NumElements == 0) continue;
 
-			const D3D12_GPU_DESCRIPTOR_HANDLE descriptor = context.MemContext.SRVHeap.GetGPUHandle(descriptorTables[i]);
+			const D3D12_GPU_DESCRIPTOR_HANDLE descriptor = MemContext.SRVHeap.GetGPUHandle(descriptorTables[i]);
 			bindDescriptor(descriptor);
 		}
 		if (descriptorTables[3].HeapAlloc.NumElements != 0)
 		{
-			const D3D12_GPU_DESCRIPTOR_HANDLE descriptor = context.MemContext.SMPHeap.GetGPUHandle(descriptorTables[3]);
+			const D3D12_GPU_DESCRIPTOR_HANDLE descriptor = MemContext.SMPHeap.GetGPUHandle(descriptorTables[3]);
 			bindDescriptor(descriptor);
 		}
 		for (const BindlessTable& table : state.BindlessTables)
 		{
-			const D3D12_GPU_DESCRIPTOR_HANDLE descriptor = context.MemContext.SRVHeap.GetGPUHandle(table.DescriptorTable);
+			const D3D12_GPU_DESCRIPTOR_HANDLE descriptor = MemContext.SRVHeap.GetGPUHandle(table.DescriptorTable);
 			bindDescriptor(descriptor);
 		}
 	}
@@ -584,18 +579,63 @@ ID3D12CommandSignature* ApplyGraphicsState(GraphicsContext& context, const Graph
 		ID3D12RootSignature* rootSig = nullptr;
 		if (state.CommandSignature.NumArgumentDescs > 1) rootSig = rootSignature;
 		API_CALL(Device::Get()->GetHandle()->CreateCommandSignature(&state.CommandSignature, rootSig, IID_PPV_ARGS(&commandSignature)));
-		DeferredTrash::Put(commandSignature);
+		DeferredTrash::Get()->Put(commandSignature);
 	}
 	return commandSignature;
 }
 
-void ReleaseContextCache()
+GraphicsContext::~GraphicsContext()
 {
 	DeviceMemory& mem = Device::Get()->GetMemory();
-
-	RootSignatureCache.clear();
-	PSOCache.clear();
 	for (const auto& [key, value] : SamplerCache)
-		DeferredTrash::Put(mem.SMPHeap.get(), value);
-	SamplerCache.clear();
+		DeferredTrash::Get()->Put(mem.SMPHeap.get(), value);
+}
+
+static uint32_t GetHash(const StagingResourcesContext::StagingTextureRequest& request)
+{
+	uint32_t h = Hash::Crc32(request.Width);
+	h = Hash::Crc32(h, request.Height);
+	h = Hash::Crc32(h, request.NumMips);
+	h = Hash::Crc32(h, request.CreationFlags);
+	h = Hash::Crc32(h, request.Format);
+	h = Hash::Crc32(h, request.CreateSubresources);
+	return h;
+}
+
+StagingResourcesContext::~StagingResourcesContext()
+{
+	for (const auto it : m_TransientStagingTextures)
+	{
+		for (TextureSubresource* subres : it.second->Subresources)
+			DeferredTrash::Get()->Put(subres);
+
+		DeferredTrash::Get()->Put(it.second->TextureResource);
+		
+		delete it.second;
+	}
+	m_TransientStagingTextures.clear();
+}
+
+StagingResourcesContext::StagingTexture* StagingResourcesContext::GetTransientTexture(const StagingTextureRequest& request)
+{
+	const uint32_t hash = GetHash(request);
+
+	if (!m_TransientStagingTextures.contains(hash))
+	{
+		StagingTexture* tex = new StagingTexture{};
+		tex->TextureResource = GFX::CreateTexture(request.Width, request.Height, request.CreationFlags, request.NumMips, request.Format);
+
+		if (request.CreateSubresources)
+		{
+			tex->Subresources.resize(request.NumMips);
+			for (uint32_t mip = 0; mip < request.NumMips; mip++)
+			{
+				tex->Subresources[mip] = GFX::CreateTextureSubresource(tex->TextureResource, mip, 1, 0, tex->TextureResource->DepthOrArraySize);
+			}
+		}
+
+		m_TransientStagingTextures[hash] = tex;
+	}	
+
+	return m_TransientStagingTextures[hash];
 }

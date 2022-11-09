@@ -127,11 +127,6 @@ namespace GFX::Cmd
 		context.BoundState.Valid = false;
 	}
 
-	ID3D12CommandSignature* BindState(GraphicsContext& context, const GraphicsState& state)
-	{
-		return ApplyGraphicsState(context, state);
-	}
-
 	void UpdatePushConstants(GraphicsContext& context, const GraphicsState& state)
 	{
 		ASSERT(!state.PushConstants.empty(), "[UpdatePushConstants] Push constants are empty");
@@ -158,103 +153,6 @@ namespace GFX::Cmd
 
 	// TODO: Create staging resources directly on a Device and use that
 
-	struct UpdateSubresourceInput
-	{
-		Resource* DstResource = nullptr;
-		const void* Data = nullptr;
-		uint32_t MipIndex = 0;
-		uint32_t ArrayIndex = 0;
-		uint32_t SrcOffset = 0;
-		uint32_t DstOffset = 0;
-		uint32_t DataSize = 0;
-	};
-
-	static void UpdateSubresource(GraphicsContext& context, UpdateSubresourceInput input)
-	{
-		Device* device = Device::Get();
-
-		// Maybe use one staging buffer for everything	
-		static constexpr uint32_t StagingOffset = 0;
-
-		uint32_t subresourceIndex = 0;
-		D3D12_SUBRESOURCE_DATA subresourceData{};
-		subresourceData.pData = (const void*)(reinterpret_cast<const uint8_t*>(input.Data) + input.SrcOffset);
-		if (input.DstResource->Type == ResourceType::Texture)
-		{
-			Texture* texture = static_cast<Texture*>(input.DstResource);
-			subresourceIndex = GFX::GetSubresourceIndex(texture, input.MipIndex, input.ArrayIndex);
-			subresourceData.RowPitch = texture->RowPitch;
-			subresourceData.SlicePitch = texture->SlicePitch;
-		}
-		else if (input.DstResource->Type == ResourceType::Buffer)
-		{
-			Buffer* buffer = static_cast<Buffer*>(input.DstResource);
-			subresourceData.RowPitch = buffer->ByteSize;
-			subresourceData.SlicePitch = subresourceData.RowPitch;
-		}
-
-		uint64_t resourceSize;
-		D3D12_PLACED_SUBRESOURCE_FOOTPRINT subresLayout;
-		uint32_t subresRowNumber;
-		uint64_t subresRowByteSizes;
-
-		ID3D12Resource* dxResource = input.DstResource->Handle.Get();
-		D3D12_RESOURCE_DESC resourceDesc = dxResource->GetDesc();
-
-		// Get memory footprints
-		ID3D12Device* resourceDevice;
-		dxResource->GetDevice(__uuidof(*resourceDevice), reinterpret_cast<void**>(&resourceDevice));
-		resourceDevice->GetCopyableFootprints(&resourceDesc, subresourceIndex, 1, StagingOffset, &subresLayout, &subresRowNumber, &subresRowByteSizes, &resourceSize);
-		resourceDevice->Release();
-
-		// Create staging resource
-		Buffer* stagingResource = GFX::CreateBuffer(input.DataSize ? input.DataSize : (uint32_t) resourceSize, 1, RCF_CPU_Access);
-		DeferredTrash::Put(stagingResource);
-		GFX::SetDebugName(stagingResource, "UpdateSubresource::StagingBuffer");
-
-		// Upload data to staging resource
-		uint8_t* stagingDataPtr;
-		API_CALL(stagingResource->Handle->Map(0, NULL, reinterpret_cast<void**>(&stagingDataPtr)));
-		if (input.DataSize)
-		{
-			memcpy(stagingDataPtr, input.Data, input.DataSize);
-		}
-		else
-		{
-			D3D12_MEMCPY_DEST DestData = { stagingDataPtr + subresLayout.Offset, subresLayout.Footprint.RowPitch, (uint64_t)subresLayout.Footprint.RowPitch * subresRowNumber };
-			MemcpySubresource(&DestData, &subresourceData, (uint32_t)subresRowByteSizes, subresRowNumber, subresLayout.Footprint.Depth);
-		}
-		stagingResource->Handle->Unmap(0, NULL);
-
-		// Copy data to resource
-		if (input.DstResource->Type == ResourceType::Buffer)
-		{
-			const uint32_t copySize = input.DataSize ? input.DataSize : subresLayout.Footprint.Width;
-			Buffer* buffer = static_cast<Buffer*>(input.DstResource);
-			TransitionResource(context, buffer, D3D12_RESOURCE_STATE_COPY_DEST);
-			context.CmdList->CopyBufferRegion(buffer->Handle.Get(), input.DstOffset, stagingResource->Handle.Get(), subresLayout.Offset, copySize);
-		}
-		else
-		{
-			Texture* texture = static_cast<Texture*>(input.DstResource);
-			TransitionResource(context, texture, D3D12_RESOURCE_STATE_COPY_DEST);
-
-			D3D12_TEXTURE_COPY_LOCATION dst{};
-			dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-			dst.pResource = texture->Handle.Get();
-			dst.SubresourceIndex = subresourceIndex;
-
-			D3D12_TEXTURE_COPY_LOCATION src{};
-			src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
-			src.pResource = stagingResource->Handle.Get();
-			src.PlacedFootprint = subresLayout;
-
-			context.CmdList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
-		}
-
-		DeferredTrash::Put(stagingResource->Handle.Get());
-	}
-
 	void UploadToBufferCPU(Buffer* buffer, uint32_t dstOffset, const void* data, uint32_t srcOffset, uint32_t dataSize)
 	{
 		ASSERT(buffer->CreationFlags & RCF_CPU_Access, "[UploadToBufferCPU] Buffer must have CPU Access in order to map it");
@@ -268,15 +166,22 @@ namespace GFX::Cmd
 
 	void UploadToBufferGPU(GraphicsContext& context, Buffer* buffer, uint32_t dstOffset, const void* data, uint32_t srcOffset, uint32_t dataSize)
 	{
-		UpdateSubresourceInput updateInput{};
-		updateInput.DstResource = buffer;
-		updateInput.Data = data;
-		updateInput.DataSize = dataSize;
-		updateInput.SrcOffset = srcOffset;
-		updateInput.DstOffset = dstOffset;
+		// Create staging resource
+		Buffer* stagingResource = GFX::CreateBuffer(dataSize, 1, RCF_CPU_Access | RCF_No_SRV);
+		DeferredTrash::Get()->Put(stagingResource);
+		GFX::SetDebugName(stagingResource, "UpdateSubresource::StagingBuffer");
 
+		// Upload data to staging resource
+		uint8_t* stagingDataPtr;
+		uint8_t* srcDataPtr = (uint8_t*) data;
+		API_CALL(stagingResource->Handle->Map(0, NULL, reinterpret_cast<void**>(&stagingDataPtr)));
+		memcpy(stagingDataPtr, srcDataPtr + srcOffset, dataSize);
+		stagingResource->Handle->Unmap(0, NULL);
+
+		// Copy to buffer
+		const uint32_t copySize = dataSize;
 		TransitionResource(context, buffer, D3D12_RESOURCE_STATE_COPY_DEST);
-		UpdateSubresource(context, updateInput);
+		context.CmdList->CopyBufferRegion(buffer->Handle.Get(), dstOffset, stagingResource->Handle.Get(), 0, copySize);
 	}
 
 	void UploadToBuffer(GraphicsContext& context, Buffer* buffer, uint32_t dstOffset, const void* data, uint32_t srcOffset, uint32_t dataSize)
@@ -295,14 +200,53 @@ namespace GFX::Cmd
 
 	void UploadToTexture(GraphicsContext& context, const void* data, Texture* texture, uint32_t mipIndex, uint32_t arrayIndex)
 	{
-		UpdateSubresourceInput updateInput{};
-		updateInput.DstResource = texture;
-		updateInput.Data = data;
-		updateInput.MipIndex = mipIndex;
-		updateInput.ArrayIndex = arrayIndex;
+		Device* device = Device::Get();
+
+		// Get memory footprints
+		uint32_t subresourceIndex = 0;
+		D3D12_SUBRESOURCE_DATA subresourceData{};
+		subresourceData.pData = data;
+		subresourceIndex = GFX::GetSubresourceIndex(texture, mipIndex, arrayIndex);
+		subresourceData.RowPitch = texture->RowPitch;
+		subresourceData.SlicePitch = texture->SlicePitch;
+
+		uint64_t resourceSize;
+		D3D12_PLACED_SUBRESOURCE_FOOTPRINT subresLayout;
+		uint32_t subresRowNumber;
+		uint64_t subresRowByteSizes;
+
+		ID3D12Resource* dxResource = texture->Handle.Get();
+		D3D12_RESOURCE_DESC resourceDesc = dxResource->GetDesc();
+		ID3D12Device* resourceDevice;
+		dxResource->GetDevice(__uuidof(*resourceDevice), reinterpret_cast<void**>(&resourceDevice));
+		resourceDevice->GetCopyableFootprints(&resourceDesc, subresourceIndex, 1, 0, &subresLayout, &subresRowNumber, &subresRowByteSizes, &resourceSize);
+		resourceDevice->Release();
+
+		// Create staging resource
+		Buffer* stagingResource = GFX::CreateBuffer((uint32_t)resourceSize, 1, RCF_CPU_Access | RCF_No_SRV);
+		DeferredTrash::Get()->Put(stagingResource);
+		GFX::SetDebugName(stagingResource, "UpdateSubresource::StagingBuffer");
+
+		// Upload data to staging resource
+		uint8_t* stagingDataPtr;
+		API_CALL(stagingResource->Handle->Map(0, NULL, reinterpret_cast<void**>(&stagingDataPtr)));
+		D3D12_MEMCPY_DEST DestData = { stagingDataPtr + subresLayout.Offset, subresLayout.Footprint.RowPitch, (uint64_t)subresLayout.Footprint.RowPitch * subresRowNumber };
+		MemcpySubresource(&DestData, &subresourceData, (uint32_t)subresRowByteSizes, subresRowNumber, subresLayout.Footprint.Depth);
+		stagingResource->Handle->Unmap(0, NULL);
+
+		// Copy to texture
+		D3D12_TEXTURE_COPY_LOCATION dst{};
+		dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+		dst.pResource = texture->Handle.Get();
+		dst.SubresourceIndex = subresourceIndex;
+
+		D3D12_TEXTURE_COPY_LOCATION src{};
+		src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+		src.pResource = stagingResource->Handle.Get();
+		src.PlacedFootprint = subresLayout;
 
 		TransitionResource(context, texture, D3D12_RESOURCE_STATE_COPY_DEST);
-		UpdateSubresource(context, updateInput);
+		context.CmdList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
 	}
 
 	void CopyToTexture(GraphicsContext& context, Texture* srcTexture, Texture* dstTexture, uint32_t mipIndex)
@@ -334,16 +278,28 @@ namespace GFX::Cmd
 	{
 		state.VertexBuffers.resize(1);
 		state.VertexBuffers[0] = Device::Get()->GetQuadBuffer();
-		GFX::Cmd::BindState(context, state);
+		context.ApplyState(state);
 		context.CmdList->DrawInstanced(6, 1, 0, 0);
 	}
 
 	void GenerateMips(GraphicsContext& context, Texture* texture)
 	{
 		ASSERT(texture->DepthOrArraySize == 1, "GenerateMips not supported for texture arrays!");
-		ASSERT(texture->CreationFlags & RCF_Bind_RTV && texture->CreationFlags & RCF_GenerateMips, "RCF_Bind_RTV and RCF_GenerateMips flags needed for GenerateMips function!");
-
+		
 		GFX::Cmd::MarkerBegin(context, "GenerateMips");
+
+		// Get staging texture
+		StagingResourcesContext::StagingTextureRequest texRequest = {};
+		texRequest.Width = texture->Width;
+		texRequest.Height = texture->Height;
+		texRequest.NumMips = texture->NumMips;
+		texRequest.Format = texture->Format;
+		texRequest.CreationFlags = RCF_Bind_RTV | RCF_GenerateMips;
+		texRequest.CreateSubresources = true;
+		StagingResourcesContext::StagingTexture* stagingTexture = context.StagingResources.GetTransientTexture(texRequest);
+
+		// Copy data to staging texture
+		GFX::Cmd::CopyToTexture(context, texture, stagingTexture->TextureResource, 0);
 
 		// Init state
 		GraphicsState state{};
@@ -352,28 +308,21 @@ namespace GFX::Cmd
 		state.Shader = Device::Get()->GetCopyShader();
 		state.Table.SMPs.push_back(Sampler{ D3D12_FILTER_MIN_MAG_MIP_LINEAR, D3D12_TEXTURE_ADDRESS_MODE_CLAMP });
 		
-		// Generate subresources
-		std::vector<TextureSubresource*> subresources{};
-		subresources.resize(texture->NumMips);
-		for (uint32_t mip = 0; mip < texture->NumMips; mip++)
-		{
-			subresources[mip] = GFX::CreateTextureSubresource(texture, mip, 1, 0, texture->DepthOrArraySize);
-			DeferredTrash::Put(subresources[mip]);
-		}
-
 		// Generate mips
 		for (uint32_t mip = 1; mip < texture->NumMips; mip++)
 		{
-			state.Table.SRVs[0] = subresources[mip - 1];
-			state.RenderTargets[0] = subresources[mip];
+			state.Table.SRVs[0] = stagingTexture->Subresources[mip - 1];
+			state.RenderTargets[0] = stagingTexture->Subresources[mip];
 			GFX::Cmd::DrawFC(context, state);
 		}
 
+		// Copy to target texture
+		for (uint32_t mip = 0; mip < texture->NumMips; mip++) 
+			GFX::Cmd::CopyToTexture(context, stagingTexture->TextureResource, texture, mip);
+
 		// Return resource state to initial state
 		for (uint32_t mip = 0; mip < texture->NumMips; mip++)
-		{
-			GFX::Cmd::TransitionResource(context, subresources[mip], texture->CurrState);
-		}
+			GFX::Cmd::TransitionResource(context, stagingTexture->Subresources[mip], stagingTexture->TextureResource->CurrState);
 
 		GFX::Cmd::MarkerEnd(context);
 	}
@@ -415,7 +364,7 @@ namespace GFX::Cmd
 	void ReleaseBindlessTable(GraphicsContext& context, const BindlessTable& table)
 	{
 		if(table.DescriptorTable.HeapAlloc.NumElements != INVALID_ALLOCATION)
-			DeferredTrash::Put(&context.MemContext.SRVHeap, table.DescriptorTable);
+			DeferredTrash::Get()->Put(&context.MemContext.SRVHeap, table.DescriptorTable);
 	}
 
 }

@@ -61,6 +61,9 @@ struct RenderStatistics
 {
 	uint32_t TotalDrawables;
 	uint32_t VisibleDrawables;
+
+	uint32_t TotalShadowDrawables;
+	uint32_t VisibleShadowDrawables;
 };
 
 extern RenderStatistics RenderStats;

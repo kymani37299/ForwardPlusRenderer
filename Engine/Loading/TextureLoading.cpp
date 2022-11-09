@@ -76,13 +76,9 @@ namespace TextureLoading
 		}
 		else
 		{
-			Texture* stagingTexture = GFX::CreateTexture(width, height, RCF_Bind_RTV | RCF_GenerateMips, numMips, TEXTURE_FORMAT);
-			DeferredTrash::Put(stagingTexture);
-			GFX::Cmd::UploadToTexture(context, texData, stagingTexture);
-			GFX::Cmd::GenerateMips(context, stagingTexture);
-
 			texture = GFX::CreateTexture(width, height, creationFlags, numMips, TEXTURE_FORMAT);
-			for (uint32_t mip = 0; mip < numMips; mip++) GFX::Cmd::CopyToTexture(context, stagingTexture, texture, mip);
+			GFX::Cmd::UploadToTexture(context, texData, texture, 0);
+			GFX::Cmd::GenerateMips(context, texture);
 		}
 		FreeTexture(texData);
 		return texture;

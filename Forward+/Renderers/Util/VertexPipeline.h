@@ -8,6 +8,9 @@ struct GraphicsState;
 struct Buffer;
 struct Shader;
 
+struct RenderGroup;
+struct RenderGroupCullingData;
+
 class VertexPipeline
 {
 public:
@@ -15,11 +18,11 @@ public:
 	~VertexPipeline();
 
 	void Init(GraphicsContext& context);
-	void Draw(GraphicsContext& context, GraphicsState& state, RenderGroup& renderGroup, bool skipCulling = false);
+	void Draw(GraphicsContext& context, GraphicsState& state, RenderGroup& renderGroup, RenderGroupCullingData& cullingData);
 
 private:
-	void Draw_CPU(GraphicsContext& context, GraphicsState& state, RenderGroup& renderGroup, bool skipCulling);
-	void Draw_GPU(GraphicsContext& context, GraphicsState& state, RenderGroup& renderGroup, bool skipCulling);
+	void Draw_CPU(GraphicsContext& context, GraphicsState& state, RenderGroup& renderGroup, RenderGroupCullingData& cullingData);
+	void Draw_GPU(GraphicsContext& context, GraphicsState& state, RenderGroup& renderGroup, RenderGroupCullingData& cullingData);
 
 private:
 	ScopedRef<Buffer> m_IndirectArgumentsBuffer;

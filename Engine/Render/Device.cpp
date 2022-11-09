@@ -113,11 +113,11 @@ void Device::InitDevice()
 
 void Device::DeinitDevice()
 {
-	DeferredTrash::ClearAll();
-
 	m_CopyShader = nullptr;
 	m_QuadBuffer = nullptr;
 	m_Context = nullptr;
+
+	DeferredTrash::Get()->ClearAll();
 
 	for (uint32_t i = 0; i < SWAPCHAIN_BUFFER_COUNT; i++)
 		m_SwapchainBuffers[i] = nullptr;

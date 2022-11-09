@@ -252,7 +252,14 @@ namespace SceneLoading
 			}
 			else
 			{
-				Device::Get()->GetTaskExecutor().Submit(new TextureLoadingTask(texturePath, textureIndex, context.LoadingRG->TextureData, defaultColor));
+				if (AppConfig.Settings.contains("LOADING_USE_LESS_MEMORY"))
+				{
+					Device::Get()->GetTaskExecutor().Submit(new TextureLoadingTask(texturePath, textureIndex, context.LoadingRG->TextureData, defaultColor));
+				}
+				else
+				{
+					TextureLoadingTask(texturePath, textureIndex, context.LoadingRG->TextureData, defaultColor).Run(*context.GfxContext);
+				}
 			}
 			
 			return textureIndex;

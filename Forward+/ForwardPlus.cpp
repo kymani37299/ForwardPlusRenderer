@@ -233,7 +233,22 @@ Texture* ForwardPlus::OnDraw(GraphicsContext& context)
 	MainSceneGraph->FrameUpdate(context);
 
 	// Geometry culling
-	m_Culling.CullGeometries(context, m_MainRT_Depth.get());
+	if (!RenderSettings.Culling.GeometryCullingFrozen)
+	{
+		GFX::Cmd::MarkerBegin(context, "Geometry Culling");
+
+		// Main camera
+		GeometryCullingInput mainCameraInput{ MainSceneGraph->MainCamera };
+		mainCameraInput.Depth = m_MainRT_Depth.get();
+		m_Culling.CullGeometries(context, mainCameraInput);
+
+		// Shadow camera
+		GeometryCullingInput shadowCameraInput{ MainSceneGraph->ShadowCamera };
+		m_Culling.CullGeometries(context, shadowCameraInput);
+
+		GFX::Cmd::MarkerEnd(context);
+	}
+	
 
 	// Prepare render targets
 	{
@@ -303,6 +318,12 @@ Texture* ForwardPlus::OnDraw(GraphicsContext& context)
 	// Postprocessing
 	Texture* ppResult = m_PostprocessingRenderer.Process(context, m_MainRT_HDR.get(), m_MotionVectorRT.get());
 	
+	// Update RenderStats
+	RenderStats.TotalDrawables = MainSceneGraph->MainCamera.CullingData.TotalElements;
+	RenderStats.VisibleDrawables = MainSceneGraph->MainCamera.CullingData.VisibleElements;
+	RenderStats.TotalShadowDrawables = MainSceneGraph->ShadowCamera.CullingData.TotalElements;
+	RenderStats.VisibleShadowDrawables = MainSceneGraph->ShadowCamera.CullingData.VisibleElements;
+
 	return ppResult;
 }
 

@@ -39,6 +39,7 @@ namespace GFX
 		const bool rawBuffer = buffer->CreationFlags & RCF_Bind_RAW;
 
 		// SRV
+		if(!(buffer->CreationFlags & RCF_No_SRV))
 		{
 			buffer->SRV = memory.SRVHeap->Allocate();
 
@@ -135,7 +136,7 @@ namespace GFX
 		oldResource->CBV = buffer->CBV;
 		oldResource->SRV = buffer->SRV;
 		oldResource->UAV = buffer->UAV;
-		DeferredTrash::Put(oldResource);
+		DeferredTrash::Get()->Put(oldResource);
 
 		const uint32_t copySize = MIN(buffer->ByteSize, byteSize);
 		

@@ -218,7 +218,7 @@ void DebugRenderer::DrawGeometries(GraphicsContext& context, GraphicsState& stat
 		CBManager.Add(MainSceneGraph->MainCamera.CameraData);
 		state.Table.CBVs[0] = CBManager.GetBuffer();
 		state.VertexBuffers[0] = typeToVB[i];
-		GFX::Cmd::BindState(context, state);
+		context.ApplyState(state);
 		context.CmdList->DrawInstanced(m_SphereVB->ByteSize / m_SphereVB->Stride, (uint32_t) debugGeometries.size(), 0, 0);
 		debugGeometries.clear();
 	}

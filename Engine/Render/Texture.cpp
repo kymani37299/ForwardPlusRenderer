@@ -200,7 +200,7 @@ namespace GFX
 
 		if (initData) GFX::Cmd::UploadToTexture(*initData->Context, initData->Data, texture, 0);
 
-		texture->SRV = CreateSRV(texture, 0, -1, 0, texture->DepthOrArraySize);
+		if(!(texture->CreationFlags & RCF_No_SRV)) texture->SRV = CreateSRV(texture, 0, -1, 0, texture->DepthOrArraySize);
 		if (texture->CreationFlags & RCF_Bind_UAV) texture->UAV = CreateUAV(texture, 0, 0, texture->DepthOrArraySize);
 		if (texture->CreationFlags & RCF_Bind_RTV && !(texture->CreationFlags & RCF_Cubemap)) texture->RTV = CreateRTV(texture, 0, texture->NumMips, -1, texture->DepthOrArraySize);
 		if (texture->CreationFlags & RCF_Bind_DSV && !(texture->CreationFlags & RCF_Cubemap)) texture->DSV = CreateDSV(texture, 0, texture->NumMips, -1, texture->DepthOrArraySize);
@@ -269,7 +269,7 @@ namespace GFX
 		subres->FirstElement = firstElement;
 		subres->ElementCount = elementCount;
 
-		subres->SRV = CreateSRV(subres, firstMip, mipCount, firstElement, elementCount);
+		if (!(subres->CreationFlags & RCF_No_SRV)) subres->SRV = CreateSRV(subres, firstMip, mipCount, firstElement, elementCount);
 		if (subres->CreationFlags & RCF_Bind_UAV) subres->UAV = CreateUAV(subres, firstMip, firstElement, elementCount);
 		if (subres->CreationFlags & RCF_Bind_RTV && !(subres->CreationFlags & RCF_Cubemap)) subres->RTV = CreateRTV(subres, firstMip, mipCount, firstElement, elementCount);
 		if (subres->CreationFlags & RCF_Bind_DSV && !(subres->CreationFlags & RCF_Cubemap)) subres->DSV = CreateDSV(subres, firstMip, mipCount, firstElement, elementCount);

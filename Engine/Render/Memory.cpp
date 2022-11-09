@@ -93,8 +93,7 @@ D3D12_CPU_DESCRIPTOR_HANDLE DescriptorHeapGPU::GetCPUHandle(const DescriptorAllo
 	return descriptor;
 }
 
-uint32_t DeferredTrash::CurrentBucket = 0;
-DeferredTrash::TrashBucket DeferredTrash::Buckets[DeferredTrash::NUM_BUCKETS];
+std::unordered_map<MTR::ThreadID, DeferredTrash*> DeferredTrash::s_Instances;
 
 void DeferredTrash::Clear()
 {

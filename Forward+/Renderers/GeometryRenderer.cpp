@@ -59,7 +59,7 @@ void GeometryRenderer::DepthPrepass(GraphicsContext& context, GraphicsState& sta
 			SSManager.Bind(state);
 		}
 		state.ShaderConfig = config;
-		VertPipeline->Draw(context, state, renderGroup);
+		VertPipeline->Draw(context, state, renderGroup, MainSceneGraph->MainCamera.CullingData[rgType]);
 	}
 	GFX::Cmd::MarkerEnd(context);
 }
@@ -120,7 +120,7 @@ void GeometryRenderer::Draw(GraphicsContext& context, GraphicsState& state, Text
 		state.Shader = m_GeometryShader.get();
 		state.ShaderConfig = configuration;
 		state.BlendState = rgType == RenderGroupType::Transparent ? blendStateOn : blendStateOff;
-		VertPipeline->Draw(context, state, renderGroup);
+		VertPipeline->Draw(context, state, renderGroup, MainSceneGraph->MainCamera.CullingData[rgType]);
 	}
 
 	GFX::Cmd::MarkerEnd(context);

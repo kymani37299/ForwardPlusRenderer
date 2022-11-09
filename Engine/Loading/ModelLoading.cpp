@@ -563,7 +563,7 @@ namespace ModelLoading
 	template<typename T>
 	static void Free(T** res)
 	{
-		if (*res) DeferredTrash::Put(*res);
+		if (*res) DeferredTrash::Get()->Put(*res);
 		*res = nullptr;
 	}
 
@@ -582,7 +582,7 @@ namespace ModelLoading
 
 		for (MorphTarget& morphTarget : sceneObject.MorphTargets)
 		{
-			DeferredTrash::Put(morphTarget.Data);
+			DeferredTrash::Get()->Put(morphTarget.Data);
 		}
 	}
 	

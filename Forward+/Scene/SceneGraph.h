@@ -3,6 +3,7 @@
 #include <vector>
 
 #include <Engine/Common.h>
+#include <Engine/Render/Context.h>
 #include <Engine/Utility/Multithreading.h>
 
 struct GraphicsState;
@@ -64,7 +65,30 @@ struct Material
 	uint32_t MetallicRoughness;
 	uint32_t Normal;
 
-	void UpdateBuffer(GraphicsContext& context, RenderGroup& renderGroup);
+	struct MaterialSB
+	{
+		DirectX::XMFLOAT3 AlbedoFactor;
+		DirectX::XMFLOAT3 FresnelR0;
+		float MetallicFactor;
+		float RoughnessFactor;
+		uint32_t Albedo;
+		uint32_t MetallicRoughness;
+		uint32_t Normal;
+	};
+	using SBType = MaterialSB;
+
+	operator MaterialSB () 
+	{
+		MaterialSB matSB{};
+		matSB.AlbedoFactor = AlbedoFactor.ToXMFA();
+		matSB.FresnelR0 = FresnelR0.ToXMFA();
+		matSB.MetallicFactor = MetallicFactor;
+		matSB.RoughnessFactor = RoughnessFactor;
+		matSB.Albedo = Albedo;
+		matSB.MetallicRoughness = MetallicRoughness;
+		matSB.Normal = Normal;
+		return matSB;
+	}
 };
 
 struct Mesh
@@ -79,7 +103,22 @@ struct Mesh
 	
 	std::vector<DirectX::CullData> MeshletCullData;
 
-	void UpdateBuffer(GraphicsContext& context, RenderGroup& renderGroup);
+	struct MeshSB
+	{
+		uint32_t VertexOffset;
+		uint32_t IndexOffset;
+		uint32_t IndexCount;
+	};
+	using SBType = MeshSB;
+
+	operator MeshSB ()
+	{
+		MeshSB meshSB{};
+		meshSB.VertexOffset = VertOffset;
+		meshSB.IndexOffset = IndexOffset;
+		meshSB.IndexCount = IndexCount;
+		return meshSB;
+	}
 };
 
 struct Drawable
@@ -92,7 +131,22 @@ struct Drawable
 	uint32_t MaterialIndex;
 	uint32_t MeshIndex;
 
-	void UpdateBuffer(GraphicsContext& context, RenderGroup& renderGroup);
+	struct DrawableSB
+	{
+		uint32_t EntityIndex;
+		uint32_t MaterialIndex;
+		uint32_t MeshIndex;
+	};
+	using SBType = DrawableSB;
+
+	operator DrawableSB ()
+	{
+		DrawableSB drawableSB{};
+		drawableSB.EntityIndex = EntityIndex;
+		drawableSB.MaterialIndex = MaterialIndex;
+		drawableSB.MeshIndex = MeshIndex;
+		return drawableSB;
+	}
 };
 
 struct Entity
@@ -108,7 +162,32 @@ struct Entity
 
 	BoundingSphere GetBoundingVolume() const;
 
-	void UpdateBuffer(GraphicsContext& context);
+	struct EntitySB
+	{
+		DirectX::XMFLOAT4X4 ModelToWorld;
+
+		// BoundingVolume
+		DirectX::XMFLOAT3 Center;
+		float Radius;
+	};
+	using SBType = EntitySB;
+
+	operator EntitySB ()
+	{
+		using namespace DirectX;
+
+		XMMATRIX baseTransform = XMLoadFloat4x4(&BaseTransform);
+		XMMATRIX modelToWorld = XMMatrixAffineTransformation(Scale.ToXM(), Float3(0.0f, 0.0f, 0.0f).ToXM(), Float4(0.0f, 0.0f, 0.0f, 0.0f).ToXM(), Position.ToXM());
+		modelToWorld = XMMatrixMultiply(baseTransform, modelToWorld);
+
+		::BoundingSphere bs = GetBoundingVolume();
+
+		EntitySB entitySB{};
+		entitySB.ModelToWorld = XMUtility::ToHLSLFloat4x4(modelToWorld);
+		entitySB.Center = bs.Center.ToXMF();
+		entitySB.Radius = bs.Radius;
+		return entitySB;
+	}
 };
 
 struct DirectionalLight
@@ -130,7 +209,57 @@ struct Light
 	Float3 Direction = { 0.0f, 0.0f, 0.0f };
 	float SpotPower = 0.0f;
 
-	void UpdateBuffer(GraphicsContext& context);
+	struct LightSB
+	{
+		bool IsSpot;
+		DirectX::XMFLOAT3 Position;
+		DirectX::XMFLOAT3 Radiance;
+		DirectX::XMFLOAT2 Falloff;
+		DirectX::XMFLOAT3 Direction;
+		float SpotPower;
+	};
+	using SBType = LightSB;
+
+	operator LightSB ()
+	{
+		LightSB lightSB{};
+		lightSB.IsSpot = IsSpot;
+		lightSB.Position = Position.ToXMF();
+		lightSB.Radiance = Radiance.ToXMF();
+		lightSB.Falloff = Falloff.ToXMF();
+		lightSB.Direction = Direction.ToXMF();
+		lightSB.SpotPower = SpotPower;
+		return lightSB;
+	}
+};
+
+enum class RenderGroupType : uint8_t
+{
+	Opaque = 0,
+	AlphaDiscard = 1,
+	Transparent = 2,
+	Count,
+};
+
+struct RenderGroupCullingData
+{
+	// CPU Culling
+	BitField VisibilityMask;
+
+	// GPU Culling
+	ScopedRef<Buffer> VisibilityMaskBuffer;
+};
+
+struct CameraCullingData
+{
+	std::unordered_map<RenderGroupType, RenderGroupCullingData> RenderGroupData;
+	RenderGroupCullingData& operator[](RenderGroupType rgType) { return RenderGroupData[rgType]; }
+
+	// Stats
+	ScopedRef<Buffer> StatsBuffer;
+	ScopedRef<Buffer> StatsBufferReadback;
+	uint32_t TotalElements = 0;
+	uint32_t VisibleElements = 0;
 };
 
 struct Camera
@@ -193,35 +322,58 @@ struct Camera
 	CameraRenderData LastCameraData;
 
 	ViewFrustum CameraFrustum;
+	CameraCullingData CullingData;
 };
 
 namespace ElementBufferHelp
 {
 	Buffer* CreateBuffer(uint32_t numElements, uint32_t stride, const std::string& debugName);
 	void DeleteBuffer(Buffer* buffer);
+
+	void BufferUpdateElement(GraphicsContext& context, Buffer* buffer, uint32_t index, const void* data);
 }
 
+// T must contain typedef SBType that represents GPU struct data
+// and cast operator to SBType to convert between T to SBType
 template<typename T>
 class ElementBuffer
 {
 public:
-	ElementBuffer(uint32_t maxElements, uint32_t gpuBufferStride):
-		m_MaxElements(maxElements),
-		m_GpuStride(gpuBufferStride)
+	using SBType = T::SBType;
+	static constexpr uint32_t BufferStride = sizeof(SBType);
+
+public:
+	ElementBuffer(uint32_t maxElements):
+		m_MaxElements(maxElements)
 	{ }
 
 	void Initialize(const std::string& debugName = "ElementBuffer::Unnamed")
 	{
 		m_Storage.resize(m_MaxElements);
-		if(m_GpuStride != 0) m_Buffer = ElementBufferHelp::CreateBuffer(m_MaxElements, m_GpuStride, debugName);
+		if(BufferStride != 0) m_Buffer = ElementBufferHelp::CreateBuffer(m_MaxElements, BufferStride, debugName);
 	}
 
 	~ElementBuffer()
 	{
-		if (m_GpuStride != 0) ElementBufferHelp::DeleteBuffer(m_Buffer);
+		if (BufferStride != 0) ElementBufferHelp::DeleteBuffer(m_Buffer);
 	}
 
 	T& operator [] (uint32_t index) { return m_Storage[index]; }
+	void MarkDirty(uint32_t index) { m_DirtyElements.insert(index); }
+
+	// TODO: Reduce number of update element calls
+	void SyncGPUBuffer(GraphicsContext& context)
+	{
+		if (m_DirtyElements.empty()) return;
+
+		for (uint32_t dirtyEntry : m_DirtyElements)
+		{
+			const SBType sbType = (SBType) m_Storage[dirtyEntry];
+			ElementBufferHelp::BufferUpdateElement(context, m_Buffer, dirtyEntry, &sbType);
+		}
+
+		m_DirtyElements.clear();
+	}
 
 	uint32_t GetSize() const { return m_NextIndex; }
 	uint32_t Next() 
@@ -230,12 +382,13 @@ public:
 		ASSERT(index < m_MaxElements, "index < m_MaxElements");
 		return index; 
 	}
-	Buffer* GetBuffer() const { ASSERT(m_GpuStride != 0, "m_GpuStride != 0");  return m_Buffer; }
+	Buffer* GetBuffer() const { ASSERT(BufferStride, "m_GpuStride != 0");  return m_Buffer; }
 
 private:
 	uint32_t m_MaxElements;
-	uint32_t m_GpuStride;
 	std::atomic<uint32_t> m_NextIndex;
+
+	std::unordered_set<uint32_t> m_DirtyElements;
 
 	std::vector<T> m_Storage;
 	Buffer* m_Buffer;
@@ -327,17 +480,6 @@ struct RenderGroup
 
 	TextureStorage TextureData;
 	MeshStorage MeshData;
-
-	ScopedRef<Buffer> VisibilityMaskBuffer;
-	BitField VisibilityMask;
-};
-
-enum class RenderGroupType : uint8_t
-{
-	Opaque = 0,
-	AlphaDiscard = 1,
-	Transparent = 2,
-	Count,
 };
 
 struct SceneGraph

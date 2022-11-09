@@ -10,6 +10,7 @@
 struct Resource;
 struct Buffer;
 struct Texture;
+struct TextureSubresource;
 struct Shader;
 
 struct Fence
@@ -99,7 +100,36 @@ struct GraphicsState
 	GraphicsState();
 };
 
-// Not using: Table, Pipeline, PushConstants, Samplers
+class StagingResourcesContext
+{
+public:
+	~StagingResourcesContext();
+
+	struct StagingTextureRequest
+	{
+		uint32_t Width;
+		uint32_t Height;
+		uint32_t NumMips;
+		uint64_t CreationFlags;
+		DXGI_FORMAT Format;
+
+		// Note: Subresources work only for mips for now
+		bool CreateSubresources;
+	};
+
+	struct StagingTexture
+	{
+		Texture* TextureResource;
+		std::vector<TextureSubresource*> Subresources;
+	};
+
+	// Same texture can be used multiple times in frame since all is on GPU timeline
+	StagingTexture* GetTransientTexture(const StagingTextureRequest& request);
+
+private:
+	std::unordered_map<uint32_t, StagingTexture*> m_TransientStagingTextures;
+};
+
 struct BoundGraphicsState
 {
 	bool Valid = false;
@@ -108,14 +138,21 @@ struct BoundGraphicsState
 
 struct GraphicsContext
 {
+	~GraphicsContext();
+	ID3D12CommandSignature* ApplyState(const GraphicsState& state);
+
 	ComPtr<ID3D12CommandQueue> CmdQueue;
 	ComPtr<ID3D12CommandAllocator> CmdAlloc;
 	ComPtr<ID3D12GraphicsCommandList> CmdList;
 	MemoryContext MemContext;
 	Fence CmdFence;
 
+	// Cache
+	std::unordered_map<uint32_t, ComPtr<ID3D12RootSignature>> RootSignatureCache;
+	std::unordered_map<uint32_t, ComPtr<ID3D12PipelineState>> PSOCache;
+	std::unordered_map<uint32_t, D3D12_CPU_DESCRIPTOR_HANDLE> SamplerCache;
+
+	StagingResourcesContext StagingResources;
+
 	BoundGraphicsState BoundState;
 };
-
-void ReleaseContextCache();
-ID3D12CommandSignature* ApplyGraphicsState(GraphicsContext& context, const GraphicsState& state);

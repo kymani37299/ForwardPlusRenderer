@@ -147,7 +147,8 @@ void RenderStatsGUI::Render()
 	ImGui::Text("FPS:   %u", static_cast<uint32_t>(1000.0f / m_CurrentDT));
 	ImGui::Separator();
 	ImGui::Text("Num lights:  %u", MainSceneGraph->Lights.GetSize());
-	ImGui::Text("Drawables:   %u / %u", RenderStats.VisibleDrawables, RenderStats.TotalDrawables);
+	ImGui::Text("Drawables(Main)  :   %u / %u", RenderStats.VisibleDrawables, RenderStats.TotalDrawables);
+	ImGui::Text("Drawables(Shadow):   %u / %u", RenderStats.VisibleShadowDrawables, RenderStats.TotalShadowDrawables);
 }
 
 // --------------------------------------------------

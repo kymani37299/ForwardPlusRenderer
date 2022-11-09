@@ -25,8 +25,6 @@ void Culling::Init(GraphicsContext& context)
 {
 	m_LightCullingShader = ScopedRef<Shader>(new Shader{ "Forward+/Shaders/light_culling.hlsl" });
 	m_GeometryCullingShader = ScopedRef<Shader>(new Shader{ "Forward+/Shaders/geometry_culling.hlsl" });
-	m_CullingStatsBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_UAV));
-	m_CullingStatsReadback = ScopedRef<Buffer>(GFX::CreateBuffer(sizeof(uint32_t), sizeof(uint32_t), RCF_Readback));
 	UpdateResources(context);
 }
 
@@ -49,26 +47,24 @@ namespace CullingPrivate
 	}
 }
 
-void Culling::CullGeometries(GraphicsContext& context, Texture* depth)
+void Culling::CullGeometries(GraphicsContext& context, GeometryCullingInput& input)
 {
-	if (!RenderSettings.Culling.GeometryCullingFrozen)
+	UpdateStats(context, input.Cam.CullingData);
+
+	// Clear stats buffer
+	uint32_t clearValue = 0;
+	GFX::Cmd::UploadToBufferGPU(context, input.Cam.CullingData.StatsBuffer.get(), 0, &clearValue, 0, sizeof(uint32_t));
+
+	for (uint32_t i = 0; i < EnumToInt(RenderGroupType::Count); i++)
 	{
-		UpdateStats(context);
-
-		// Clear stats buffer
-		uint32_t clearValue = 0;
-		GFX::Cmd::UploadToBufferGPU(context, m_CullingStatsBuffer.get(), 0, &clearValue, 0, sizeof(uint32_t));
-
-		for (uint32_t i = 0; i < EnumToInt(RenderGroupType::Count); i++)
+		const RenderGroupType rgType = IntToEnum<RenderGroupType>(i);
+		if (RenderSettings.Culling.GeometryCullingOnCPU)
 		{
-			if (RenderSettings.Culling.GeometryCullingOnCPU)
-			{
-				CullRenderGroupCPU(context, MainSceneGraph->RenderGroups[i]);
-			}
-			else
-			{
-				CullRenderGroupGPU(context, MainSceneGraph->RenderGroups[i], depth);
-			}
+			CullRenderGroupCPU(context, rgType, input);
+		}
+		else
+		{
+			CullRenderGroupGPU(context, rgType, input);
 		}
 	}
 }
@@ -94,18 +90,21 @@ void Culling::CullLights(GraphicsContext& context, Texture* depth)
 		state.ShaderStages = CS;
 
 		GFX::Cmd::MarkerBegin(context, "Light Culling");
-		GFX::Cmd::BindState(context, state);
+		context.ApplyState(state);
 		context.CmdList->Dispatch(m_NumTilesX, m_NumTilesY, 1);
 		GFX::Cmd::MarkerEnd(context);
 	}
 }
 
-void Culling::CullRenderGroupCPU(GraphicsContext& context, RenderGroup& rg)
+void Culling::CullRenderGroupCPU(GraphicsContext& context, RenderGroupType rgType, GeometryCullingInput& input)
 {
+	RenderGroup& rg = MainSceneGraph->RenderGroups[EnumToInt(rgType)];
+	RenderGroupCullingData& cullData = input.Cam.CullingData[rgType];
+
 	if (rg.Drawables.GetSize() == 0) return;
 
 	const uint32_t numDrawables = (uint32_t) rg.Drawables.GetSize();
-	rg.VisibilityMask = BitField{ numDrawables };
+	cullData.VisibilityMask = BitField{numDrawables};
 
 	for (uint32_t i = 0; i < numDrawables; i++)
 	{
@@ -113,13 +112,17 @@ void Culling::CullRenderGroupCPU(GraphicsContext& context, RenderGroup& rg)
 		if (!RenderSettings.Culling.GeometryCullingEnabled || 
 			(d.DrawableIndex != Drawable::InvalidIndex && CullingPrivate::IsVisible(d)))
 		{
-			rg.VisibilityMask.Set(i, true);
+			cullData.VisibilityMask.Set(i, true);
 		}
 	}
 }
 
-void Culling::CullRenderGroupGPU(GraphicsContext& context, RenderGroup& rg, Texture* depth)
+void Culling::CullRenderGroupGPU(GraphicsContext& context, RenderGroupType rgType, GeometryCullingInput& input)
 {
+	RenderGroup& rg = MainSceneGraph->RenderGroups[EnumToInt(rgType)];
+	CameraCullingData& camCullData = input.Cam.CullingData;
+	RenderGroupCullingData& cullData = camCullData[rgType];
+
 	if (rg.Drawables.GetSize() == 0u) return;
 
 	std::vector<std::string> config{};
@@ -127,57 +130,60 @@ void Culling::CullRenderGroupGPU(GraphicsContext& context, RenderGroup& rg, Text
 	if (!RenderSettings.Culling.GeometryCullingEnabled) config.push_back("FORCE_VISIBLE");
 	if (!RenderSettings.Culling.GeometryOcclusionCullingEnabled) config.push_back("DISABLE_OCCLUSION_CULLING");
 
-	GFX::Cmd::MarkerBegin(context, "Geometry Culling");
-
-	GFX::ExpandBuffer(context, rg.VisibilityMaskBuffer.get(), rg.Drawables.GetSize() * sizeof(uint32_t));
+	if(!cullData.VisibilityMaskBuffer) cullData.VisibilityMaskBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_UAV));
+	GFX::ExpandBuffer(context, cullData.VisibilityMaskBuffer.get(), rg.Drawables.GetSize() * sizeof(uint32_t));
 
 	GraphicsState cullingState{};
 	cullingState.Table.SRVs.push_back(rg.Drawables.GetBuffer());
 	cullingState.Table.SRVs.push_back(MainSceneGraph->Entities.GetBuffer());
-	cullingState.Table.SRVs.push_back(depth);
-	cullingState.Table.UAVs.push_back(rg.VisibilityMaskBuffer.get());
-	cullingState.Table.UAVs.push_back(m_CullingStatsBuffer.get());
+	cullingState.Table.SRVs.push_back(input.Depth);
+	cullingState.Table.UAVs.push_back(cullData.VisibilityMaskBuffer.get());
+	cullingState.Table.UAVs.push_back(camCullData.StatsBuffer.get());
 
 	CBManager.Clear();
-	CBManager.Add(MainSceneGraph->MainCamera.CameraData);
-	CBManager.Add(MainSceneGraph->MainCamera.CameraFrustum);
+	CBManager.Add(input.Cam.CameraData);
+	CBManager.Add(input.Cam.CameraFrustum);
 	CBManager.Add(rg.Drawables.GetSize());
-	// CBManager.Add(AppConfig.WindowWidth);
-	// CBManager.Add(AppConfig.WindowHeight);
 	cullingState.Table.CBVs.push_back(CBManager.GetBuffer());
 	cullingState.Shader = m_GeometryCullingShader.get();
 	cullingState.ShaderStages = CS;
 	cullingState.ShaderConfig = config;
-	GFX::Cmd::BindState(context, cullingState);
+	context.ApplyState(cullingState);
 
 	context.CmdList->Dispatch((UINT) MathUtility::CeilDiv(rg.Drawables.GetSize(), (uint32_t) WAVESIZE), 1u, 1u);
 
-	GFX::Cmd::CopyToBuffer(context, m_CullingStatsBuffer.get(), 0, m_CullingStatsReadback.get(), 0, sizeof(uint32_t));
-
-	GFX::Cmd::MarkerEnd(context);
+	GFX::Cmd::CopyToBuffer(context, camCullData.StatsBuffer.get(), 0, camCullData.StatsBufferReadback.get(), 0, sizeof(uint32_t));
 }
 
-void Culling::UpdateStats(GraphicsContext& context)
+void Culling::UpdateStats(GraphicsContext& context, CameraCullingData& cullingData)
 {
+	if (!cullingData.StatsBuffer)
+	{
+		cullingData.StatsBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_UAV));
+		cullingData.StatsBufferReadback = ScopedRef<Buffer>(GFX::CreateBuffer(sizeof(uint32_t), sizeof(uint32_t), RCF_Readback));
+	}
+
 	if (RenderSettings.Culling.GeometryCullingOnCPU)
 	{
-		RenderStats.TotalDrawables = 0;
-		RenderStats.VisibleDrawables = 0;
+		cullingData.TotalElements = 0;
+		cullingData.VisibleElements = 0;
 		for (uint32_t i = 0; i < EnumToInt(RenderGroupType::Count); i++)
 		{
+			RenderGroupType rgType = IntToEnum<RenderGroupType>(i);
 			RenderGroup& rg = MainSceneGraph->RenderGroups[i];
-			RenderStats.TotalDrawables += rg.Drawables.GetSize();
-			RenderStats.VisibleDrawables += rg.VisibilityMask.CountOnes();
+
+			cullingData.TotalElements += rg.Drawables.GetSize();
+			cullingData.VisibleElements += cullingData[rgType].VisibilityMask.CountOnes();
 		}
 	}
 	else
 	{
-		RenderStats.TotalDrawables = 0;
-		for (uint32_t i = 0; i < EnumToInt(RenderGroupType::Count); i++) RenderStats.TotalDrawables += MainSceneGraph->RenderGroups[i].Drawables.GetSize();
+		cullingData.TotalElements = 0;
+		for (uint32_t i = 0; i < EnumToInt(RenderGroupType::Count); i++) cullingData.TotalElements += MainSceneGraph->RenderGroups[i].Drawables.GetSize();
 
 		void* visibleDrawablesPtr = nullptr;
-		m_CullingStatsReadback->Handle->Map(0, nullptr, &visibleDrawablesPtr);
-		if(visibleDrawablesPtr) RenderStats.VisibleDrawables = *static_cast<uint32_t*>(visibleDrawablesPtr);
-		m_CullingStatsReadback->Handle->Unmap(0, nullptr);
+		cullingData.StatsBufferReadback->Handle->Map(0, nullptr, &visibleDrawablesPtr);
+		if(visibleDrawablesPtr) cullingData.VisibleElements = *static_cast<uint32_t*>(visibleDrawablesPtr);
+		cullingData.StatsBufferReadback->Handle->Unmap(0, nullptr);
 	}
 }
