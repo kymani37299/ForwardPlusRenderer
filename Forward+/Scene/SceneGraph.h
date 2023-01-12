@@ -127,52 +127,34 @@ struct Drawable
 
 	uint32_t DrawableIndex = InvalidIndex;
 
-	uint32_t EntityIndex;
 	uint32_t MaterialIndex;
 	uint32_t MeshIndex;
 
-	struct DrawableSB
-	{
-		uint32_t EntityIndex;
-		uint32_t MaterialIndex;
-		uint32_t MeshIndex;
-	};
-	using SBType = DrawableSB;
-
-	operator DrawableSB ()
-	{
-		DrawableSB drawableSB{};
-		drawableSB.EntityIndex = EntityIndex;
-		drawableSB.MaterialIndex = MaterialIndex;
-		drawableSB.MeshIndex = MeshIndex;
-		return drawableSB;
-	}
-};
-
-struct Entity
-{
-	uint32_t EntityIndex;
-
-	DirectX::XMFLOAT4X4 BaseTransform = XMUtility::ToXMFloat4x4(DirectX::XMMatrixIdentity());
-	BoundingSphere BaseBoundingSphere;
-	
 	Float3 Position = Float3(0.0f, 0.0f, 0.0f);
 	Float3 Scale = Float3(1.0f, 1.0f, 1.0f);
 	Float3 Rotation = Float3(0.0f, 0.0f, 0.0f);
 
+	DirectX::XMFLOAT4X4 BaseTransform;
+	BoundingSphere BaseBoundingVolume;
+
 	BoundingSphere GetBoundingVolume() const;
 
-	struct EntitySB
+	struct DrawableSB
 	{
+		// References
+		uint32_t MaterialIndex;
+		uint32_t MeshIndex;
+		
+		// Transform
 		DirectX::XMFLOAT4X4 ModelToWorld;
 
 		// BoundingVolume
 		DirectX::XMFLOAT3 Center;
 		float Radius;
 	};
-	using SBType = EntitySB;
+	using SBType = DrawableSB;
 
-	operator EntitySB ()
+	operator DrawableSB ()
 	{
 		using namespace DirectX;
 
@@ -182,11 +164,13 @@ struct Entity
 
 		::BoundingSphere bs = GetBoundingVolume();
 
-		EntitySB entitySB{};
-		entitySB.ModelToWorld = XMUtility::ToHLSLFloat4x4(modelToWorld);
-		entitySB.Center = bs.Center.ToXMF();
-		entitySB.Radius = bs.Radius;
-		return entitySB;
+		DrawableSB drawableSB{};
+		drawableSB.MaterialIndex = MaterialIndex;
+		drawableSB.MeshIndex = MeshIndex;
+		drawableSB.ModelToWorld = XMUtility::ToHLSLFloat4x4(modelToWorld);
+		drawableSB.Center = bs.Center.ToXMF();
+		drawableSB.Radius = bs.Radius;
+		return drawableSB;
 	}
 };
 
@@ -470,7 +454,7 @@ struct RenderGroup
 	void Initialize(GraphicsContext& context);
 	uint32_t AddMaterial(GraphicsContext& context, Material& material);
 	uint32_t AddMesh(GraphicsContext& context, Mesh& mesh);
-	void AddDraw(GraphicsContext& context, uint32_t materialIndex, uint32_t meshIndex, uint32_t entityIndex, const BoundingSphere& boundingSphere);
+	uint32_t AddDrawable(GraphicsContext& context, Drawable& drawable);
 
 	void SetupPipelineInputs(GraphicsState& state);
 
@@ -507,9 +491,7 @@ struct SceneGraph
 
 	SceneGraph();
 	void InitRenderData(GraphicsContext& context);
-
 	void FrameUpdate(GraphicsContext& context);
-	uint32_t AddEntity(GraphicsContext& context, Entity entity);
 
 	Light CreatePointLight(GraphicsContext& context, Float3 position, Float3 color, Float2 falloff);
 	Light CreateLight(GraphicsContext& context, Light light);
@@ -517,7 +499,6 @@ struct SceneGraph
 	Camera MainCamera;
 	Camera ShadowCamera;
 
-	ElementBuffer<Entity> Entities;
 	RenderGroup RenderGroups[EnumToInt(RenderGroupType::Count)];
 
 	ElementBuffer<Light> Lights;

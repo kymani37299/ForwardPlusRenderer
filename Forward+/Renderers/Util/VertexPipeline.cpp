@@ -50,12 +50,12 @@ void VertexPipeline::Draw_CPU(GraphicsContext& context, GraphicsState& state, Re
 	GFX::Cmd::MarkerBegin(context, "VertexPipeline::Execute");
 
 	rg.SetupPipelineInputs(state);
-	state.VertexBuffers.resize(1);
 	state.VertexBuffers[0] = rg.MeshData.GetVertexBuffer();
 	state.IndexBuffer = rg.MeshData.GetIndexBuffer();
-	state.PushConstants.resize(1);
+	state.PushConstantCount = 1;
 	context.ApplyState(state);
-
+	
+	BindVector<uint32_t> pushConstantValues;
 	for (uint32_t i = 0; i < rg.Drawables.GetSize(); i++)
 	{
 		if (!cullingData.VisibilityMask.Get(i)) continue;
@@ -63,8 +63,8 @@ void VertexPipeline::Draw_CPU(GraphicsContext& context, GraphicsState& state, Re
 		const Drawable& d = rg.Drawables[i];
 		const Mesh& m = rg.Meshes[d.MeshIndex];
 
-		state.PushConstants[0] = i;
-		GFX::Cmd::UpdatePushConstants(context, state);
+		pushConstantValues[0] = i;
+		GFX::Cmd::SetPushConstants(state.ShaderStages, context, pushConstantValues);
 		context.CmdList->DrawIndexedInstanced(m.IndexCount, 1, m.IndexOffset, m.VertOffset, 0);
 	}
 
@@ -81,15 +81,15 @@ void VertexPipeline::Draw_GPU(GraphicsContext& context, GraphicsState& state, Re
 		GFX::Cmd::UploadToBuffer(context, m_IndirectArgumentsCountBuffer.get(), 0, &clearValue, 0, sizeof(uint32_t));
 
 		GraphicsState prepareState{};
-		prepareState.Table.SRVs.push_back(rg.Drawables.GetBuffer());
-		prepareState.Table.SRVs.push_back(rg.Meshes.GetBuffer());
-		prepareState.Table.SRVs.push_back(cullingData.VisibilityMaskBuffer.get());
-		prepareState.Table.UAVs.push_back(m_IndirectArgumentsBuffer.get());
-		prepareState.Table.UAVs.push_back(m_IndirectArgumentsCountBuffer.get());
+		prepareState.Table.SRVs[0] = rg.Drawables.GetBuffer();
+		prepareState.Table.SRVs[1] = rg.Meshes.GetBuffer();
+		prepareState.Table.SRVs[2] = cullingData.VisibilityMaskBuffer.get();
+		prepareState.Table.UAVs[0] = m_IndirectArgumentsBuffer.get();
+		prepareState.Table.UAVs[1] = m_IndirectArgumentsCountBuffer.get();
 
 		CBManager.Clear();
 		CBManager.Add(rg.Drawables.GetSize());
-		prepareState.Table.CBVs.push_back(CBManager.GetBuffer());
+		prepareState.Table.CBVs[0] = CBManager.GetBuffer();
 
 		std::vector<std::string> config{};
 		config.push_back("PREPARE_ARGUMENTS");
@@ -100,7 +100,6 @@ void VertexPipeline::Draw_GPU(GraphicsContext& context, GraphicsState& state, Re
 		context.ApplyState(prepareState);
 		context.CmdList->Dispatch(MathUtility::CeilDiv(rg.Drawables.GetSize(), (uint32_t) WAVESIZE), 1, 1);
 	}
-
 
 	// Execute draws
 	{
@@ -117,10 +116,9 @@ void VertexPipeline::Draw_GPU(GraphicsContext& context, GraphicsState& state, Re
 		state.CommandSignature.NodeMask = 0;
 
 		rg.SetupPipelineInputs(state);
-		state.VertexBuffers.resize(1);
 		state.VertexBuffers[0] = rg.MeshData.GetVertexBuffer();
 		state.IndexBuffer = rg.MeshData.GetIndexBuffer();
-		state.PushConstants.resize(1);
+		state.PushConstantCount = 1;
 
 		GFX::Cmd::TransitionResource(context, m_IndirectArgumentsCountBuffer.get(), D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
 		GFX::Cmd::TransitionResource(context, m_IndirectArgumentsBuffer.get(), D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);

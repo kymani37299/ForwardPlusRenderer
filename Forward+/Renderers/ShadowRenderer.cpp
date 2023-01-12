@@ -47,7 +47,7 @@ Texture* ShadowRenderer::CalculateShadowMask(GraphicsContext& context, Texture* 
 		CBManager.Clear();
 		CBManager.Add(MainSceneGraph->ShadowCamera.CameraData);
 
-		state.Table.CBVs.push_back(CBManager.GetBuffer());
+		state.Table.CBVs[0] = CBManager.GetBuffer();
 		state.DepthStencilState.DepthEnable = true;
 		state.Shader = m_ShadowmapShader.get();
 
@@ -80,11 +80,10 @@ Texture* ShadowRenderer::CalculateShadowMask(GraphicsContext& context, Texture* 
 		CBManager.Add(MainSceneGraph->MainCamera.CameraData);
 		CBManager.Add(MainSceneGraph->ShadowCamera.CameraData);
 		CBManager.Add(MainSceneGraph->SceneInfoData);
-		state.Table.CBVs.push_back(CBManager.GetBuffer());
-		state.Table.SRVs.resize(2);
+		state.Table.CBVs[0] = CBManager.GetBuffer();
 		state.Table.SRVs[0] = depth;
 		state.Table.SRVs[1] = m_Shadowmap.get();
-		state.RenderTargets.push_back(m_Shadowmask.get());
+		state.RenderTargets[0] = m_Shadowmask.get();
 		state.Shader = m_ShadowmaskShader.get();
 
 		GFX::Cmd::MarkerBegin(context, "Shadowmask");

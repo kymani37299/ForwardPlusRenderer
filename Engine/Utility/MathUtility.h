@@ -9,6 +9,9 @@ namespace MathUtility
 	inline T CeilDiv(T a, T b) { return (a + b - 1) / b; }
 
 	template<typename T>
+	inline T Align(T a, T alignment) { return a + alignment - 1 - (a + alignment - 1) % alignment; }
+
+	template<typename T>
 	T Lerp(const T& a, const T& b, float t) { return a + t * (b - a); }
 
 	template<typename T>

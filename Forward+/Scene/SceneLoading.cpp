@@ -199,19 +199,17 @@ namespace SceneLoading
 			for (size_t i = 0; i < meshData->attributes_count && vertexData == nullptr; i++)
 			{
 				cgltf_attribute* vertexAttribute = (meshData->attributes + i);
-				switch (vertexAttribute->type)
+				if (vertexAttribute->type == cgltf_attribute_type_position)
 				{
-				case cgltf_attribute_type_position:
-					ValidateVertexAttribute<cgltf_type_vec3, cgltf_component_type_r_32f>(vertexAttribute); 
+					ValidateVertexAttribute<cgltf_type_vec3, cgltf_component_type_r_32f>(vertexAttribute);
 					vertexData = GetBufferData<Float3>(vertexAttribute->data);
-					break;
 				}
 			}
 
 			ASSERT(vertexData, "[SceneLoading] ASSERT FAILED: vertexData");
 
 			static constexpr float MAX_FLOAT = std::numeric_limits<float>::max();
-			static constexpr float MIN_FLOAT = -MAX_FLOAT;
+			static constexpr float MIN_FLOAT = std::numeric_limits<float>::min();
 
 			Float3 minAABB{ MAX_FLOAT , MAX_FLOAT, MAX_FLOAT };
 			Float3 maxAABB{ MIN_FLOAT, MIN_FLOAT, MIN_FLOAT };
@@ -344,17 +342,12 @@ namespace SceneLoading
 			std::vector<LoadedObject> objects;
 			if (nodeData->mesh)
 			{
-				uint32_t entityIndex = (uint32_t) sceneRef.Entities.size();
-
-				Entity e;
-				e.BaseTransform = CalcBaseTransform(nodeData);
-				sceneRef.Entities.push_back(e);
-
+				const DirectX::XMFLOAT4X4 transform = CalcBaseTransform(nodeData);
 				for (size_t i = 0; i < nodeData->mesh->primitives_count; i++)
 				{
 					LoadedObject obj = LoadObject(context, nodeData->mesh->primitives + i);
-					obj.EntityIndex = entityIndex;
-					sceneRef.Objects.push_back(obj);
+					obj.Transform = transform;
+					sceneRef.push_back(obj);
 				}
 			}
 			return objects;
@@ -392,27 +385,19 @@ namespace SceneLoading
 		return scene;
 	}
 
-	void AddDraws(LoadedScene scene, Entity entity)
+	void AddDraws(const LoadedScene scene, const Drawable& baseDrawable)
 	{
 		GraphicsContext& context = Device::Get()->GetContext();
-
-		std::unordered_map<uint32_t, uint32_t> entityIndexMap;
-		for (uint32_t i = 0; i < scene.Entities.size(); i++)
+		for (const LoadedObject& obj : scene)
 		{
-			Entity e = scene.Entities[i];
+			Drawable drawable = baseDrawable;
+			drawable.MaterialIndex = obj.MaterialIndex;
+			drawable.MeshIndex = obj.MeshIndex;
+			drawable.BaseTransform = obj.Transform;
+			drawable.BaseBoundingVolume = obj.BoundingVolume;
 
-			e.Position = entity.Position;
-			e.Scale = entity.Scale;
-			e.Rotation = entity.Rotation;
-
-			uint32_t entityIndex = MainSceneGraph->AddEntity(context, e);
-			entityIndexMap[i] = entityIndex;
-		}
-
-		for (const LoadedObject& obj : scene.Objects)
-		{
 			RenderGroup& rg = MainSceneGraph->RenderGroups[EnumToInt(obj.RenderGroup)];
-			rg.AddDraw(Device::Get()->GetContext(), obj.MaterialIndex, obj.MeshIndex, entityIndexMap[obj.EntityIndex], obj.BoundingVolume);
+			rg.AddDrawable(context, drawable);
 		}
 	}
 }

@@ -29,7 +29,8 @@ namespace GFX::Cmd
 	void AddResourceTransition(std::vector<D3D12_RESOURCE_BARRIER>& barriers, Resource* resource, D3D12_RESOURCE_STATES wantedState);
 	void TransitionResource(GraphicsContext& context, Resource* resource, D3D12_RESOURCE_STATES wantedState);
 
-	void UpdatePushConstants(GraphicsContext& context, const GraphicsState& state);
+	void SetPushConstants(uint32_t shaderStages, GraphicsContext& context, const BindVector<uint32_t> values);
+
 	void ClearRenderTarget(GraphicsContext& context, Texture* renderTarget);
 	void ClearDepthStencil(GraphicsContext& context, Texture* depthStencil);
 

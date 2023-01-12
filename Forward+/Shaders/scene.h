@@ -38,13 +38,9 @@ struct Camera
 
 struct Drawable
 {
-	uint EntityIndex;
 	uint MaterialIndex;
 	uint MeshIndex;
-};
 
-struct Entity
-{
 	float4x4 ModelToWorld;
 	BoundingSphere BoundingVolume;
 };

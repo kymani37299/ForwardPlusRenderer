@@ -83,21 +83,20 @@ void ViewFrustum::Update(const Camera& c)
 	Planes[5] = CreateFrustumPlane(ftr, ftl, fbl);	// Far
 }
 
-BoundingSphere Entity::GetBoundingVolume() const
+BoundingSphere Drawable::GetBoundingVolume() const
 {
-	const BoundingSphere& bv = BaseBoundingSphere;
+	const BoundingSphere& bv = BaseBoundingVolume;
 
 	const Float3 baseScale{ BaseTransform(0, 0), BaseTransform(1, 1), BaseTransform(2, 2) };
-	const float maxBaseScale = MAX(MAX(baseScale.x, baseScale.y), baseScale.z);
-	const float maxlocalScale = MAX(MAX(Scale.x, Scale.y), Scale.z);
-	const float maxScale = maxBaseScale * maxlocalScale;
+	const Float3 worldScale = baseScale * Scale;
+	const float maxScale = MAX(MAX(worldScale.x, worldScale.y), worldScale.z);
 
 	const DirectX::XMMATRIX baseTransform = DirectX::XMLoadFloat4x4(&BaseTransform);
 	const DirectX::XMVECTOR xmbasePosition = DirectX::XMVector4Transform(Float4{ bv.Center.x, bv.Center.y, bv.Center.z, 1.0f }, baseTransform);
 	const Float3 basePosition{ xmbasePosition };
 
 	BoundingSphere bs;
-	bs.Center = Position + baseScale * Scale * basePosition;
+	bs.Center = Position + Scale * basePosition;
 	bs.Radius = bv.Radius * maxScale;
 
 	return bs;
@@ -215,73 +214,23 @@ uint32_t RenderGroup::AddMesh(GraphicsContext& context, Mesh& mesh)
 	return index;
 }
 
-class RenderGroupAddDrawRenderTask : public RenderTask
+uint32_t RenderGroup::AddDrawable(GraphicsContext& context, Drawable& drawable)
 {
-public:
-	RenderGroupAddDrawRenderTask(Drawable& drawable, RenderGroup& renderGroup):
-		m_RenderGroup(renderGroup),
-		m_Drawable(drawable) {}
-
-	void Run(GraphicsContext& context) override
-	{
-		Entity& e = MainSceneGraph->Entities[m_Drawable.EntityIndex];
-		MainSceneGraph->Entities.MarkDirty(m_Drawable.EntityIndex);
-		m_RenderGroup.Drawables.MarkDirty(m_Drawable.DrawableIndex);
-	}
-
-private:
-	RenderGroup& m_RenderGroup;
-	Drawable& m_Drawable;
-};
-
-void RenderGroup::AddDraw(GraphicsContext& context, uint32_t materialIndex, uint32_t meshIndex, uint32_t entityIndex, const BoundingSphere& boundingSphere)
-{
-	const uint32_t index = Drawables.Next();
-	
-	Entity& e = MainSceneGraph->Entities[entityIndex];
-
-	Drawable drawable;
+	const uint32_t index = (uint32_t) Drawables.Next();
 	drawable.DrawableIndex = index;
-	drawable.MaterialIndex = materialIndex;
-	drawable.MeshIndex = meshIndex;
-	drawable.EntityIndex = entityIndex;
 	Drawables[index] = drawable;
-
-	e.BaseBoundingSphere = boundingSphere;
-
-	if (AppConfig.Settings.contains("LOADING_USE_LESS_MEMORY"))
-	{
-		MainSceneGraph->Entities.MarkDirty(entityIndex);
-		Drawables.MarkDirty(index);
-	}
-	else
-	{
-		if (Device::Get()->IsMainContext(context))
-		{
-			Device::Get()->GetTaskExecutor().Submit(new RenderGroupAddDrawRenderTask(Drawables[index], *this));
-		}
-		else
-		{
-			RenderThreadPool::Get()->Submit(new RenderGroupAddDrawRenderTask(Drawables[index], *this));
-		}
-	}
-
-
+	Drawables.MarkDirty(index);
+	return index;
 }
 
 void RenderGroup::SetupPipelineInputs(GraphicsState& state)
 {
-	if (state.Table.SRVs.size() < 127) state.Table.SRVs.resize(127);
-	if (state.BindlessTables.empty()) state.BindlessTables.resize(1);
-
-	state.Table.SRVs[124] = MainSceneGraph->Entities.GetBuffer();
 	state.Table.SRVs[125] = Materials.GetBuffer();
 	state.Table.SRVs[126] = Drawables.GetBuffer();
 	state.BindlessTables[0] = TextureData.GetBindlessTable();
 }
 
-SceneGraph::SceneGraph() :
-	Entities(MAX_ENTITIES),
+SceneGraph::SceneGraph():
 	Lights(MAX_LIGHTS)
 {
 
@@ -297,7 +246,6 @@ void SceneGraph::InitRenderData(GraphicsContext& context)
 	{
 		RenderGroups[i].Initialize(context);
 	}
-	Entities.Initialize("ElementBuffer::Entities");
 	Lights.Initialize("ElementBuffer::Lights");
 }
 
@@ -305,7 +253,6 @@ void SceneGraph::FrameUpdate(GraphicsContext& context)
 {
 	MainCamera.FrameUpdate(context);
 
-	Entities.SyncGPUBuffer(context);
 	Lights.SyncGPUBuffer(context);
 
 	// Render group date
@@ -335,15 +282,6 @@ void SceneGraph::FrameUpdate(GraphicsContext& context)
 		SceneInfoData.DirLight.Radiance = DirLight.Radiance.ToXMFA();
 		SceneInfoData.AmbientRadiance = AmbientLight.ToXMFA();
 	}
-}
-
-uint32_t SceneGraph::AddEntity(GraphicsContext& context, Entity entity)
-{
-	const uint32_t index = (uint32_t) Entities.Next();
-	entity.EntityIndex = index;
-	Entities[index] = entity;
-	Entities.MarkDirty(index);
-	return index;
 }
 
 Light SceneGraph::CreatePointLight(GraphicsContext& context, Float3 position, Float3 color, Float2 falloff)
@@ -462,5 +400,4 @@ uint32_t TextureStorage::AddTexture(Texture* texture)
 	const uint32_t texIndex = AllocTexture();
 	UpdateTexture(texIndex, texture);
 	return texIndex;
-
 }

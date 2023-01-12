@@ -98,10 +98,10 @@ Texture* SSAORenderer::Draw(GraphicsContext& context, Texture* depth)
 		
 		SSManager.Bind(state);
 
-		state.Table.CBVs.push_back(CBManager.GetBuffer());
-		state.Table.SRVs.push_back(m_NoiseTexture.get());
-		state.Table.SRVs.push_back(depth);
-		state.RenderTargets.push_back(m_SSAOSampleTexture.get());
+		state.Table.CBVs[0] = CBManager.GetBuffer();
+		state.Table.SRVs[0] = m_NoiseTexture.get();
+		state.Table.SRVs[1] = depth;
+		state.RenderTargets[0] = m_SSAOSampleTexture.get();
 		state.Shader = m_Shader.get();
 		state.ShaderConfig = { "SSAO_SAMPLE" };
 		GFX::Cmd::DrawFC(context, state);
@@ -117,9 +117,9 @@ Texture* SSAORenderer::Draw(GraphicsContext& context, Texture* depth)
 
 		SSManager.Bind(state);
 
-		state.Table.CBVs.push_back(CBManager.GetBuffer());
-		state.Table.SRVs.push_back(m_SSAOSampleTexture.get());
-		state.RenderTargets.push_back(m_SSAOTexture.get());
+		state.Table.CBVs[0] = CBManager.GetBuffer();
+		state.Table.SRVs[0] = m_SSAOSampleTexture.get();
+		state.RenderTargets[0] = m_SSAOTexture.get();
 		state.Shader = m_Shader.get();
 		state.ShaderConfig = { "SSAO_BLUR" };
 		GFX::Cmd::DrawFC(context, state);

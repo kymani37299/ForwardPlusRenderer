@@ -34,8 +34,6 @@ void GeometryRenderer::DepthPrepass(GraphicsContext& context, GraphicsState& sta
 
 	GFX::Cmd::MarkerBegin(context, "Depth Prepass");
 
-	if(state.Table.CBVs.size() < 1) state.Table.CBVs.resize(1);
-
 	CBManager.Clear();
 	CBManager.Add(MainSceneGraph->MainCamera.CameraData);
 	CBManager.Add(MainSceneGraph->MainCamera.LastCameraData);
@@ -68,8 +66,6 @@ void GeometryRenderer::Draw(GraphicsContext& context, GraphicsState& state, Text
 {
 	GFX::Cmd::MarkerBegin(context, "Geometry");
 
-	if (state.Table.CBVs.size() < 1) state.Table.CBVs.resize(1);
-
 	D3D12_BLEND_DESC blendStateOff = state.BlendState;
 	D3D12_BLEND_DESC blendStateOn = state.BlendState;
 	blendStateOn.RenderTarget[0].BlendEnable = true;
@@ -97,7 +93,6 @@ void GeometryRenderer::Draw(GraphicsContext& context, GraphicsState& state, Text
 	
 	SSManager.Bind(state);
 
-	if (state.Table.SRVs.size() < 5) state.Table.SRVs.resize(5);
 	state.Table.SRVs[0] = MainSceneGraph->Lights.GetBuffer();
 	state.Table.SRVs[1] = visibleLights;
 	state.Table.SRVs[2] = shadowMask;

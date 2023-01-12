@@ -115,10 +115,7 @@ void DebugRenderer::Draw(GraphicsContext& context, Texture* colorTarget, Texture
 			for (uint32_t i = 0; i < numDrawables; i++)
 			{
 				const Drawable& d = rg.Drawables[i];
-				const Entity& e = MainSceneGraph->Entities[d.EntityIndex];
-				const float maxScale = MAX(MAX(e.Scale.x, e.Scale.y), e.Scale.z);
-
-				BoundingSphere bs = e.GetBoundingVolume();
+				const BoundingSphere bs = d.GetBoundingVolume();
 				const float fi = (float)i;
 				DrawSphere(bs.Center, Float4(Random::UNorm(fi), Random::UNorm(fi + 1.0f), Random::UNorm(fi + 2.0f), 0.2f), { bs.Radius, bs.Radius, bs.Radius });
 			}
@@ -136,7 +133,7 @@ void DebugRenderer::Draw(GraphicsContext& context, Texture* colorTarget, Texture
 	}
 
 	GraphicsState geometriesState;
-	geometriesState.RenderTargets.push_back(colorTarget);
+	geometriesState.RenderTargets[0] = colorTarget;
 	geometriesState.DepthStencil = depthTarget;
 	DrawGeometries(context, geometriesState);
 
@@ -146,9 +143,9 @@ void DebugRenderer::Draw(GraphicsContext& context, Texture* colorTarget, Texture
 		CBManager.Add(MainSceneGraph->SceneInfoData);
 
 		GraphicsState heatmapState;
-		heatmapState.Table.CBVs.push_back(CBManager.GetBuffer());
-		heatmapState.Table.SRVs.push_back(visibleLights);
-		heatmapState.RenderTargets.push_back(colorTarget);
+		heatmapState.Table.CBVs[0] = CBManager.GetBuffer();
+		heatmapState.Table.SRVs[0] = visibleLights;
+		heatmapState.RenderTargets[0] = colorTarget;
 		heatmapState.Shader = m_LightHeatmapShader.get();
 		heatmapState.BlendState.RenderTarget[0].BlendEnable = true;
 		heatmapState.BlendState.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
@@ -184,10 +181,6 @@ void DebugRenderer::DrawGeometries(GraphicsContext& context, GraphicsState& stat
 	state.BlendState.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_SRC_ALPHA;
 	state.BlendState.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
 	state.Shader = m_DebugGeometryShader.get();
-
-	state.Table.CBVs.resize(1);
-	state.Table.SRVs.resize(1);
-	state.VertexBuffers.resize(1);
 
 	Buffer* typeToVB[EnumToInt(DebugGeometryType::COUNT)] = { m_CubeVB.get(), m_SphereVB.get()};
 

@@ -32,10 +32,8 @@ static void ProcessAllCubemapFaces(GraphicsContext& context, GraphicsState& face
 		return XMUtility::ToHLSLFloat4x4(viewProj);
 	};
 
-	faceState.VertexBuffers.push_back(CubeVB);
-	faceState.Table.CBVs.resize(1);
-	faceState.RenderTargets.resize(1);
-
+	faceState.VertexBuffers[0] = CubeVB;
+	
 	D3D12_CPU_DESCRIPTOR_HANDLE oldRTV = cubemap->RTV;
 
 	for (uint32_t i = 0; i < 6; i++)
@@ -74,9 +72,9 @@ static Texture* PanoramaToCubemap(GraphicsContext& context, Texture* panoramaTex
 
 	GraphicsState state;
 	state.Shader = shader;
+	state.Table.SRVs[0] = panoramaTexture;
 
 	GFX::Cmd::MarkerBegin(context, "Panorama to cubemap");
-	state.Table.SRVs.push_back(panoramaTexture);
 	SSManager.Bind(state);
 	ProcessAllCubemapFaces(context, state, cubemapTex);
 	GFX::Cmd::MarkerEnd(context);
@@ -95,7 +93,7 @@ static Texture* CubemapToIrradianceMap(GraphicsContext& context, Texture* cubema
 	state.Shader = shader;
 
 	GFX::Cmd::MarkerBegin(context, "Calculate irradiance");
-	state.Table.SRVs.push_back(cubemapTexture);
+	state.Table.SRVs[0] = cubemapTexture;
 	SSManager.Bind(state);
 	ProcessAllCubemapFaces(context, state, cubemapTex);
 	GFX::Cmd::MarkerEnd(context);
@@ -139,9 +137,9 @@ void SkyboxRenderer::Draw(GraphicsContext& context, GraphicsState& state)
 
 	CBManager.Clear();
 	CBManager.Add(MainSceneGraph->MainCamera.CameraData);
-	state.Table.CBVs.push_back(CBManager.GetBuffer());
-	state.Table.SRVs.push_back(m_SkyboxCubemap.get());
-	state.VertexBuffers.push_back(m_CubeVB.get());
+	state.Table.CBVs[0] = CBManager.GetBuffer();
+	state.Table.SRVs[0] = m_SkyboxCubemap.get();
+	state.VertexBuffers[0] = m_CubeVB.get();
 	SSManager.Bind(state);
 	state.Shader = m_SkyboxShader.get();
 

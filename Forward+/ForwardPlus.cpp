@@ -39,7 +39,7 @@ namespace ForwardPlusPrivate
 
 		if (AppConfig.Settings.contains("SIMPLE_SCENE"))
 		{
-			Entity plane{};
+			Drawable plane{};
 			plane.Position = { 0.0f, -10.0f, 0.0f };
 			plane.Scale = { 10000.0f, 1.0f, 10000.0f };
 			SceneLoading::LoadedScene cubeScene = SceneLoading::Load("Resources/cube/cube.gltf");
@@ -50,7 +50,7 @@ namespace ForwardPlusPrivate
 			{
 				const Float3 position = Float3{ Random::SNorm(), Random::SNorm(), Random::SNorm() } *Float3{ 100.0f, 100.0f, 100.0f };
 				const Float3 scale = Float3{ Random::Float(0.1f, 10.0f), Random::Float(0.1f, 10.0f) , Random::Float(0.1f, 10.0f) };
-				Entity cube{};
+				Drawable cube{};
 				cube.Position = position;
 				cube.Scale = scale;
 				SceneLoading::AddDraws(cubeScene, cube);
@@ -66,7 +66,7 @@ namespace ForwardPlusPrivate
 			{
 				const Float3 startingPosition{ 350.0f, 0.0f, 200.0f };
 
-				Entity e{};
+				Drawable e{};
 				e.Position = startingPosition;
 				e.Scale = 10.0f * Float3{ 1.0f, 1.0f, 1.0f };
 				SceneLoading::AddDraws(scene, e);
@@ -80,7 +80,7 @@ namespace ForwardPlusPrivate
 				{
 					for (uint32_t j = 0; j < NUM_CASTLES[1]; j++)
 					{
-						Entity e{};
+						Drawable e{};
 						e.Position = { i * CASTLE_OFFSET[0], 0.0f , j * CASTLE_OFFSET[1] };
 						e.Scale = 10.0f * Float3{ 1.0f, 1.0f, 1.0f };
 						SceneLoading::AddDraws(scene, e);
@@ -261,7 +261,7 @@ Texture* ForwardPlus::OnDraw(GraphicsContext& context)
 	// Depth prepass
 	const bool drawMotionVectors = RenderSettings.AntialiasingMode == AntiAliasingMode::TAA;
 	GraphicsState depthPrepassState{};
-	if (drawMotionVectors) 	depthPrepassState.RenderTargets.push_back(m_MotionVectorRT.get());
+	if (drawMotionVectors) 	depthPrepassState.RenderTargets[0] = m_MotionVectorRT.get();
 	depthPrepassState.DepthStencil = m_MainRT_DepthMS.get();
 
 	m_GeometryRenderer.DepthPrepass(context, depthPrepassState);
@@ -277,8 +277,8 @@ Texture* ForwardPlus::OnDraw(GraphicsContext& context)
 		CBManager.Add(AppConfig.WindowWidth);
 		CBManager.Add(AppConfig.WindowHeight);
 	
-		resolveState.Table.SRVs.push_back(m_MainRT_DepthMS.get());
-		resolveState.Table.CBVs.push_back(CBManager.GetBuffer());
+		resolveState.Table.SRVs[0] = m_MainRT_DepthMS.get();
+		resolveState.Table.CBVs[0] = CBManager.GetBuffer();
 	
 		GFX::Cmd::MarkerBegin(context, "Resolve depth");
 		resolveState.DepthStencil = m_MainRT_Depth.get();
@@ -302,13 +302,13 @@ Texture* ForwardPlus::OnDraw(GraphicsContext& context)
 
 	// Geometry
 	GraphicsState geometryState;
-	geometryState.RenderTargets.push_back(m_MainRT_HDR.get());
+	geometryState.RenderTargets[0] = m_MainRT_HDR.get();
 	geometryState.DepthStencil = m_MainRT_DepthMS.get();
 	m_GeometryRenderer.Draw(context, geometryState, shadowMask, m_Culling.GetVisibleLightsBuffer(), irradianceMap, ssaoTexture);
 	
 	// Skybox
 	GraphicsState skyboxState{};
-	skyboxState.RenderTargets.push_back(m_MainRT_HDR.get());
+	skyboxState.RenderTargets[0] = m_MainRT_HDR.get();
 	skyboxState.DepthStencil = m_MainRT_DepthMS.get();
 	m_SkyboxRenderer.Draw(context, skyboxState);
 

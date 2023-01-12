@@ -170,10 +170,10 @@ void Device::EndFrame(Texture* texture)
 	// Copy to swapchain
 	GFX::Cmd::MarkerBegin(*m_Context, "Copy to swapchain");
 	GraphicsState copyState;
-	copyState.Table.SRVs.push_back(texture);
-	copyState.RenderTargets.push_back(m_SwapchainBuffers[m_CurrentSwapchainBuffer].get());
+	copyState.Table.SRVs[0] = texture;
+	copyState.RenderTargets[0] = m_SwapchainBuffers[m_CurrentSwapchainBuffer].get();
 	copyState.Shader = m_CopyShader.get();
-	copyState.Table.SMPs.push_back(Sampler{ D3D12_FILTER_MIN_MAG_MIP_POINT, D3D12_TEXTURE_ADDRESS_MODE_CLAMP });
+	copyState.Table.SMPs[0] = Sampler{ D3D12_FILTER_MIN_MAG_MIP_POINT, D3D12_TEXTURE_ADDRESS_MODE_CLAMP };
 	GFX::Cmd::DrawFC(*m_Context, copyState);
 	GFX::Cmd::TransitionResource(*m_Context, m_SwapchainBuffers[m_CurrentSwapchainBuffer].get(), D3D12_RESOURCE_STATE_PRESENT);
 	GFX::Cmd::MarkerEnd(*m_Context);

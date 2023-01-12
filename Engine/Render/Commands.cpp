@@ -127,13 +127,13 @@ namespace GFX::Cmd
 		context.BoundState.Valid = false;
 	}
 
-	void UpdatePushConstants(GraphicsContext& context, const GraphicsState& state)
+	void SetPushConstants(uint32_t shaderStages, GraphicsContext& context, const BindVector<uint32_t> values)
 	{
-		ASSERT(!state.PushConstants.empty(), "[UpdatePushConstants] Push constants are empty");
+		ASSERT(!values.empty(), "[UpdatePushConstants] Push constants are empty");
 
-		const bool useCompute = state.ShaderStages & CS;
-		if (useCompute) context.CmdList->SetComputeRoot32BitConstants(0, (UINT) state.PushConstants.size(), state.PushConstants.data(), 0);
-		else  context.CmdList->SetGraphicsRoot32BitConstants(0, (UINT) state.PushConstants.size(), state.PushConstants.data(), 0);
+		const bool useCompute = shaderStages & CS;
+		if (useCompute) context.CmdList->SetComputeRoot32BitConstants(0, (UINT)values.size(), values.data(), 0);
+		else  context.CmdList->SetGraphicsRoot32BitConstants(0, (UINT)values.size(), values.data(), 0);
 	}
 
 	void ClearRenderTarget(GraphicsContext& context, Texture* renderTarget)
@@ -276,7 +276,6 @@ namespace GFX::Cmd
 
 	void DrawFC(GraphicsContext& context, GraphicsState& state)
 	{
-		state.VertexBuffers.resize(1);
 		state.VertexBuffers[0] = Device::Get()->GetQuadBuffer();
 		context.ApplyState(state);
 		context.CmdList->DrawInstanced(6, 1, 0, 0);
@@ -303,10 +302,8 @@ namespace GFX::Cmd
 
 		// Init state
 		GraphicsState state{};
-		state.RenderTargets.resize(1);
-		state.Table.SRVs.resize(1);
 		state.Shader = Device::Get()->GetCopyShader();
-		state.Table.SMPs.push_back(Sampler{ D3D12_FILTER_MIN_MAG_MIP_LINEAR, D3D12_TEXTURE_ADDRESS_MODE_CLAMP });
+		state.Table.SMPs[0] = Sampler{ D3D12_FILTER_MIN_MAG_MIP_LINEAR, D3D12_TEXTURE_ADDRESS_MODE_CLAMP };
 		
 		// Generate mips
 		for (uint32_t mip = 1; mip < texture->NumMips; mip++)

@@ -5,6 +5,7 @@
 #include "Render/RenderAPI.h"
 #include "Render/Memory.h"
 #include "Render/Shader.h"
+#include "Utility/MathUtility.h"
 #include "System/ApplicationConfiguration.h"
 
 struct Resource;
@@ -32,12 +33,44 @@ struct Sampler
 	D3D12_TEXTURE_ADDRESS_MODE AddressMode;
 };
 
+template<typename T, size_t Size = 128>
+class BindVector
+{
+public:
+	BindVector() { m_Descriptors.resize(Size+1); }
+
+	T* begin() { return &m_Descriptors[0]; }
+	T* end() { return &m_Descriptors[m_DescriptorCount]; }
+	const T* begin() const { return &m_Descriptors[0]; }
+	const T* end() const { return &m_Descriptors[m_DescriptorCount]; }
+
+	bool empty() const { return m_DescriptorCount == 0; }
+	size_t size() const { return m_DescriptorCount; }
+	const void* data() const { return m_Descriptors.data(); }
+
+	const T& operator [] (size_t index) const { return m_Descriptors[index]; }
+
+	T& operator [] (size_t index)
+	{
+		const size_t reqSize = index + 1;
+		if (reqSize > m_DescriptorCount)
+		{
+			m_DescriptorCount = reqSize;
+		}
+		return m_Descriptors[index];
+	}
+
+private:
+	size_t m_DescriptorCount = 0;
+	std::vector<T> m_Descriptors;
+};
+
 struct BindTable
 {
-	std::vector<Resource*> CBVs;
-	std::vector<Resource*> SRVs;
-	std::vector<Resource*> UAVs;
-	std::vector<Sampler>   SMPs;
+	BindVector<Resource*> CBVs;
+	BindVector<Resource*> SRVs;
+	BindVector<Resource*> UAVs;
+	BindVector<Sampler>   SMPs;
 };
 
 struct BindlessTable
@@ -69,12 +102,12 @@ struct GraphicsState
 	// Bindings
 	BindTable Table;
 	Buffer* IndexBuffer = nullptr;
-	std::vector<Buffer*> VertexBuffers;
-	std::vector<Texture*> RenderTargets;
+	BindVector<Buffer*, 8> VertexBuffers;
+	BindVector<Texture*, 8> RenderTargets;
 	Texture* DepthStencil = nullptr;
+	BindVector<BindlessTable> BindlessTables = {};
 	uint32_t PushConstantBinding = 128;
-	std::vector<BindlessTable> BindlessTables = {};
-	std::vector<uint32_t> PushConstants;
+	uint32_t PushConstantCount = 0;
 
 	// Shader
 	Shader* Shader = nullptr;

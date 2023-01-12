@@ -69,7 +69,7 @@ GraphicsState::GraphicsState()
 	CommandSignature.pArgumentDescs = nullptr;
 }
 
-static std::vector<D3D12_DESCRIPTOR_RANGE> CreateDescriptorRanges(std::vector<Resource*> bindings, D3D12_DESCRIPTOR_RANGE_TYPE rangeType)
+static std::vector<D3D12_DESCRIPTOR_RANGE> CreateDescriptorRanges(const BindVector<Resource*>& bindings, D3D12_DESCRIPTOR_RANGE_TYPE rangeType)
 {
 	std::vector<D3D12_DESCRIPTOR_RANGE> ranges;
 
@@ -100,7 +100,7 @@ static std::vector<D3D12_DESCRIPTOR_RANGE> CreateDescriptorRanges(std::vector<Re
 	return ranges;
 }
 
-static std::vector<D3D12_DESCRIPTOR_RANGE> CreateDescriptorRanges(const std::vector<BindlessTable>& bindlessTables, D3D12_DESCRIPTOR_RANGE_TYPE rangeType)
+static std::vector<D3D12_DESCRIPTOR_RANGE> CreateDescriptorRanges(const BindVector<BindlessTable>& bindlessTables, D3D12_DESCRIPTOR_RANGE_TYPE rangeType)
 {
 	ASSERT(rangeType == D3D12_DESCRIPTOR_RANGE_TYPE_SRV, "Bindless tables only supported for SRVs!");
 
@@ -174,7 +174,7 @@ static D3D12_PRIMITIVE_TOPOLOGY ToPrimitiveTopology(const RenderPrimitiveType pr
 
 static uint32_t CalcRootSignatureHash(const GraphicsState& state)
 {
-	uint32_t sigHash = Hash::Crc32(state.PushConstants.size());
+	uint32_t sigHash = Hash::Crc32(state.PushConstantCount);
 	sigHash = Hash::Crc32(sigHash, "CBV");
 	for (uint32_t i = 0; i < state.Table.CBVs.size(); i++) if(state.Table.CBVs[i]) sigHash = Hash::Crc32(sigHash, i);
 	sigHash = Hash::Crc32(sigHash, "SRV");
@@ -222,12 +222,12 @@ static ID3D12RootSignature* GetOrCreateRootSignature(GraphicsContext& context, c
 	}
 	descriptorRanges[4] = CreateDescriptorRanges(state.BindlessTables, D3D12_DESCRIPTOR_RANGE_TYPE_SRV);
 
-	if (!state.PushConstants.empty())
+	if (state.PushConstantCount != 0)
 	{
 		D3D12_ROOT_PARAMETER rootParamater;
 		rootParamater.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
 		rootParamater.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		rootParamater.Constants.Num32BitValues = (uint32_t) state.PushConstants.size();
+		rootParamater.Constants.Num32BitValues = (uint32_t) state.PushConstantCount;
 		rootParamater.Constants.RegisterSpace = 0;
 		rootParamater.Constants.ShaderRegister = state.PushConstantBinding;
 		rootParameters.push_back(rootParamater);
@@ -368,7 +368,7 @@ static D3D12_CPU_DESCRIPTOR_HANDLE GetSamplerDescriptor(GraphicsContext& context
 	return context.SamplerCache[samplerHash];
 }
 
-static DescriptorAllocation CreateDescriptorTable(GraphicsContext& context, const std::vector<Resource*>& bindings, BindingType bindingType)
+static DescriptorAllocation CreateDescriptorTable(GraphicsContext& context, const BindVector<Resource*>& bindings, BindingType bindingType)
 {
 	const auto getDescriptor = [](Resource* resource, BindingType type)
 	{
@@ -539,11 +539,8 @@ ID3D12CommandSignature* GraphicsContext::ApplyState(const GraphicsState& state)
 			else cmdList->SetGraphicsRootDescriptorTable(nextSlot++, descriptor);
 		};
 
-		if (!state.PushConstants.empty())
-		{
-			GFX::Cmd::UpdatePushConstants(*this, state);
-			nextSlot++;
-		}
+		nextSlot += state.PushConstantCount;
+
 		for (uint32_t i = 0; i < 3; i++)
 		{
 			if (descriptorTables[i].HeapAlloc.NumElements == 0) continue;

@@ -16,16 +16,15 @@ cbuffer Constants : register(b0)
 }
 
 StructuredBuffer<Drawable> Drawables : register(t0);
-StructuredBuffer<Entity> Entities : register(t1);
-Texture2D<float> DepthTexture : register(t2);
+Texture2D<float> DepthTexture : register(t1);
 
 RWStructuredBuffer<uint> VisibilityMask : register(u0);
 RWStructuredBuffer<uint> StatsBuffer : register(u1);
 
-bool IsVisible(const Entity e, ViewFrustum frustum, Camera camera, Texture2D<float> depthTexture)
+bool IsVisible(const Drawable d, ViewFrustum frustum, Camera camera, Texture2D<float> depthTexture)
 {
 	// Frustum culling
-	if (!IsInViewFrustum(e.BoundingVolume, frustum))
+	if (!IsInViewFrustum(d.BoundingVolume, frustum))
 	{
 		return false;
 	}
@@ -72,8 +71,7 @@ void CS(uint3 threadID : SV_DispatchThreadID)
 	const bool isVisible = true;
 #else
 	const Drawable d = Drawables[drawableIndex];
-	const Entity e = Entities[d.EntityIndex];
-	const bool isVisible = IsVisible(e, Frustum, MainCamera, DepthTexture);
+	const bool isVisible = IsVisible(d, Frustum, MainCamera, DepthTexture);
 #endif // FORCE_VISIBLE
 
 	VisibilityMask[drawableIndex] = isVisible ? 1 : 0;

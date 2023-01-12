@@ -40,9 +40,8 @@ namespace CullingPrivate
 {
 	bool IsVisible(const Drawable& d)
 	{
-		const Entity& e = MainSceneGraph->Entities[d.EntityIndex];
 		const ViewFrustum& vf = MainSceneGraph->MainCamera.CameraFrustum;
-		const BoundingSphere bv = e.GetBoundingVolume();
+		const BoundingSphere bv = d.GetBoundingVolume();
 		return vf.IsInFrustum(bv);
 	}
 }
@@ -74,10 +73,7 @@ void Culling::CullLights(GraphicsContext& context, Texture* depth)
 	if (RenderSettings.Culling.LightCullingEnabled)
 	{
 		GraphicsState state{};
-		state.Table.CBVs.resize(1);
-		state.Table.SRVs.resize(2);
-		state.Table.UAVs.resize(1);
-
+		
 		CBManager.Clear();
 		CBManager.Add(MainSceneGraph->SceneInfoData);
 		CBManager.Add(MainSceneGraph->MainCamera.CameraData);
@@ -134,17 +130,16 @@ void Culling::CullRenderGroupGPU(GraphicsContext& context, RenderGroupType rgTyp
 	GFX::ExpandBuffer(context, cullData.VisibilityMaskBuffer.get(), rg.Drawables.GetSize() * sizeof(uint32_t));
 
 	GraphicsState cullingState{};
-	cullingState.Table.SRVs.push_back(rg.Drawables.GetBuffer());
-	cullingState.Table.SRVs.push_back(MainSceneGraph->Entities.GetBuffer());
-	cullingState.Table.SRVs.push_back(input.Depth);
-	cullingState.Table.UAVs.push_back(cullData.VisibilityMaskBuffer.get());
-	cullingState.Table.UAVs.push_back(camCullData.StatsBuffer.get());
+	cullingState.Table.SRVs[0] = rg.Drawables.GetBuffer();
+	cullingState.Table.SRVs[1] = input.Depth;
+	cullingState.Table.UAVs[0] = cullData.VisibilityMaskBuffer.get();
+	cullingState.Table.UAVs[1] = camCullData.StatsBuffer.get();
 
 	CBManager.Clear();
 	CBManager.Add(input.Cam.CameraData);
 	CBManager.Add(input.Cam.CameraFrustum);
 	CBManager.Add(rg.Drawables.GetSize());
-	cullingState.Table.CBVs.push_back(CBManager.GetBuffer());
+	cullingState.Table.CBVs[0] = CBManager.GetBuffer();
 	cullingState.Shader = m_GeometryCullingShader.get();
 	cullingState.ShaderStages = CS;
 	cullingState.ShaderConfig = config;

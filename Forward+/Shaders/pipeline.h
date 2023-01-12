@@ -17,7 +17,6 @@ struct VertexPipelinePushConstants
     uint DrawableID;
 };
 
-StructuredBuffer<Entity> Entities : register(t124);
 StructuredBuffer<Material> Materials : register(t125);
 StructuredBuffer<Drawable> Drawables : register(t126);
 Texture2D Textures[] : register(t0, space1);
@@ -39,7 +38,7 @@ Vertex GetWorldSpaceVertex(VertexPipelineInput input)
     vert.Normal = input.Normal;
     vert.Tangent = input.Tangent;
 
-    const float4x4 modelToWorld = Entities[d.EntityIndex].ModelToWorld;
+    const float4x4 modelToWorld = d.ModelToWorld;
 
     vert.Position = mul(float4(vert.Position, 1.0f), modelToWorld).xyz;
     vert.Normal = mul(vert.Normal, (float3x3)modelToWorld); // Assumes nonuniform scaling; otherwise, need to use inverse-transpose of world matrix.

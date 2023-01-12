@@ -78,9 +78,6 @@ Texture* PostprocessingRenderer::Process(GraphicsContext& context, Texture* colo
 	}
 
 	GraphicsState state;
-	state.Table.SRVs.resize(3);
-	state.Table.CBVs.resize(1);
-	state.RenderTargets.resize(1);
 	SSManager.Bind(state);
 
 	// Bloom

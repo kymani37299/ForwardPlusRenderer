@@ -9,16 +9,14 @@ namespace SceneLoading
 		RenderGroupType RenderGroup;
 		uint32_t MeshIndex;
 		uint32_t MaterialIndex;
+		
+		DirectX::XMFLOAT4X4 Transform = XMUtility::ToXMFloat4x4(DirectX::XMMatrixIdentity());
 		BoundingSphere BoundingVolume;
-		uint32_t EntityIndex;
 	};
+	using LoadedScene = std::vector<LoadedObject>;
 
-	struct LoadedScene
-	{
-		std::vector<LoadedObject> Objects;
-		std::vector<Entity> Entities;
-	};
+	// We are using position, scale and rotation from baseDrawable
+	void AddDraws(const LoadedScene scene, const Drawable& baseDrawable);
 
-	void AddDraws(LoadedScene scene, Entity entity);
 	LoadedScene Load(const std::string& path);
 }
