@@ -6,7 +6,8 @@
 
 ## Forward+ structure
 
-Implemented classic forward+ structure, where everything is rendered in forward fashion but more optimized than classic Forward renderer. There are 3 main steps in that:
+Implemented classic forward+ structure, where everything is rendered in forward fashion but more optimized than classic Forward renderer. There are 4 main steps in that:
+- <b>Geometry culling</b> - Deciding what geometry to draw this frame
 - <b>Depth Prepass</b> - Drawing depth information into a texture
 - <b>Light culling</b> - Tile based culling, the screen is divided in tiles, and then for each tile using depth information from last step we calculate which lights are affecting that area of screen
 - <b>Geometry rendering</b> - Rendering geometry in forward fashion using the light info from the last step and depth information from first step
