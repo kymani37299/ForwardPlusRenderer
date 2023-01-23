@@ -204,23 +204,26 @@ static ID3D12RootSignature* GetOrCreateRootSignature(GraphicsContext& context, c
 
 	ID3D12RootSignature* rootSignature = nullptr;
 
-	constexpr uint32_t NumDescriptorTables = 5;
 	const BindTable& table = state.Table;
 	std::vector<D3D12_ROOT_PARAMETER> rootParameters;
-	std::vector<D3D12_DESCRIPTOR_RANGE> descriptorRanges[NumDescriptorTables];
-	descriptorRanges[0] = CreateDescriptorRanges(table.CBVs, D3D12_DESCRIPTOR_RANGE_TYPE_CBV);
-	descriptorRanges[1] = CreateDescriptorRanges(table.SRVs, D3D12_DESCRIPTOR_RANGE_TYPE_SRV);
-	descriptorRanges[2] = CreateDescriptorRanges(table.UAVs, D3D12_DESCRIPTOR_RANGE_TYPE_UAV);
+	std::vector<std::vector<D3D12_DESCRIPTOR_RANGE>> descriptorRanges;
+
+	if (!table.CBVs.empty()) descriptorRanges.push_back(CreateDescriptorRanges(table.CBVs, D3D12_DESCRIPTOR_RANGE_TYPE_CBV));
+	if (!table.SRVs.empty()) descriptorRanges.push_back(CreateDescriptorRanges(table.SRVs, D3D12_DESCRIPTOR_RANGE_TYPE_SRV));
+	if (!table.UAVs.empty()) descriptorRanges.push_back(CreateDescriptorRanges(table.UAVs, D3D12_DESCRIPTOR_RANGE_TYPE_UAV));
+
 	if (!state.Table.SMPs.empty())
 	{
-		descriptorRanges[3].resize(1);
-		descriptorRanges[3][0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
-		descriptorRanges[3][0].BaseShaderRegister = 0;
-		descriptorRanges[3][0].NumDescriptors = (UINT)state.Table.SMPs.size();
-		descriptorRanges[3][0].RegisterSpace = 0;
-		descriptorRanges[3][0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+		D3D12_DESCRIPTOR_RANGE samplerRange;
+		samplerRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+		samplerRange.BaseShaderRegister = 0;
+		samplerRange.NumDescriptors = (UINT)state.Table.SMPs.size();
+		samplerRange.RegisterSpace = 0;
+		samplerRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+		descriptorRanges.push_back({ samplerRange });
 	}
-	descriptorRanges[4] = CreateDescriptorRanges(state.BindlessTables, D3D12_DESCRIPTOR_RANGE_TYPE_SRV);
+	if(!state.BindlessTables.empty()) descriptorRanges.push_back(CreateDescriptorRanges(state.BindlessTables, D3D12_DESCRIPTOR_RANGE_TYPE_SRV));
 
 	if (state.PushConstantCount != 0)
 	{
@@ -233,15 +236,13 @@ static ID3D12RootSignature* GetOrCreateRootSignature(GraphicsContext& context, c
 		rootParameters.push_back(rootParamater);
 	}
 
-	for (uint32_t i = 0; i < NumDescriptorTables; i++)
+	for (const auto& descriptors : descriptorRanges)
 	{
-		if (descriptorRanges[i].empty()) continue;
-
 		D3D12_ROOT_PARAMETER rootParamater;
 		rootParamater.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 		rootParamater.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		rootParamater.DescriptorTable.NumDescriptorRanges = (uint32_t)descriptorRanges[i].size();
-		rootParamater.DescriptorTable.pDescriptorRanges = descriptorRanges[i].data();
+		rootParamater.DescriptorTable.NumDescriptorRanges = (uint32_t)descriptors.size();
+		rootParamater.DescriptorTable.pDescriptorRanges = descriptors.data();
 		rootParameters.push_back(rootParamater);
 	}
 
@@ -348,10 +349,10 @@ static D3D12_CPU_DESCRIPTOR_HANDLE GetSamplerDescriptor(GraphicsContext& context
 	samplerDesc.AddressV = sampler.AddressMode;
 	samplerDesc.AddressW = sampler.AddressMode;
 	samplerDesc.Filter = sampler.Filter;
-	samplerDesc.BorderColor[0] = 0.0f;
-	samplerDesc.BorderColor[1] = 0.0f;
-	samplerDesc.BorderColor[2] = 0.0f;
-	samplerDesc.BorderColor[3] = 0.0f;
+	samplerDesc.BorderColor[0] = sampler.BorderColor.x;
+	samplerDesc.BorderColor[1] = sampler.BorderColor.y;
+	samplerDesc.BorderColor[2] = sampler.BorderColor.z;
+	samplerDesc.BorderColor[3] = sampler.BorderColor.w;
 	samplerDesc.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
 	samplerDesc.MaxAnisotropy = 16;
 	samplerDesc.MaxLOD = D3D12_FLOAT32_MAX;
@@ -362,10 +363,10 @@ static D3D12_CPU_DESCRIPTOR_HANDLE GetSamplerDescriptor(GraphicsContext& context
 	if (!context.SamplerCache.contains(samplerHash))
 	{
 		context.SamplerCache[samplerHash] = Device::Get()->GetMemory().SMPHeap->Allocate();
-		Device::Get()->GetHandle()->CreateSampler(&samplerDesc, context.SamplerCache[samplerHash]);
+		Device::Get()->GetHandle()->CreateSampler(&samplerDesc, context.SamplerCache[samplerHash].GetCPUHandle());
 	}
 
-	return context.SamplerCache[samplerHash];
+	return context.SamplerCache[samplerHash].GetCPUHandle();
 }
 
 static DescriptorAllocation CreateDescriptorTable(GraphicsContext& context, const BindVector<Resource*>& bindings, BindingType bindingType)
@@ -380,7 +381,7 @@ static DescriptorAllocation CreateDescriptorTable(GraphicsContext& context, cons
 		default: NOT_IMPLEMENTED;
 		}
 
-		return D3D12_CPU_DESCRIPTOR_HANDLE{};
+		return DescriptorAllocation{};
 	};
 
 	std::vector<Resource*> bindingsToUpload{};
@@ -388,13 +389,13 @@ static DescriptorAllocation CreateDescriptorTable(GraphicsContext& context, cons
 	{
 		if (binding) bindingsToUpload.push_back(binding);
 	}
-	DescriptorHeapGPU& heap = context.MemContext.SRVHeap;
-	DescriptorAllocation alloc = heap.Allocate(bindingsToUpload.size(), true);
+	DescriptorHeap& heap = context.MemContext.SRVHeap;
+	DescriptorAllocation alloc = heap.AllocateTransient(bindingsToUpload.size());
 
 	for (size_t i = 0; i < bindingsToUpload.size(); i++)
 	{
-		const D3D12_CPU_DESCRIPTOR_HANDLE srcDescriptor = getDescriptor(bindingsToUpload[i], bindingType);
-		const D3D12_CPU_DESCRIPTOR_HANDLE dstDescriptor = heap.GetCPUHandle(alloc, i);
+		const D3D12_CPU_DESCRIPTOR_HANDLE srcDescriptor = getDescriptor(bindingsToUpload[i], bindingType).GetCPUHandle();
+		const D3D12_CPU_DESCRIPTOR_HANDLE dstDescriptor = alloc.GetCPUHandle(i);
 		Device::Get()->GetHandle()->CopyDescriptorsSimple(1, dstDescriptor, srcDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	}
 	return alloc;
@@ -436,23 +437,25 @@ ID3D12CommandSignature* GraphicsContext::ApplyState(const GraphicsState& state)
 	{
 		std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> rtDescs{};
 		rtDescs.reserve(state.RenderTargets.size());
-		const D3D12_CPU_DESCRIPTOR_HANDLE* dsDesc = nullptr;
+		const D3D12_CPU_DESCRIPTOR_HANDLE* dsDescPtr = nullptr;
+		D3D12_CPU_DESCRIPTOR_HANDLE dsDesc;
 		
 		for (Texture* rt : state.RenderTargets)
 		{
 			ASSERT(rt->CreationFlags & RCF_Bind_RTV, "Texture must have RCF_Bind_RTV in order to be used as a render target!");
 			GFX::Cmd::AddResourceTransition(barriers, rt, D3D12_RESOURCE_STATE_RENDER_TARGET);
-			rtDescs.push_back(rt->RTV);
+			rtDescs.push_back(rt->RTV.GetCPUHandle());
 		}
 
 		if (state.DepthStencil)
 		{
 			ASSERT(state.DepthStencil->CreationFlags & RCF_Bind_DSV, "Texture must have RCF_Bind_DSV in order to be used as a depth stencil!");
 			GFX::Cmd::AddResourceTransition(barriers, state.DepthStencil, D3D12_RESOURCE_STATE_DEPTH_WRITE);
-			dsDesc = &state.DepthStencil->DSV;
+			dsDesc = state.DepthStencil->DSV.GetCPUHandle();
+			dsDescPtr = &dsDesc;
 		}
 
-		cmdList->OMSetRenderTargets((UINT) rtDescs.size(), rtDescs.empty() ? nullptr : rtDescs.data(), false, dsDesc);
+		cmdList->OMSetRenderTargets((UINT) rtDescs.size(), rtDescs.empty() ? nullptr : rtDescs.data(), false, dsDescPtr);
 		cmdList->OMSetStencilRef(state.StencilRef);
 		D3D12_VIEWPORT viewport = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f };
 		D3D12_RECT scissor = { 0, 0, 0, 0 };
@@ -509,21 +512,30 @@ ID3D12CommandSignature* GraphicsContext::ApplyState(const GraphicsState& state)
 		}
 	}
 
+	// Setup descriptor tables
 	{
-		DescriptorAllocation descriptorTables[4];
+		std::vector<DescriptorAllocation> descriptorTables;
+		
+		if (!state.Table.CBVs.empty()) descriptorTables.push_back(CreateDescriptorTable(*this, state.Table.CBVs, BindingType::CBV));
+		if (!state.Table.SRVs.empty()) descriptorTables.push_back(CreateDescriptorTable(*this, state.Table.SRVs, BindingType::SRV));
+		if (!state.Table.UAVs.empty()) descriptorTables.push_back(CreateDescriptorTable(*this, state.Table.UAVs, BindingType::UAV));
 
-		// Allocate and populate descriptor tables
-		MemoryContext& memContext = MemContext;
-		descriptorTables[0] = CreateDescriptorTable(*this, state.Table.CBVs, BindingType::CBV);
-		descriptorTables[1] = CreateDescriptorTable(*this, state.Table.SRVs, BindingType::SRV);
-		descriptorTables[2] = CreateDescriptorTable(*this, state.Table.UAVs, BindingType::UAV);
-		descriptorTables[3] = memContext.SMPHeap.Allocate(state.Table.SMPs.size(), true);
-
-		for (size_t i = 0; i < state.Table.SMPs.size(); i++)
+		if (!state.Table.SMPs.empty())
 		{
-			const D3D12_CPU_DESCRIPTOR_HANDLE srcDescriptor = GetSamplerDescriptor(*this, state.Table.SMPs[i]);
-			const D3D12_CPU_DESCRIPTOR_HANDLE dstDescriptor = memContext.SMPHeap.GetCPUHandle(descriptorTables[3], i);
-			Device::Get()->GetHandle()->CopyDescriptorsSimple(1, dstDescriptor, srcDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+			const uint32_t samplerTableIndex = (uint32_t) descriptorTables.size();
+			descriptorTables.push_back(MemContext.SMPHeap.AllocateTransient(state.Table.SMPs.size()));
+
+			for (size_t i = 0; i < state.Table.SMPs.size(); i++)
+			{
+				const D3D12_CPU_DESCRIPTOR_HANDLE srcDescriptor = GetSamplerDescriptor(*this, state.Table.SMPs[i]);
+				const D3D12_CPU_DESCRIPTOR_HANDLE dstDescriptor = descriptorTables[samplerTableIndex].GetCPUHandle(i);
+				Device::Get()->GetHandle()->CopyDescriptorsSimple(1, dstDescriptor, srcDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+			}
+		}
+
+		for (const BindlessTable& table : state.BindlessTables)
+		{
+			descriptorTables.push_back(table.DescriptorTable);
 		}
 
 		// Add resource transitions
@@ -532,31 +544,12 @@ ID3D12CommandSignature* GraphicsContext::ApplyState(const GraphicsState& state)
 		for (Resource* bind : state.Table.UAVs) GFX::Cmd::AddResourceTransition(barriers, bind, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 		// Bind to root table
-		uint32_t nextSlot = 0;
-		const auto bindDescriptor = [&nextSlot, &useCompute, &cmdList](const D3D12_GPU_DESCRIPTOR_HANDLE& descriptor)
+		uint32_t nextSlot = state.PushConstantCount > 0 ? 1 : 0;
+		for (const DescriptorAllocation& descriptorTable : descriptorTables)
 		{
-			if (useCompute) cmdList->SetComputeRootDescriptorTable(nextSlot++, descriptor);
-			else cmdList->SetGraphicsRootDescriptorTable(nextSlot++, descriptor);
-		};
-
-		nextSlot += state.PushConstantCount;
-
-		for (uint32_t i = 0; i < 3; i++)
-		{
-			if (descriptorTables[i].HeapAlloc.NumElements == 0) continue;
-
-			const D3D12_GPU_DESCRIPTOR_HANDLE descriptor = MemContext.SRVHeap.GetGPUHandle(descriptorTables[i]);
-			bindDescriptor(descriptor);
-		}
-		if (descriptorTables[3].HeapAlloc.NumElements != 0)
-		{
-			const D3D12_GPU_DESCRIPTOR_HANDLE descriptor = MemContext.SMPHeap.GetGPUHandle(descriptorTables[3]);
-			bindDescriptor(descriptor);
-		}
-		for (const BindlessTable& table : state.BindlessTables)
-		{
-			const D3D12_GPU_DESCRIPTOR_HANDLE descriptor = MemContext.SRVHeap.GetGPUHandle(table.DescriptorTable);
-			bindDescriptor(descriptor);
+			const D3D12_GPU_DESCRIPTOR_HANDLE descriptorHandle = descriptorTable.GetGPUHandle();
+			if (useCompute) cmdList->SetComputeRootDescriptorTable(nextSlot++, descriptorHandle);
+			else cmdList->SetGraphicsRootDescriptorTable(nextSlot++, descriptorHandle);
 		}
 	}
 
@@ -576,16 +569,20 @@ ID3D12CommandSignature* GraphicsContext::ApplyState(const GraphicsState& state)
 		ID3D12RootSignature* rootSig = nullptr;
 		if (state.CommandSignature.NumArgumentDescs > 1) rootSig = rootSignature;
 		API_CALL(Device::Get()->GetHandle()->CreateCommandSignature(&state.CommandSignature, rootSig, IID_PPV_ARGS(&commandSignature)));
-		DeferredTrash::Get()->Put(commandSignature);
+		GFX::Cmd::Delete(*this, commandSignature);
 	}
 	return commandSignature;
 }
 
 GraphicsContext::~GraphicsContext()
 {
-	DeviceMemory& mem = Device::Get()->GetMemory();
 	for (const auto& [key, value] : SamplerCache)
-		DeferredTrash::Get()->Put(mem.SMPHeap.get(), value);
+		GFX::Cmd::Delete(*this, value);
+
+	StagingResources.ClearTransientTextures(*this);
+
+	GFX::Cmd::FlushContext(*this);
+	GFX::Cmd::ResetContext(*this);
 }
 
 static uint32_t GetHash(const StagingResourcesContext::StagingTextureRequest& request)
@@ -595,22 +592,7 @@ static uint32_t GetHash(const StagingResourcesContext::StagingTextureRequest& re
 	h = Hash::Crc32(h, request.NumMips);
 	h = Hash::Crc32(h, request.CreationFlags);
 	h = Hash::Crc32(h, request.Format);
-	h = Hash::Crc32(h, request.CreateSubresources);
 	return h;
-}
-
-StagingResourcesContext::~StagingResourcesContext()
-{
-	for (const auto it : m_TransientStagingTextures)
-	{
-		for (TextureSubresource* subres : it.second->Subresources)
-			DeferredTrash::Get()->Put(subres);
-
-		DeferredTrash::Get()->Put(it.second->TextureResource);
-		
-		delete it.second;
-	}
-	m_TransientStagingTextures.clear();
 }
 
 StagingResourcesContext::StagingTexture* StagingResourcesContext::GetTransientTexture(const StagingTextureRequest& request)
@@ -621,18 +603,18 @@ StagingResourcesContext::StagingTexture* StagingResourcesContext::GetTransientTe
 	{
 		StagingTexture* tex = new StagingTexture{};
 		tex->TextureResource = GFX::CreateTexture(request.Width, request.Height, request.CreationFlags, request.NumMips, request.Format);
-
-		if (request.CreateSubresources)
-		{
-			tex->Subresources.resize(request.NumMips);
-			for (uint32_t mip = 0; mip < request.NumMips; mip++)
-			{
-				tex->Subresources[mip] = GFX::CreateTextureSubresource(tex->TextureResource, mip, 1, 0, tex->TextureResource->DepthOrArraySize);
-			}
-		}
-
+		GFX::SetDebugName(tex->TextureResource, "StagingResourcesContext::Texture");
 		m_TransientStagingTextures[hash] = tex;
-	}	
-
+	}
 	return m_TransientStagingTextures[hash];
+}
+
+void StagingResourcesContext::ClearTransientTextures(GraphicsContext& context)
+{
+	for (const auto it : m_TransientStagingTextures)
+	{
+		GFX::Cmd::Delete(context, it.second->TextureResource);
+		delete it.second;
+	}
+	m_TransientStagingTextures.clear();
 }

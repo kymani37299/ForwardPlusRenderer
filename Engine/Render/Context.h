@@ -3,16 +3,18 @@
 #include <unordered_map>
 
 #include "Render/RenderAPI.h"
-#include "Render/Memory.h"
+#include "Render/DescriptorHeap.h"
 #include "Render/Shader.h"
 #include "Utility/MathUtility.h"
 #include "System/ApplicationConfiguration.h"
 
 struct Resource;
 struct Buffer;
+class ReadbackBuffer;
 struct Texture;
 struct TextureSubresource;
 struct Shader;
+struct GraphicsContext;
 
 struct Fence
 {
@@ -23,14 +25,21 @@ struct Fence
 struct MemoryContext
 {
 	// Pernament descriptors
-	DescriptorHeapGPU SRVHeap{ D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1, 1 };
-	DescriptorHeapGPU SMPHeap{ D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 1, 1 };
+	DescriptorHeap SRVHeap{ true, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1, 1 };
+	DescriptorHeap SMPHeap{ true, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 1, 1 };
+
+	// Frame resources
+	std::vector<ComPtr<IUnknown>> FrameDXResources;
+	std::vector<DescriptorAllocation> FrameDescriptors;
+	std::vector<Shader*> FrameShaders;
+	std::vector<Resource*> FrameResources;
 };
 
 struct Sampler
 {
-	D3D12_FILTER Filter;
-	D3D12_TEXTURE_ADDRESS_MODE AddressMode;
+	D3D12_FILTER Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+	D3D12_TEXTURE_ADDRESS_MODE AddressMode = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+	Float4 BorderColor{ 0.0f, 0.0f, 0.0f, 0.0f };
 };
 
 template<typename T, size_t Size = 128>
@@ -136,8 +145,6 @@ struct GraphicsState
 class StagingResourcesContext
 {
 public:
-	~StagingResourcesContext();
-
 	struct StagingTextureRequest
 	{
 		uint32_t Width;
@@ -145,19 +152,17 @@ public:
 		uint32_t NumMips;
 		uint64_t CreationFlags;
 		DXGI_FORMAT Format;
-
-		// Note: Subresources work only for mips for now
-		bool CreateSubresources;
 	};
 
 	struct StagingTexture
 	{
 		Texture* TextureResource;
-		std::vector<TextureSubresource*> Subresources;
 	};
 
 	// Same texture can be used multiple times in frame since all is on GPU timeline
 	StagingTexture* GetTransientTexture(const StagingTextureRequest& request);
+
+	void ClearTransientTextures(GraphicsContext& context);
 
 private:
 	std::unordered_map<uint32_t, StagingTexture*> m_TransientStagingTextures;
@@ -174,16 +179,19 @@ struct GraphicsContext
 	~GraphicsContext();
 	ID3D12CommandSignature* ApplyState(const GraphicsState& state);
 
+	bool Closed = false;
 	ComPtr<ID3D12CommandQueue> CmdQueue;
 	ComPtr<ID3D12CommandAllocator> CmdAlloc;
 	ComPtr<ID3D12GraphicsCommandList> CmdList;
 	MemoryContext MemContext;
 	Fence CmdFence;
 
+	std::vector<ReadbackBuffer*> PendingReadbacks;
+
 	// Cache
 	std::unordered_map<uint32_t, ComPtr<ID3D12RootSignature>> RootSignatureCache;
 	std::unordered_map<uint32_t, ComPtr<ID3D12PipelineState>> PSOCache;
-	std::unordered_map<uint32_t, D3D12_CPU_DESCRIPTOR_HANDLE> SamplerCache;
+	std::unordered_map<uint32_t, DescriptorAllocation> SamplerCache;
 
 	StagingResourcesContext StagingResources;
 

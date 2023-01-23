@@ -29,7 +29,8 @@
     <ClCompile Include="Renderers\ShadowRenderer.cpp" />
     <ClCompile Include="Renderers\SkyboxRenderer.cpp" />
     <ClCompile Include="Renderers\SSAORenderer.cpp" />
-    <ClCompile Include="Renderers\Util\ConstantManager.cpp" />
+    <ClCompile Include="Renderers\Util\ConstantBuffer.cpp" />
+    <ClCompile Include="Renderers\Util\HzbGenerator.cpp" />
     <ClCompile Include="Renderers\Util\SamplerManager.cpp" />
     <ClCompile Include="Renderers\Util\VertexPipeline.cpp" />
     <ClCompile Include="Scene\SceneGraph.cpp" />
@@ -47,8 +48,10 @@
     <ClInclude Include="Renderers\ShadowRenderer.h" />
     <ClInclude Include="Renderers\SkyboxRenderer.h" />
     <ClInclude Include="Renderers\SSAORenderer.h" />
-    <ClInclude Include="Renderers\Util\ConstantManager.h" />
+    <ClInclude Include="Renderers\Util\ConstantBuffer.h" />
+    <ClInclude Include="Renderers\Util\HzbGenerator.h" />
     <ClInclude Include="Renderers\Util\SamplerManager.h" />
+    <ClInclude Include="Renderers\Util\TextureDebugger.h" />
     <ClInclude Include="Renderers\Util\VertexPipeline.h" />
     <ClInclude Include="Scene\SceneGraph.h" />
     <ClInclude Include="Scene\SceneLoading.h" />
@@ -106,6 +109,16 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Shaders\geometry_culling.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Shaders\generate_hzb.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Shaders\texture_debugger.hlsl">
       <FileType>Document</FileType>
     </None>
   </ItemGroup>

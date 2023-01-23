@@ -10,7 +10,7 @@
 
 #include "Globals.h"
 #include "Scene/SceneGraph.h"
-#include "Renderers/Util/ConstantManager.h"
+#include "Renderers/Util/ConstantBuffer.h"
 #include "Renderers/Util/SamplerManager.h"
 #include "Shaders/shared_definitions.h"
 
@@ -89,16 +89,16 @@ Texture* SSAORenderer::Draw(GraphicsContext& context, Texture* depth)
 	{
 		GraphicsState state{};
 
-		CBManager.Clear();
-		CBManager.Add(GetSettingsRenderData());
-		CBManager.Add(MainSceneGraph->MainCamera.CameraData);
-		for (uint32_t i = 0; i < SSAO_KERNEL_SIZE; i++) CBManager.Add(m_Kernel[i]);
-		CBManager.Add(AppConfig.WindowWidth);
-		CBManager.Add(AppConfig.WindowHeight);
+		ConstantBuffer cb{};
+		cb.Add(GetSettingsRenderData());
+		cb.Add(MainSceneGraph->MainCamera.CameraData);
+		for (uint32_t i = 0; i < SSAO_KERNEL_SIZE; i++) cb.Add(m_Kernel[i]);
+		cb.Add(AppConfig.WindowWidth);
+		cb.Add(AppConfig.WindowHeight);
 		
 		SSManager.Bind(state);
 
-		state.Table.CBVs[0] = CBManager.GetBuffer();
+		state.Table.CBVs[0] = cb.GetBuffer(context);
 		state.Table.SRVs[0] = m_NoiseTexture.get();
 		state.Table.SRVs[1] = depth;
 		state.RenderTargets[0] = m_SSAOSampleTexture.get();
@@ -111,13 +111,13 @@ Texture* SSAORenderer::Draw(GraphicsContext& context, Texture* depth)
 	{
 		GraphicsState state{};
 
-		CBManager.Clear();
-		CBManager.Add(AppConfig.WindowWidth);
-		CBManager.Add(AppConfig.WindowHeight);
+		ConstantBuffer cb{};
+		cb.Add(AppConfig.WindowWidth);
+		cb.Add(AppConfig.WindowHeight);
 
 		SSManager.Bind(state);
 
-		state.Table.CBVs[0] = CBManager.GetBuffer();
+		state.Table.CBVs[0] = cb.GetBuffer(context);
 		state.Table.SRVs[0] = m_SSAOSampleTexture.get();
 		state.RenderTargets[0] = m_SSAOTexture.get();
 		state.Shader = m_Shader.get();

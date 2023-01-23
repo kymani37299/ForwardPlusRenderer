@@ -34,6 +34,8 @@ struct Camera
 	float3 Position;
 	float Padding;
 	float2 Jitter;
+	float ZNear;
+	float ZFar;
 };
 
 struct Drawable

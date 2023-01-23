@@ -2,17 +2,11 @@
 
 #include <Windows.h>
 
-// Hack for compiling imgui
-#ifdef WIN32
-#define ImTextureID ImU64
-#endif // WIN32
-
 #include "Render/Device.h"
-#include "Render/Memory.h"
 #include "Render/Context.h"
 #include "Render/Commands.h"
 #include "Render/Texture.h"
-#include "GUI/ImGui/imgui.h"
+#include "GUI/ImGui_Core.h"
 #include "GUI/ImGui/imgui_impl_dx12.h"
 #include "GUI/ImGui/imgui_impl_win32.h"
 #include "System/ApplicationConfiguration.h"
@@ -32,7 +26,6 @@ void GUIElement::RenderElement()
 		}
 		ImGui::End();
 	}
-	
 }
 
 GUI::GUI()
@@ -67,18 +60,18 @@ void GUI::Update(float dt)
 	}
 }
 
-void GUI::Render(GraphicsContext& context, Texture* renderTarget)
+void GUI::Render(GraphicsContext& context)
 {
 	if (!m_Initialized)
 	{
 		// NOTE: If we are having multiple contexts make sure that context that initialized ImGui is used for imgui draw
 		Device* device = Device::Get();
 		MemoryContext& memContext = device->GetContext().MemContext;
-		DescriptorHeapGPU& srvHeap = memContext.SRVHeap;
+		DescriptorHeap& srvHeap = memContext.SRVHeap;
 		DescriptorAllocation alloc = memContext.SRVHeap.Allocate(256u);
-		D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = memContext.SRVHeap.GetCPUHandle(alloc);
-		D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = memContext.SRVHeap.GetGPUHandle(alloc);
-		ImGui_ImplDX12_Init(device->GetHandle(), Device::SWAPCHAIN_BUFFER_COUNT, renderTarget->Format, srvHeap.GetHeap(), cpuHandle, gpuHandle);
+		D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = alloc.GetCPUHandle();
+		D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = alloc.GetGPUHandle();
+		ImGui_ImplDX12_Init(device->GetHandle(), Device::SWAPCHAIN_BUFFER_COUNT, Device::SWAPCHAIN_DEFAULT_FORMAT, srvHeap.GetHeap(), cpuHandle, gpuHandle);
 
 		m_Initialized = true;
 	}
@@ -94,12 +87,7 @@ void GUI::Render(GraphicsContext& context, Texture* renderTarget)
 		context.CmdList->SetDescriptorHeaps(1, descriptorHeaps);
 
 		// Bind render target
-		GFX::Cmd::TransitionResource(context, renderTarget, D3D12_RESOURCE_STATE_RENDER_TARGET);
-		D3D12_VIEWPORT viewport = { 0.0f, 0.0f, (float)renderTarget->Width, (float)renderTarget->Height, 0.0f, 1.0f };
-		D3D12_RECT scissor = { 0,0, (long)renderTarget->Width, (long)renderTarget->Height };
-		context.CmdList->OMSetRenderTargets(1, &renderTarget->RTV, false, nullptr);
-		context.CmdList->RSSetViewports(1, &viewport);
-		context.CmdList->RSSetScissorRects(1, &scissor);
+		Device::Get()->BindSwapchainToRenderTarget(context);
 	}
 
 	ImGui_ImplDX12_NewFrame();

@@ -161,7 +161,9 @@ void Camera::UpdateRenderDataForTransform(CameraTransform& transform, CameraRend
 	destData.ViewToClip = XMUtility::ToHLSLFloat4x4(viewToClip);
 	destData.ClipToWorld = XMUtility::ToHLSLFloat4x4(clipToWorld);
 	destData.Position = transform.Position.ToXMFA();
-	destData.Jitter = UseJitter ? Jitter[JitterIndex].ToXMFA() : Float2(0.0f, 0.0f).ToXMFA();
+	destData.Jitter = UseJitter ? Jitter[JitterIndex].ToXMF() : Float2(0.0f, 0.0f).ToXMF();
+	destData.ZNear = ZNear;
+	destData.ZFar = ZFar;
 }
 
 void Camera::UpdateRenderData()

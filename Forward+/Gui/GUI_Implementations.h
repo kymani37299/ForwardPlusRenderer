@@ -51,3 +51,12 @@ public:
 	virtual void Update(float dt) {}
 	virtual void Render();
 };
+
+class TextureDebuggerGUI : public GUIElement
+{
+public:
+	TextureDebuggerGUI() : GUIElement("Texture debugger", false) {}
+
+	virtual void Update(float dt);
+	virtual void Render();
+};

@@ -1,5 +1,13 @@
 #pragma once
 
+// Hack for compiling imgui
+#ifndef IMGUI_HACK
+#define IMGUI_HACK
+#ifdef WIN32
+#define ImTextureID ImU64
+#endif // WIN32
+#endif // IMGUI_HACK
+
 #include "Common.h"
 #include "Gui/Imgui/imgui.h"
 

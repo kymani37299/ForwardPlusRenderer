@@ -15,6 +15,15 @@ enum class AntiAliasingMode
 	Count,
 };
 
+enum class GeometryCullingMode
+{
+	None,
+	CPU_FrustumCulling,
+	GPU_FrustumCulling,
+	GPU_OcclusionCulling,
+	Count
+};
+
 struct BloomSettings
 {
 	bool Enabled = true;
@@ -35,10 +44,8 @@ struct CullingSettings
 {
 	bool LightCullingEnabled = true;
 	
-	bool GeometryCullingEnabled = true;
 	bool GeometryCullingFrozen = false;
-	bool GeometryCullingOnCPU = false;
-	bool GeometryOcclusionCullingEnabled = true;
+	GeometryCullingMode GeoCullingMode = GeometryCullingMode::GPU_OcclusionCulling;
 };
 
 struct ShadingSettings
@@ -57,13 +64,19 @@ struct RendererSettings
 	ShadingSettings Shading;
 };
 
-struct RenderStatistics
+struct CullingStatistics
 {
 	uint32_t TotalDrawables;
 	uint32_t VisibleDrawables;
 
-	uint32_t TotalShadowDrawables;
-	uint32_t VisibleShadowDrawables;
+	uint32_t TotalTriangles;
+	uint32_t VisibleTriangles;
+};
+
+struct RenderStatistics
+{
+	CullingStatistics MainStats;
+	CullingStatistics ShadowStats;
 };
 
 extern RenderStatistics RenderStats;

@@ -76,6 +76,9 @@ namespace TextureLoading
 		}
 		else
 		{
+			const uint32_t maxWH = MAX(width, height);
+			while (maxWH >> (numMips-1) == 0) numMips--;
+
 			texture = GFX::CreateTexture(width, height, creationFlags, numMips, TEXTURE_FORMAT);
 			GFX::Cmd::UploadToTexture(context, texData, texture, 0);
 			GFX::Cmd::GenerateMips(context, texture);

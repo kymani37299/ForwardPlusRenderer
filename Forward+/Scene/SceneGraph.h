@@ -6,9 +6,12 @@
 #include <Engine/Render/Context.h>
 #include <Engine/Utility/Multithreading.h>
 
+#include "Globals.h"
+
 struct GraphicsState;
 struct GraphicsContext;
 struct Buffer;
+class ReadbackBuffer;
 struct Texture;
 
 namespace DirectX
@@ -239,11 +242,8 @@ struct CameraCullingData
 	std::unordered_map<RenderGroupType, RenderGroupCullingData> RenderGroupData;
 	RenderGroupCullingData& operator[](RenderGroupType rgType) { return RenderGroupData[rgType]; }
 
-	// Stats
-	ScopedRef<Buffer> StatsBuffer;
-	ScopedRef<Buffer> StatsBufferReadback;
-	uint32_t TotalElements = 0;
-	uint32_t VisibleElements = 0;
+	ScopedRef<ReadbackBuffer> StatsBuffer;
+	CullingStatistics CullingStats;
 };
 
 struct Camera
@@ -260,7 +260,9 @@ struct Camera
 		DirectX::XMFLOAT4X4 ViewToClip;
 		DirectX::XMFLOAT4X4 ClipToWorld;
 		DirectX::XMFLOAT3A Position;
-		DirectX::XMFLOAT2A Jitter;
+		DirectX::XMFLOAT2 Jitter;
+		float ZNear;
+		float ZFar;
 	};
 
 	struct CameraTransform

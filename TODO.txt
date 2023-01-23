@@ -1,0 +1,10 @@
+- When debugger not present, force crash instead of assert
+- Fix SSAO
+- Use BitVector for visibility mask
+- Only do MSAA on DepthPrepass and use results for AA on drawing
+- InFlight frames
+- Remove sampler manager
+- Move creation flags functions in Resource.h to some namespace
+
+Bugs:
+- CPU culling is not culling same things as GPU frustum culling

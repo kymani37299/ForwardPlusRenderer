@@ -1,10 +1,13 @@
 #include "GUI_Implementations.h"
 
-#include <Engine/Gui/Imgui/imgui.h>
+#include <Engine/Gui/Imgui_Core.h>
 #include <Engine/Render/Resource.h>
+#include <Engine/Render/Texture.h>
 #include <Engine/System/ApplicationConfiguration.h>
 #include <Engine/Utility/Random.h>
+#include <Engine/Utility/StringUtility.h>
 
+#include "Renderers/Util/TextureDebugger.h"
 #include "Scene/SceneGraph.h"
 
 // --------------------------------------------------
@@ -29,13 +32,26 @@ void PositionInfoGUI::Render()
 }
 
 // --------------------------------------------------
-std::string ToString(AntiAliasingMode aaMode)
+static std::string ToString(AntiAliasingMode aaMode)
 {
 	switch (aaMode)
 	{
 	case AntiAliasingMode::None: return "None";
 	case AntiAliasingMode::TAA: return "TAA";
 	case AntiAliasingMode::MSAA: return "MSAA";
+	default: NOT_IMPLEMENTED;
+	}
+	return "";
+}
+
+static std::string ToString(GeometryCullingMode gcMode)
+{
+	switch (gcMode)
+	{
+	case GeometryCullingMode::None: return "None";
+	case GeometryCullingMode::CPU_FrustumCulling: return "CPU_FrustumCulling";
+	case GeometryCullingMode::GPU_FrustumCulling: return "GPU_FrustumCulling";
+	case GeometryCullingMode::GPU_OcclusionCulling: return "GPU_OcclusionCulling";
 	default: NOT_IMPLEMENTED;
 	}
 	return "";
@@ -49,11 +65,10 @@ void RenderSettingsGUI::Render()
 		for (uint32_t i = 0; i < modeCount; i++)
 		{
 			bool isSelected = false;
-			AntiAliasingMode mode = IntToEnum<AntiAliasingMode>(i);
+			const AntiAliasingMode mode = IntToEnum<AntiAliasingMode>(i);
 			ImGui::Selectable(ToString(mode).c_str(), &isSelected);
 			if (isSelected)
 			{
-				AntiAliasingMode lastMode = RenderSettings.AntialiasingMode;
 				RenderSettings.AntialiasingMode = mode;
 				AppConfig.WindowSizeDirty = true; // Reload the render targets
 				ImGui::SetItemDefaultFocus();
@@ -100,10 +115,24 @@ void RenderSettingsGUI::Render()
 	{
 		ImGui::Checkbox("Light culling", &RenderSettings.Culling.LightCullingEnabled);
 		ImGui::Separator();
-		ImGui::Checkbox("Geometry culling on CPU", &RenderSettings.Culling.GeometryCullingOnCPU);
-		ImGui::Checkbox("Geometry culling", &RenderSettings.Culling.GeometryCullingEnabled);
-		ImGui::Checkbox("Geometry occlusion culling", &RenderSettings.Culling.GeometryOcclusionCullingEnabled);
-		ImGui::Checkbox("Geometry culling freeze", &RenderSettings.Culling.GeometryCullingFrozen);
+
+		ImGui::Checkbox("Freeze geometry culling", &RenderSettings.Culling.GeometryCullingFrozen);
+		if (ImGui::BeginCombo("Geometry culling mode", ToString(RenderSettings.Culling.GeoCullingMode).c_str()))
+		{
+			const uint32_t modeCount = EnumToInt(GeometryCullingMode::Count);
+			for (uint32_t i = 0; i < modeCount; i++)
+			{
+				bool isSelected = false;
+				const GeometryCullingMode mode = IntToEnum<GeometryCullingMode>(i);
+				ImGui::Selectable(ToString(mode).c_str(), &isSelected);
+				if (isSelected)
+				{
+					RenderSettings.Culling.GeoCullingMode = mode;
+					ImGui::SetItemDefaultFocus();
+				}
+			}
+			ImGui::EndCombo();
+		}
 	}
 
 	if (ImGui::CollapsingHeader("Shading"))
@@ -147,8 +176,12 @@ void RenderStatsGUI::Render()
 	ImGui::Text("FPS:   %u", static_cast<uint32_t>(1000.0f / m_CurrentDT));
 	ImGui::Separator();
 	ImGui::Text("Num lights:  %u", MainSceneGraph->Lights.GetSize());
-	ImGui::Text("Drawables(Main)  :   %u / %u", RenderStats.VisibleDrawables, RenderStats.TotalDrawables);
-	ImGui::Text("Drawables(Shadow):   %u / %u", RenderStats.VisibleShadowDrawables, RenderStats.TotalShadowDrawables);
+	ImGui::Separator();
+	ImGui::Text("Drawables(Main)  :   %u / %u", RenderStats.MainStats.VisibleDrawables, RenderStats.MainStats.TotalDrawables);
+	ImGui::Text("Triangles(Main)  :   %s / %s", StringUtility::RepresentNumberWithSeparator(RenderStats.MainStats.VisibleTriangles, ' ').c_str(), StringUtility::RepresentNumberWithSeparator(RenderStats.MainStats.TotalTriangles, ' ').c_str());
+	ImGui::Separator();
+	ImGui::Text("Drawables(Shadow):   %u / %u", RenderStats.ShadowStats.VisibleDrawables, RenderStats.ShadowStats.TotalDrawables);
+	ImGui::Text("Triangles(Shadow):   %s / %s", StringUtility::RepresentNumberWithSeparator(RenderStats.ShadowStats.VisibleTriangles, ' ').c_str(), StringUtility::RepresentNumberWithSeparator(RenderStats.ShadowStats.TotalTriangles, ' ').c_str());
 }
 
 // --------------------------------------------------
@@ -196,4 +229,59 @@ void LightsGUI::Render()
 	changed = ImGui::SliderFloat3("Color", color, 0.0f, 5.0f) || changed;
 
 	dirLight.Radiance = { color[0], color[1], color[2] };
+}
+
+// --------------------------------------------------
+void TextureDebuggerGUI::Update(float dt)
+{
+	TexDebugger.GetEnabledRef() = GetShownRef();
+}
+
+void TextureDebuggerGUI::Render()
+{
+	const auto& debugTextures = TexDebugger.GetTextures();
+	
+	if (debugTextures.empty()) 
+		return;
+
+	auto& selectedTexture = TexDebugger.GetSelectedTexture();
+	if (ImGui::BeginCombo("Select texture", selectedTexture.Name.c_str()))
+	{
+		const uint32_t textureCount = (uint32_t) debugTextures.size();
+		for (uint32_t i = 0; i < textureCount; i++)
+		{
+			bool isSelected = false;
+			ImGui::Selectable(debugTextures[i].Name.c_str(), &isSelected);
+			if (isSelected)
+			{
+				TexDebugger.SetSelectedTexture(i);
+				ImGui::SetItemDefaultFocus();
+			}
+		}
+		ImGui::EndCombo();
+	}
+
+	ImGui::Checkbox("Show alpha", &selectedTexture.ShowAlpha);
+	ImGui::SliderInt("Selected mip", &selectedTexture.SelectedMip, 0, selectedTexture.Tex->NumMips - 1);
+	
+	ImGui::SliderFloat("Range min", &selectedTexture.RangeMin, 0.0f, 1.0f);
+	ImGui::SliderFloat("Range max", &selectedTexture.RangeMax, 0.0f, 1.0f);
+
+	if (ImGui::Button("Find range"))
+	{
+		selectedTexture.FindRange = true;
+	}
+
+	if (selectedTexture.RangeMin > selectedTexture.RangeMax)
+		selectedTexture.RangeMin = selectedTexture.RangeMax;
+
+	if (TexDebugger.GetPreviewTextureHandle())
+	{
+		const float textureAspect = (float)selectedTexture.Tex->Height / selectedTexture.Tex->Width;
+
+		static constexpr float previewSize = 512.0f;
+
+		ImTextureID textureHandle = *((ImTextureID*)TexDebugger.GetPreviewTextureHandle());
+		ImGui::Image(textureHandle, { previewSize, previewSize * textureAspect });
+	}
 }

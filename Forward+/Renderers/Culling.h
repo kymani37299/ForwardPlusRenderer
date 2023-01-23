@@ -21,12 +21,10 @@ struct GeometryCullingInput
 		Cam(cam)
 	{ }
 
-	Texture* Depth = nullptr; // If null, only frustum culling will be performed
+	Texture* HZB = nullptr; // If null, only frustum culling will be performed
 	Camera& Cam;
 };
 
-// TODO: Fix stats
-// Bonus: Add stats for shadows too
 class Culling
 {
 public:
@@ -40,7 +38,7 @@ public:
 	void CullLights(GraphicsContext& context, Texture* depth);
 
 	Buffer* GetVisibleLightsBuffer() const { return m_VisibleLightsBuffer.get(); }
-
+	
 private:
 	void CullRenderGroupCPU(GraphicsContext& context, RenderGroupType rgType, GeometryCullingInput& input);
 	void CullRenderGroupGPU(GraphicsContext& context, RenderGroupType rgType, GeometryCullingInput& input);

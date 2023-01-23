@@ -8,8 +8,9 @@
 #include <Engine/System/ApplicationConfiguration.h>
 
 #include "Globals.h"
-#include "Renderers/Util/ConstantManager.h"
+#include "Renderers/Util/ConstantBuffer.h"
 #include "Renderers/Util/SamplerManager.h"
+#include "Renderers/Util/TextureDebugger.h"
 #include "Scene/SceneGraph.h"
 
 static const Float2 HaltonSequence[16] = { 
@@ -89,10 +90,11 @@ Texture* PostprocessingRenderer::Process(GraphicsContext& context, Texture* colo
 		{
 			GFX::Cmd::MarkerBegin(context, "Prefilter");
 
-			CBManager.Clear();
-			CBManager.Add(GetBloomInput(hdrRT));
-			CBManager.Add(RenderSettings.Exposure);
-			state.Table.CBVs[0] = CBManager.GetBuffer();
+			ConstantBuffer cb{};
+			cb.Add(GetBloomInput(hdrRT));
+			cb.Add(RenderSettings.Exposure);
+
+			state.Table.CBVs[0] = cb.GetBuffer(context);
 			state.Table.SRVs[0] = hdrRT;
 			state.RenderTargets[0] = m_BloomTexturesDownsample[0].get();
 			state.Shader = m_BloomShader.get();
@@ -109,10 +111,11 @@ Texture* PostprocessingRenderer::Process(GraphicsContext& context, Texture* colo
 			state.ShaderConfig = { "DOWNSAMPLE" };
 			for (uint32_t i = 1; i < BLOOM_NUM_SAMPLES; i++)
 			{
-				CBManager.Clear();
-				CBManager.Add(GetBloomInput(m_BloomTexturesDownsample[i - 1].get()));
-				CBManager.Add(RenderSettings.Exposure);
-				state.Table.CBVs[0] = CBManager.GetBuffer();
+				ConstantBuffer cb{};
+				cb.Add(GetBloomInput(m_BloomTexturesDownsample[i - 1].get()));
+				cb.Add(RenderSettings.Exposure);
+
+				state.Table.CBVs[0] = cb.GetBuffer(context);
 				state.Table.SRVs[0] = m_BloomTexturesDownsample[i - 1].get();
 				state.RenderTargets[0] = m_BloomTexturesDownsample[i].get();
 				GFX::Cmd::DrawFC(context, state);
@@ -124,10 +127,11 @@ Texture* PostprocessingRenderer::Process(GraphicsContext& context, Texture* colo
 		{
 			GFX::Cmd::MarkerBegin(context, "Upsample");
 			
-			CBManager.Clear();
-			CBManager.Add(GetBloomInput(m_BloomTexturesDownsample[BLOOM_NUM_SAMPLES - 1].get()));
-			CBManager.Add(RenderSettings.Exposure);
-			state.Table.CBVs[0] = CBManager.GetBuffer();
+			ConstantBuffer cb{};
+			cb.Add(GetBloomInput(m_BloomTexturesDownsample[BLOOM_NUM_SAMPLES - 1].get()));
+			cb.Add(RenderSettings.Exposure);
+
+			state.Table.CBVs[0] = cb.GetBuffer(context);
 			state.Table.SRVs[0] = m_BloomTexturesDownsample[BLOOM_NUM_SAMPLES - 1].get();
 			state.Table.SRVs[1] = m_BloomTexturesDownsample[BLOOM_NUM_SAMPLES - 2].get();
 			state.Shader = m_BloomShader.get();
@@ -138,10 +142,10 @@ Texture* PostprocessingRenderer::Process(GraphicsContext& context, Texture* colo
 
 			for (int32_t i = BLOOM_NUM_SAMPLES - 3; i >= 0; i--)
 			{
-				CBManager.Clear();
-				CBManager.Add(GetBloomInput(m_BloomTexturesDownsample[i].get()));
-				CBManager.Add(RenderSettings.Exposure);
-				state.Table.CBVs[0] = CBManager.GetBuffer();
+				ConstantBuffer cb1{};
+				cb1.Add(GetBloomInput(m_BloomTexturesDownsample[i].get()));
+				cb1.Add(RenderSettings.Exposure);
+				state.Table.CBVs[0] = cb1.GetBuffer(context);
 				state.Table.SRVs[0] = m_BloomTexturesDownsample[i + 1].get();
 				state.Table.SRVs[1] = m_BloomTexturesDownsample[i].get();
 				state.RenderTargets[0] = m_BloomTexturesUpsample[i].get();
@@ -158,9 +162,10 @@ Texture* PostprocessingRenderer::Process(GraphicsContext& context, Texture* colo
 	{
 		GFX::Cmd::MarkerBegin(context, "Tonemapping");
 
-		CBManager.Clear();
-		CBManager.Add(RenderSettings.Exposure);
-		state.Table.CBVs[0] = CBManager.GetBuffer();
+		ConstantBuffer cb{};
+		cb.Add(RenderSettings.Exposure);
+
+		state.Table.CBVs[0] = cb.GetBuffer(context);
 		state.Table.SRVs[0] = hdrRT;
 		state.Table.SRVs[1] = m_BloomTexturesUpsample[0].get();
 		state.RenderTargets[0] = GetOutputTexture();
@@ -218,6 +223,8 @@ void PostprocessingRenderer::ReloadTextureResources(GraphicsContext& context)
 	GFX::SetDebugName(m_TAAHistory[1].get(), "PostprocessingRenderer::TAAHistory1");
 	GFX::SetDebugName(m_PostprocessRT[1].get(), "PostprocessingRenderer::PostprocessRT0");
 	GFX::SetDebugName(m_PostprocessRT[1].get(), "PostprocessingRenderer::PostprocessRT1");
+
+	TexDebugger.AddTexture("PostprocessRT", m_PostprocessRT[0].get());
 
 	// Bloom
 	const float aspect = (float)size[0] / size[1];

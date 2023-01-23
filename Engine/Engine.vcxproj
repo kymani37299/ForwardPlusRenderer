@@ -169,6 +169,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Core\Engine.cpp" />
+    <ClCompile Include="Gui\EngineGUI\ShaderCompilerGUI.cpp" />
     <ClCompile Include="Gui\GUI.cpp" />
     <ClCompile Include="Gui\Imgui\imgui.cpp" />
     <ClCompile Include="Gui\Imgui\imgui_demo.cpp" />
@@ -184,7 +185,8 @@
     <ClCompile Include="Render\Commands.cpp" />
     <ClCompile Include="Render\Context.cpp" />
     <ClCompile Include="Render\Device.cpp" />
-    <ClCompile Include="Render\Memory.cpp" />
+    <ClCompile Include="Render\DescriptorHeap.cpp" />
+    <ClCompile Include="Render\RenderResources.cpp" />
     <ClCompile Include="Render\RenderThread.cpp" />
     <ClCompile Include="Render\Shader.cpp" />
     <ClCompile Include="Render\Texture.cpp" />
@@ -196,8 +198,9 @@
     <ClInclude Include="Core\Application.h" />
     <ClInclude Include="Core\Engine.h" />
     <ClInclude Include="Core\EngineMain.h" />
+    <ClInclude Include="Gui\EngineGUI\ShaderCompilerGUI.h" />
     <ClInclude Include="Gui\GUI.h" />
-    <ClInclude Include="Gui\ImGui.h" />
+    <ClInclude Include="Gui\ImGui_Core.h" />
     <ClInclude Include="Gui\Imgui\imconfig.h" />
     <ClInclude Include="Gui\Imgui\imgui.h" />
     <ClInclude Include="Gui\Imgui\imgui_impl_dx12.h" />
@@ -214,8 +217,9 @@
     <ClInclude Include="Render\Context.h" />
     <ClInclude Include="Render\D3D12MemAlloc.h" />
     <ClInclude Include="Render\Device.h" />
-    <ClInclude Include="Render\Memory.h" />
+    <ClInclude Include="Render\DescriptorHeap.h" />
     <ClInclude Include="Render\RenderAPI.h" />
+    <ClInclude Include="Render\RenderResources.h" />
     <ClInclude Include="Render\RenderThread.h" />
     <ClInclude Include="Render\Resource.h" />
     <ClInclude Include="Render\Shader.h" />

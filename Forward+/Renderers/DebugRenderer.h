@@ -6,6 +6,7 @@ struct GraphicsContext;
 struct GraphicsState;
 struct Texture;
 struct Buffer;
+class ReadbackBuffer;
 struct Shader;
 
 class DebugRenderer
@@ -62,4 +63,19 @@ private:
 	ScopedRef<Buffer> m_SphereVB;
 
 	ScopedRef<Buffer> m_DebugGeometriesBuffer;
+};
+
+class TextureDebuggerRenderer
+{
+public:
+	void Init(GraphicsContext& context);
+	void Draw(GraphicsContext& context);
+
+private:
+	ScopedRef<Shader> m_Shader;
+	ScopedRef<Texture> m_PreviewTexture;
+	DescriptorAllocation m_PreviewTextureDescriptor;
+
+	ScopedRef<ReadbackBuffer> m_RangeBuffer;
+	bool m_ShouldReadRange = false;
 };

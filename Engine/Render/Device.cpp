@@ -4,10 +4,11 @@
 #include "Render/Context.h"
 #include "Render/Buffer.h"
 #include "Render/Shader.h"
-#include "Render/Memory.h"
+#include "Render/DescriptorHeap.h"
 #include "Render/Resource.h"
 #include "Render/Texture.h"
 #include "Render/RenderThread.h"
+#include "Render/RenderResources.h"
 #include "System/ApplicationConfiguration.h"
 #include "System/Window.h"
 
@@ -59,10 +60,10 @@ void Device::InitDevice()
 	m_Context = ScopedRef<GraphicsContext>(GFX::Cmd::CreateGraphicsContext());
 
 	// Memory
-	m_Memory.SRVHeap = ScopedRef<DescriptorHeapCPU>(new DescriptorHeapCPU{ D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 20 * 1024u });
-	m_Memory.RTVHeap = ScopedRef<DescriptorHeapCPU>(new DescriptorHeapCPU{ D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 256u });
-	m_Memory.DSVHeap = ScopedRef<DescriptorHeapCPU>(new DescriptorHeapCPU{ D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 64u });
-	m_Memory.SMPHeap = ScopedRef<DescriptorHeapCPU>(new DescriptorHeapCPU{ D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 256u });
+	m_Memory.SRVHeap = ScopedRef<DescriptorHeap>(new DescriptorHeap{false,  D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 20 * 1024u });
+	m_Memory.RTVHeap = ScopedRef<DescriptorHeap>(new DescriptorHeap{false,  D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 256u });
+	m_Memory.DSVHeap = ScopedRef<DescriptorHeap>(new DescriptorHeap{false,  D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 64u });
+	m_Memory.SMPHeap = ScopedRef<DescriptorHeap>(new DescriptorHeap{false,  D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 256u });
 
 	// Create swapchain
 	DXGI_SWAP_CHAIN_DESC desc;
@@ -84,28 +85,6 @@ void Device::InitDevice()
 	 
 	API_CALL(m_DXGIFactory->CreateSwapChain(m_Context->CmdQueue.Get(), &desc, m_SwapchainHandle.GetAddressOf()));
 
-	// Additional resources
-	m_CopyShader = ScopedRef<Shader>(new Shader{ "Engine/Render/copy.hlsl" });
-
-	struct FCVert
-	{
-		Float2 Position;
-		Float2 UV;
-	};
-
-	const std::vector<FCVert> fcVBData = {
-		FCVert{	{1.0,1.0},		{1.0,0.0}},
-		FCVert{	{-1.0,-1.0},	{0.0,1.0}},
-		FCVert{	{1.0,-1.0},		{1.0,1.0}},
-		FCVert{	{1.0,1.0},		{1.0,0.0}},
-		FCVert{ {-1.0,1.0},		{0.0,0.0}},
-		FCVert{	{-1.0,-1.0},	{0.0,1.0}}
-	};
-
-	ResourceInitData initData = { m_Context.get(), fcVBData.data()};
-	m_QuadBuffer = ScopedRef<Buffer>(GFX::CreateBuffer((uint32_t) fcVBData.size() * sizeof(FCVert), sizeof(FCVert), RCF_None, &initData));
-	GFX::SetDebugName(m_QuadBuffer.get(), "Device::QuadBuffer");
-
 	GFX::Cmd::SubmitContext(*m_Context);
 
 	RecreateSwapchain();
@@ -113,11 +92,7 @@ void Device::InitDevice()
 
 void Device::DeinitDevice()
 {
-	m_CopyShader = nullptr;
-	m_QuadBuffer = nullptr;
 	m_Context = nullptr;
-
-	DeferredTrash::Get()->ClearAll();
 
 	for (uint32_t i = 0; i < SWAPCHAIN_BUFFER_COUNT; i++)
 		m_SwapchainBuffers[i] = nullptr;
@@ -161,29 +136,44 @@ void Device::RecreateSwapchain()
 		rtViewDesc.Texture2D.MipSlice = 0;
 		rtViewDesc.Texture2D.PlaneSlice = 0;
 
-		m_Handle->CreateRenderTargetView(m_SwapchainBuffers[i]->Handle.Get(), &rtViewDesc, m_SwapchainBuffers[i]->RTV);
+		m_Handle->CreateRenderTargetView(m_SwapchainBuffers[i]->Handle.Get(), &rtViewDesc, m_SwapchainBuffers[i]->RTV.GetCPUHandle());
 	}
 }
 
-void Device::EndFrame(Texture* texture)
+void Device::BindSwapchainToRenderTarget(GraphicsContext& context)
 {
-	// Copy to swapchain
+	Texture* swapchain = m_SwapchainBuffers[m_CurrentSwapchainBuffer].get();
+	D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = swapchain->RTV.GetCPUHandle();
+
+	GFX::Cmd::TransitionResource(context, swapchain, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	D3D12_VIEWPORT viewport = { 0.0f, 0.0f, (float)swapchain->Width, (float)swapchain->Height, 0.0f, 1.0f };
+	D3D12_RECT scissor = { 0,0, (long)swapchain->Width, (long)swapchain->Height };
+	context.CmdList->OMSetRenderTargets(1, &rtvHandle, false, nullptr);
+	context.CmdList->RSSetViewports(1, &viewport);
+	context.CmdList->RSSetScissorRects(1, &scissor);
+}
+
+void Device::CopyToSwapchain(Texture* texture)
+{
 	GFX::Cmd::MarkerBegin(*m_Context, "Copy to swapchain");
 	GraphicsState copyState;
 	copyState.Table.SRVs[0] = texture;
 	copyState.RenderTargets[0] = m_SwapchainBuffers[m_CurrentSwapchainBuffer].get();
-	copyState.Shader = m_CopyShader.get();
+	copyState.Shader = GFX::RenderResources.CopyShader.get();
 	copyState.Table.SMPs[0] = Sampler{ D3D12_FILTER_MIN_MAG_MIP_POINT, D3D12_TEXTURE_ADDRESS_MODE_CLAMP };
 	GFX::Cmd::DrawFC(*m_Context, copyState);
-	GFX::Cmd::TransitionResource(*m_Context, m_SwapchainBuffers[m_CurrentSwapchainBuffer].get(), D3D12_RESOURCE_STATE_PRESENT);
 	GFX::Cmd::MarkerEnd(*m_Context);
+}
 
+void Device::EndFrame()
+{
 	// Deferred tasks
 	GFX::Cmd::MarkerBegin(*m_Context, "Deferred tasks");
 	m_TaskExecutor.Run(*m_Context);
 	GFX::Cmd::MarkerEnd(*m_Context);
 
 	// Submit context
+	GFX::Cmd::TransitionResource(*m_Context, m_SwapchainBuffers[m_CurrentSwapchainBuffer].get(), D3D12_RESOURCE_STATE_PRESENT);
 	GFX::Cmd::SubmitContext(*m_Context);
 
 	// Present

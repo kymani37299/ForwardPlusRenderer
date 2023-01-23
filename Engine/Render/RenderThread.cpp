@@ -38,8 +38,7 @@ void RenderThread::Run()
 		GFX::Cmd::SubmitContext(*context);
 		GFX::Cmd::FlushContext(*context);
 		GFX::Cmd::ResetContext(*context.get());
-		DeferredTrash::Get()->ClearAll();
-
+		
 		RenderTask* lastTask = m_CurrentTask.exchange(nullptr);
 		delete lastTask;
 	}

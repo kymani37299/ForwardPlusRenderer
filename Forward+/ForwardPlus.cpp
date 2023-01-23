@@ -16,9 +16,10 @@
 #include <Engine/Utility/Random.h>
 
 #include "Globals.h"
-#include "Renderers/Util/ConstantManager.h"
+#include "Renderers/Util/ConstantBuffer.h"
 #include "Renderers/Util/SamplerManager.h"
 #include "Renderers/Util/VertexPipeline.h"
+#include "Renderers/Util/TextureDebugger.h"
 #include "Scene/SceneLoading.h"
 #include "Scene/SceneGraph.h"
 #include "Shaders/shared_definitions.h"
@@ -28,6 +29,9 @@
 DebugVisualizations DebugViz;
 RendererSettings RenderSettings;
 RenderStatistics RenderStats;
+
+// Until initialization
+TextureDebugger TexDebugger;
 
 namespace ForwardPlusPrivate
 {
@@ -194,6 +198,7 @@ void ForwardPlus::OnInit(GraphicsContext& context)
 		GUI::Get()->AddElement(new RenderSettingsGUI());
 		GUI::Get()->AddElement(new DebugVisualizationsGUI());
 		GUI::Get()->AddElement(new PositionInfoGUI());
+		GUI::Get()->AddElement(new TextureDebuggerGUI());
 	}
 
 	// Initialize GFX resources
@@ -213,6 +218,7 @@ void ForwardPlus::OnInit(GraphicsContext& context)
 		m_ShadowRenderer.Init(context);
 		m_GeometryRenderer.Init(context);
 		m_SSAORenderer.Init(context);
+		m_TextureDebuggerRenderer.Init(context);
 
 		OnWindowResize(context);
 	}
@@ -237,13 +243,16 @@ Texture* ForwardPlus::OnDraw(GraphicsContext& context)
 	{
 		GFX::Cmd::MarkerBegin(context, "Geometry Culling");
 
+		const bool useHzb = RenderSettings.Culling.GeoCullingMode == GeometryCullingMode::GPU_OcclusionCulling;
+
 		// Main camera
 		GeometryCullingInput mainCameraInput{ MainSceneGraph->MainCamera };
-		mainCameraInput.Depth = m_MainRT_Depth.get();
+		if(useHzb) mainCameraInput.HZB = m_GeometryRenderer.GetHZB(context, m_MainRT_Depth.get());
 		m_Culling.CullGeometries(context, mainCameraInput);
 
 		// Shadow camera
 		GeometryCullingInput shadowCameraInput{ MainSceneGraph->ShadowCamera };
+		if (useHzb) shadowCameraInput.HZB = m_ShadowRenderer.GetHZB(context);
 		m_Culling.CullGeometries(context, shadowCameraInput);
 
 		GFX::Cmd::MarkerEnd(context);
@@ -273,12 +282,12 @@ Texture* ForwardPlus::OnDraw(GraphicsContext& context)
 		resolveState.DepthStencilState.DepthEnable = true;
 		resolveState.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_ALWAYS;
 
-		CBManager.Clear();
-		CBManager.Add(AppConfig.WindowWidth);
-		CBManager.Add(AppConfig.WindowHeight);
+		ConstantBuffer cb{};
+		cb.Add(AppConfig.WindowWidth);
+		cb.Add(AppConfig.WindowHeight);
 	
 		resolveState.Table.SRVs[0] = m_MainRT_DepthMS.get();
-		resolveState.Table.CBVs[0] = CBManager.GetBuffer();
+		resolveState.Table.CBVs[0] = cb.GetBuffer(context);
 	
 		GFX::Cmd::MarkerBegin(context, "Resolve depth");
 		resolveState.DepthStencil = m_MainRT_Depth.get();
@@ -314,15 +323,14 @@ Texture* ForwardPlus::OnDraw(GraphicsContext& context)
 
 	// Debug
 	m_DebugRenderer.Draw(context, m_MainRT_HDR.get(), m_MainRT_DepthMS.get(), m_Culling.GetVisibleLightsBuffer());
+	m_TextureDebuggerRenderer.Draw(context);
 
 	// Postprocessing
 	Texture* ppResult = m_PostprocessingRenderer.Process(context, m_MainRT_HDR.get(), m_MotionVectorRT.get());
 	
 	// Update RenderStats
-	RenderStats.TotalDrawables = MainSceneGraph->MainCamera.CullingData.TotalElements;
-	RenderStats.VisibleDrawables = MainSceneGraph->MainCamera.CullingData.VisibleElements;
-	RenderStats.TotalShadowDrawables = MainSceneGraph->ShadowCamera.CullingData.TotalElements;
-	RenderStats.VisibleShadowDrawables = MainSceneGraph->ShadowCamera.CullingData.VisibleElements;
+	RenderStats.MainStats = MainSceneGraph->MainCamera.CullingData.CullingStats;
+	RenderStats.ShadowStats = MainSceneGraph->ShadowCamera.CullingData.CullingStats;
 
 	return ppResult;
 }
@@ -359,4 +367,9 @@ void ForwardPlus::OnWindowResize(GraphicsContext& context)
 	GFX::SetDebugName(m_MainRT_DepthMS.get(), "ForwardPlus::MainRT_DepthMS");
 	GFX::SetDebugName(m_MainRT_Depth.get(), "ForwardPlus::MainRT_Depth");
 
+	TexDebugger.AddTexture("MainRT_Depth", m_MainRT_Depth.get());
+
+	// Hacky but works !
+	TexDebugger.AddTexture("Main HZB", m_GeometryRenderer.GetHZB(context, m_MainRT_Depth.get()));
+	TexDebugger.AddTexture("Shadow HZB", m_ShadowRenderer.GetHZB(context));
 }

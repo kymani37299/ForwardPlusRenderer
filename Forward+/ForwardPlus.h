@@ -40,6 +40,7 @@ private:
 	ShadowRenderer m_ShadowRenderer;
 	GeometryRenderer m_GeometryRenderer;
 	SSAORenderer m_SSAORenderer;
+	TextureDebuggerRenderer m_TextureDebuggerRenderer;
 
 	ScopedRef<Shader> m_DepthResolveShader;
 

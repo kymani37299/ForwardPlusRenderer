@@ -7,7 +7,7 @@
 #include <Engine/Render/Texture.h>
 
 #include "Globals.h"
-#include "Renderers/Util/ConstantManager.h"
+#include "Renderers/Util/ConstantBuffer.h"
 #include "Renderers/Util/SamplerManager.h"
 #include "Renderers/Util/VertexPipeline.h"
 #include "Scene/SceneGraph.h"
@@ -26,6 +26,7 @@ void GeometryRenderer::Init(GraphicsContext& context)
 {
 	m_DepthPrepassShader = ScopedRef<Shader>(new Shader{ "Forward+/Shaders/depth.hlsl" });
 	m_GeometryShader = ScopedRef<Shader>(new Shader{ "Forward+/Shaders/geometry.hlsl" });
+	m_HzbGenerator.Init(context);
 }
 
 void GeometryRenderer::DepthPrepass(GraphicsContext& context, GraphicsState& state)
@@ -34,11 +35,12 @@ void GeometryRenderer::DepthPrepass(GraphicsContext& context, GraphicsState& sta
 
 	GFX::Cmd::MarkerBegin(context, "Depth Prepass");
 
-	CBManager.Clear();
-	CBManager.Add(MainSceneGraph->MainCamera.CameraData);
-	CBManager.Add(MainSceneGraph->MainCamera.LastCameraData);
-	CBManager.Add(MainSceneGraph->SceneInfoData);
-	state.Table.CBVs[0] = CBManager.GetBuffer();
+	ConstantBuffer cb{};
+	cb.Add(MainSceneGraph->MainCamera.CameraData);
+	cb.Add(MainSceneGraph->MainCamera.LastCameraData);
+	cb.Add(MainSceneGraph->SceneInfoData);
+
+	state.Table.CBVs[0] = cb.GetBuffer(context);
 	state.DepthStencilState.DepthEnable = true;
 	state.Shader = m_DepthPrepassShader.get();
 
@@ -76,10 +78,10 @@ void GeometryRenderer::Draw(GraphicsContext& context, GraphicsState& state, Text
 	blendStateOn.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_SRC_ALPHA;
 	blendStateOn.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
 
-	CBManager.Clear();
-	CBManager.Add(MainSceneGraph->MainCamera.CameraData);
-	CBManager.Add(MainSceneGraph->SceneInfoData);
-	state.Table.CBVs[0] = CBManager.GetBuffer();
+	ConstantBuffer cb{};
+	cb.Add(MainSceneGraph->MainCamera.CameraData);
+	cb.Add(MainSceneGraph->SceneInfoData);
+	state.Table.CBVs[0] = cb.GetBuffer(context);
 
 	state.StencilRef = 0xff;
 	state.DepthStencilState.DepthEnable = true;
@@ -119,4 +121,9 @@ void GeometryRenderer::Draw(GraphicsContext& context, GraphicsState& state, Text
 	}
 
 	GFX::Cmd::MarkerEnd(context);
+}
+
+Texture* GeometryRenderer::GetHZB(GraphicsContext& context, Texture* depth)
+{
+	return m_HzbGenerator.GetHZB(context, depth, MainSceneGraph->MainCamera);
 }

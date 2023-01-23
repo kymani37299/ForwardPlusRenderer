@@ -15,6 +15,8 @@
 
 namespace GFX
 {
+	static uint32_t FailedShaderCount = 0;
+
 	namespace ShaderCompiler
 	{
 		struct DXCCompiler
@@ -81,7 +83,7 @@ namespace GFX
 			return DXGI_FORMAT_UNKNOWN;
 		}
 
-		IDxcOperationResult* DXC_Compile(const std::wstring& path, const std::wstring& entryPoint, const std::wstring& targetProfile, const std::vector<DxcDefine>& defines)
+		IDxcOperationResult* DXC_Compile(const std::wstring& path, const std::wstring& entryPoint, const std::wstring& targetProfile, const std::vector<DxcDefine>& defines, bool& compilationSuccess)
 		{
 			ComPtr<IDxcBlobEncoding> sourceBlob;
 			uint32_t codePage = CP_UTF8;
@@ -97,9 +99,9 @@ namespace GFX
 				Compiler.IncludeHandler.Get(),
 				&result);
 
-			ASSERT(SUCCEEDED(hr), "Shader compilation failed!");
-			
+			compilationSuccess = compilationSuccess && SUCCEEDED(hr);
 			result->GetStatus(&hr);
+			compilationSuccess = compilationSuccess && SUCCEEDED(hr);
 			
 			if(FAILED(hr))
 			{
@@ -113,9 +115,7 @@ namespace GFX
 						std::cout << "Compilation failed with errors:" << errorString << std::endl;
 					}
 				}
-				ASSERT(0, "Shader compilation failed!");
 			}
-
 			return result;
 		}
 
@@ -149,8 +149,8 @@ namespace GFX
 				// If we have mixed inputs don't create single slot input layout
 				if (i > 0 && !multiInput && perInstance != lastPerInstance)
 				{
-					reflection->Release();
-					return {};
+					inputLayout.clear();
+					break;
 				}
 
 				D3D12_INPUT_ELEMENT_DESC inputElement{};
@@ -165,6 +165,9 @@ namespace GFX
 
 				lastPerInstance = perInstance;
 			}
+
+			// TODO: FIgure out why engine crashes when we release reflection ?
+			// reflection->Release();
 
 			return inputLayout;
 		}
@@ -188,13 +191,14 @@ namespace GFX
 
 			const std::wstring wPath = StringUtility::ToWideString(path);
 
+			bool compilationSuccess = true;
 			compiledShader.Data.resize(6);
-			compiledShader.Data[0] = creationFlags & VS ? DXC_Compile(wPath, L"VS", L"vs_" + SHADER_VERSION, dxcDefines) : nullptr;
-			compiledShader.Data[1] = creationFlags & GS ? DXC_Compile(wPath, L"GS", L"gs_" + SHADER_VERSION, dxcDefines) : nullptr;
-			compiledShader.Data[2] = creationFlags & HS ? DXC_Compile(wPath, L"HS", L"hs_" + SHADER_VERSION, dxcDefines) : nullptr;
-			compiledShader.Data[3] = creationFlags & DS ? DXC_Compile(wPath, L"DS", L"ds_" + SHADER_VERSION, dxcDefines) : nullptr;
-			compiledShader.Data[4] = creationFlags & PS ? DXC_Compile(wPath, L"PS", L"ps_" + SHADER_VERSION, dxcDefines) : nullptr;
-			compiledShader.Data[5] = creationFlags & CS ? DXC_Compile(wPath, L"CS", L"cs_" + SHADER_VERSION, dxcDefines) : nullptr;
+			compiledShader.Data[0] = creationFlags & VS ? DXC_Compile(wPath, L"VS", L"vs_" + SHADER_VERSION, dxcDefines, compilationSuccess) : nullptr;
+			compiledShader.Data[1] = creationFlags & GS ? DXC_Compile(wPath, L"GS", L"gs_" + SHADER_VERSION, dxcDefines, compilationSuccess) : nullptr;
+			compiledShader.Data[2] = creationFlags & HS ? DXC_Compile(wPath, L"HS", L"hs_" + SHADER_VERSION, dxcDefines, compilationSuccess) : nullptr;
+			compiledShader.Data[3] = creationFlags & DS ? DXC_Compile(wPath, L"DS", L"ds_" + SHADER_VERSION, dxcDefines, compilationSuccess) : nullptr;
+			compiledShader.Data[4] = creationFlags & PS ? DXC_Compile(wPath, L"PS", L"ps_" + SHADER_VERSION, dxcDefines, compilationSuccess) : nullptr;
+			compiledShader.Data[5] = creationFlags & CS ? DXC_Compile(wPath, L"CS", L"cs_" + SHADER_VERSION, dxcDefines, compilationSuccess) : nullptr;
 
 			ComPtr<IDxcBlob> shaderBlobs[6];
 			for (uint32_t i = 0; i < 6; i++)
@@ -215,7 +219,7 @@ namespace GFX
 				compiledShader.InputLayoutMultiInput = DXC_CreateInputLayout(shaderBlobs[0].Get(), true);
 			}
 
-			return true;
+			return compilationSuccess;
 		}
 	}
 
@@ -259,17 +263,44 @@ namespace GFX
 			bool success = ShaderCompiler::CompileShader(shader->Path, shaderStages, defines, shader->Implementations[implHash]);
 			ASSERT(success, "Shader compilation failed!");
 		}
-		return shader->Implementations.at(implHash);
+
+		CompiledShader& compiledShader = shader->Implementations.at(implHash);
+		if (compiledShader.NeedsRecompilation)
+		{
+			compiledShader.NeedsRecompilation = false;
+
+			CompiledShader recompiledShader;
+			bool success = ShaderCompiler::CompileShader(shader->Path, shaderStages, defines, recompiledShader);
+			if (success)
+			{
+				compiledShader = recompiledShader;
+			}
+			else
+			{
+				FailedShaderCount++;
+			}
+		}
+
+		return compiledShader;
 	}
 
 	void ReloadAllShaders()
 	{
+		FailedShaderCount = 0;
+
 		for (Shader* shader : Shader::AllShaders)
 		{
-			shader->Implementations.clear();
+			for (auto& it : shader->Implementations)
+			{
+				it.second.NeedsRecompilation = true;
+			}
 		}
 	}
 
+	uint32_t GetFailedShaderCount()
+	{
+		return FailedShaderCount;
+	}
 }
 
 std::set<Shader*> Shader::AllShaders;

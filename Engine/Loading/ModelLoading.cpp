@@ -12,7 +12,6 @@
 #include "Render/Texture.h"
 #include "Render/Context.h"
 #include "Render/Commands.h"
-#include "Render/Memory.h"
 #include "Render/RenderThread.h"
 #include "Loading/TextureLoading.h"
 #include "Utility/PathUtility.h"
@@ -563,7 +562,7 @@ namespace ModelLoading
 	template<typename T>
 	static void Free(T** res)
 	{
-		if (*res) DeferredTrash::Get()->Put(*res);
+		if (*res) GFX::Cmd::Delete(Device::Get()->GetContext(), *res);
 		*res = nullptr;
 	}
 
@@ -582,7 +581,7 @@ namespace ModelLoading
 
 		for (MorphTarget& morphTarget : sceneObject.MorphTargets)
 		{
-			DeferredTrash::Get()->Put(morphTarget.Data);
+			GFX::Cmd::Delete(Device::Get()->GetContext(), morphTarget.Data);
 		}
 	}
 	

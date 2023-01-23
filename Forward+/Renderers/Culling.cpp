@@ -9,9 +9,18 @@
 #include <Engine/Utility/MathUtility.h>
 
 #include "Globals.h"
-#include "Renderers/Util/ConstantManager.h"
+#include "Renderers/Util/ConstantBuffer.h"
 #include "Scene/SceneGraph.h"
 #include "Shaders/shared_definitions.h"
+
+struct CullingStatsSB
+{
+	uint32_t TotalDrawables = 0;
+	uint32_t VisibleDrawables = 0;
+
+	uint32_t TotalTriangles = 0;
+	uint32_t VisibleTriangles = 0;
+};
 
 Culling::Culling()
 {
@@ -50,14 +59,12 @@ void Culling::CullGeometries(GraphicsContext& context, GeometryCullingInput& inp
 {
 	UpdateStats(context, input.Cam.CullingData);
 
-	// Clear stats buffer
-	uint32_t clearValue = 0;
-	GFX::Cmd::UploadToBufferGPU(context, input.Cam.CullingData.StatsBuffer.get(), 0, &clearValue, 0, sizeof(uint32_t));
+	GFX::Cmd::ClearBuffer(context, input.Cam.CullingData.StatsBuffer->GetWriteBuffer());
 
 	for (uint32_t i = 0; i < EnumToInt(RenderGroupType::Count); i++)
 	{
 		const RenderGroupType rgType = IntToEnum<RenderGroupType>(i);
-		if (RenderSettings.Culling.GeometryCullingOnCPU)
+		if (RenderSettings.Culling.GeoCullingMode == GeometryCullingMode::CPU_FrustumCulling)
 		{
 			CullRenderGroupCPU(context, rgType, input);
 		}
@@ -74,11 +81,11 @@ void Culling::CullLights(GraphicsContext& context, Texture* depth)
 	{
 		GraphicsState state{};
 		
-		CBManager.Clear();
-		CBManager.Add(MainSceneGraph->SceneInfoData);
-		CBManager.Add(MainSceneGraph->MainCamera.CameraData);
+		ConstantBuffer cb{};
+		cb.Add(MainSceneGraph->SceneInfoData);
+		cb.Add(MainSceneGraph->MainCamera.CameraData);
 
-		state.Table.CBVs[0] = CBManager.GetBuffer();
+		state.Table.CBVs[0] = cb.GetBuffer(context);
 		state.Table.SRVs[0] = MainSceneGraph->Lights.GetBuffer();
 		state.Table.SRVs[1] = depth;
 		state.Table.UAVs[0] = m_VisibleLightsBuffer.get();
@@ -105,7 +112,7 @@ void Culling::CullRenderGroupCPU(GraphicsContext& context, RenderGroupType rgTyp
 	for (uint32_t i = 0; i < numDrawables; i++)
 	{
 		const Drawable& d = rg.Drawables[i];
-		if (!RenderSettings.Culling.GeometryCullingEnabled || 
+		if (RenderSettings.Culling.GeoCullingMode == GeometryCullingMode::None || 
 			(d.DrawableIndex != Drawable::InvalidIndex && CullingPrivate::IsVisible(d)))
 		{
 			cullData.VisibilityMask.Set(i, true);
@@ -123,62 +130,101 @@ void Culling::CullRenderGroupGPU(GraphicsContext& context, RenderGroupType rgTyp
 
 	std::vector<std::string> config{};
 	config.push_back("GEO_CULLING");
-	if (!RenderSettings.Culling.GeometryCullingEnabled) config.push_back("FORCE_VISIBLE");
-	if (!RenderSettings.Culling.GeometryOcclusionCullingEnabled) config.push_back("DISABLE_OCCLUSION_CULLING");
+	if (RenderSettings.Culling.GeoCullingMode == GeometryCullingMode::None) config.push_back("FORCE_VISIBLE");
+	
+	if (input.HZB && RenderSettings.Culling.GeoCullingMode == GeometryCullingMode::GPU_OcclusionCulling)
+	{
+		config.push_back("OCCLUSION_CULLING");
+	}
 
 	if(!cullData.VisibilityMaskBuffer) cullData.VisibilityMaskBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_UAV));
 	GFX::ExpandBuffer(context, cullData.VisibilityMaskBuffer.get(), rg.Drawables.GetSize() * sizeof(uint32_t));
 
 	GraphicsState cullingState{};
 	cullingState.Table.SRVs[0] = rg.Drawables.GetBuffer();
-	cullingState.Table.SRVs[1] = input.Depth;
+	cullingState.Table.SRVs[1] = input.HZB;
+	cullingState.Table.SRVs[2] = rg.Meshes.GetBuffer();
 	cullingState.Table.UAVs[0] = cullData.VisibilityMaskBuffer.get();
-	cullingState.Table.UAVs[1] = camCullData.StatsBuffer.get();
+	cullingState.Table.UAVs[1] = camCullData.StatsBuffer->GetWriteBuffer();
+	cullingState.Table.SMPs[0] = { D3D12_FILTER_MAXIMUM_MIN_MAG_MIP_LINEAR, D3D12_TEXTURE_ADDRESS_MODE_BORDER, {1.0f, 1.0f, 1.0f, 1.0f} };
 
-	CBManager.Clear();
-	CBManager.Add(input.Cam.CameraData);
-	CBManager.Add(input.Cam.CameraFrustum);
-	CBManager.Add(rg.Drawables.GetSize());
-	cullingState.Table.CBVs[0] = CBManager.GetBuffer();
+	ConstantBuffer cb{};
+	cb.Add(input.Cam.CameraData);
+	cb.Add(input.Cam.CameraFrustum);
+	
+	cullingState.Table.CBVs[0] = cb.GetBuffer(context);
 	cullingState.Shader = m_GeometryCullingShader.get();
 	cullingState.ShaderStages = CS;
 	cullingState.ShaderConfig = config;
+	cullingState.PushConstantCount = 3;
 	context.ApplyState(cullingState);
 
-	context.CmdList->Dispatch((UINT) MathUtility::CeilDiv(rg.Drawables.GetSize(), (uint32_t) WAVESIZE), 1u, 1u);
+	BindVector<uint32_t> pushConstants;
+	pushConstants[0] = rg.Drawables.GetSize();
+	pushConstants[1] = input.HZB ? input.HZB->Width : 0;
+	pushConstants[2] = input.HZB ? input.HZB->Height : 0;
+	
+	GFX::Cmd::SetPushConstants(CS, context, pushConstants);
+	context.CmdList->Dispatch((UINT) MathUtility::CeilDiv(rg.Drawables.GetSize(), (uint32_t) OPT_COMP_TG_SIZE), 1u, 1u);
 
-	GFX::Cmd::CopyToBuffer(context, camCullData.StatsBuffer.get(), 0, camCullData.StatsBufferReadback.get(), 0, sizeof(uint32_t));
+	GFX::Cmd::AddReadbackRequest(context, camCullData.StatsBuffer.get());
+
 }
 
 void Culling::UpdateStats(GraphicsContext& context, CameraCullingData& cullingData)
 {
 	if (!cullingData.StatsBuffer)
 	{
-		cullingData.StatsBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_UAV));
-		cullingData.StatsBufferReadback = ScopedRef<Buffer>(GFX::CreateBuffer(sizeof(uint32_t), sizeof(uint32_t), RCF_Readback));
+		cullingData.StatsBuffer = ScopedRef<ReadbackBuffer>(new ReadbackBuffer{ sizeof(CullingStatsSB) });
 	}
 
-	if (RenderSettings.Culling.GeometryCullingOnCPU)
+	CullingStatistics& cullStats = cullingData.CullingStats;
+	cullStats.TotalDrawables = 0;
+	cullStats.VisibleDrawables = 0;
+	cullStats.TotalTriangles = 0;
+	cullStats.VisibleTriangles = 0;
+
+	switch (RenderSettings.Culling.GeoCullingMode)
 	{
-		cullingData.TotalElements = 0;
-		cullingData.VisibleElements = 0;
+	case GeometryCullingMode::None:
+	{
 		for (uint32_t i = 0; i < EnumToInt(RenderGroupType::Count); i++)
 		{
 			RenderGroupType rgType = IntToEnum<RenderGroupType>(i);
 			RenderGroup& rg = MainSceneGraph->RenderGroups[i];
 
-			cullingData.TotalElements += rg.Drawables.GetSize();
-			cullingData.VisibleElements += cullingData[rgType].VisibilityMask.CountOnes();
+			cullStats.TotalDrawables += rg.Drawables.GetSize();
+			cullStats.VisibleDrawables += rg.Drawables.GetSize();
 		}
-	}
-	else
+	} break;
+	case GeometryCullingMode::CPU_FrustumCulling:
 	{
-		cullingData.TotalElements = 0;
-		for (uint32_t i = 0; i < EnumToInt(RenderGroupType::Count); i++) cullingData.TotalElements += MainSceneGraph->RenderGroups[i].Drawables.GetSize();
+		for (uint32_t i = 0; i < EnumToInt(RenderGroupType::Count); i++)
+		{
+			RenderGroupType rgType = IntToEnum<RenderGroupType>(i);
+			RenderGroup& rg = MainSceneGraph->RenderGroups[i];
 
-		void* visibleDrawablesPtr = nullptr;
-		cullingData.StatsBufferReadback->Handle->Map(0, nullptr, &visibleDrawablesPtr);
-		if(visibleDrawablesPtr) cullingData.VisibleElements = *static_cast<uint32_t*>(visibleDrawablesPtr);
-		cullingData.StatsBufferReadback->Handle->Unmap(0, nullptr);
+			cullStats.TotalDrawables += rg.Drawables.GetSize();
+			cullStats.VisibleDrawables += cullingData[rgType].VisibilityMask.CountOnes();
+		}
+	} break;
+	case GeometryCullingMode::GPU_FrustumCulling:
+	case GeometryCullingMode::GPU_OcclusionCulling:
+	{
+		Buffer* readBuffer = cullingData.StatsBuffer->GetReadBuffer();
+		void* cullingStatsDataPtr = nullptr;
+		readBuffer->Handle->Map(0, nullptr, &cullingStatsDataPtr);
+		if (cullingStatsDataPtr)
+		{
+			const CullingStatsSB* cullingStatsPtr = reinterpret_cast<const CullingStatsSB*>(cullingStatsDataPtr);
+			cullStats.TotalDrawables = cullingStatsPtr->TotalDrawables;
+			cullStats.VisibleDrawables = cullingStatsPtr->VisibleDrawables;
+			cullStats.TotalTriangles = cullingStatsPtr->TotalTriangles;
+			cullStats.VisibleTriangles = cullingStatsPtr->VisibleTriangles;
+		}
+		readBuffer->Handle->Unmap(0, nullptr);
+	} break;
+	case GeometryCullingMode::Count:
+	default: NOT_IMPLEMENTED;
 	}
 }

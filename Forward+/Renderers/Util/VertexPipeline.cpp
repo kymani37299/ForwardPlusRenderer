@@ -6,7 +6,7 @@
 #include <Engine/Utility/MathUtility.h>
 
 #include "Globals.h"
-#include "Renderers/Util/ConstantManager.h"
+#include "Renderers/Util/ConstantBuffer.h"
 #include "Scene/SceneGraph.h"
 #include "Shaders/shared_definitions.h"
 
@@ -35,7 +35,7 @@ void VertexPipeline::Draw(GraphicsContext& context, GraphicsState& state, Render
 {
 	if (rg.Drawables.GetSize() == 0u) return;
 
-	if (RenderSettings.Culling.GeometryCullingOnCPU)
+	if (RenderSettings.Culling.GeoCullingMode == GeometryCullingMode::CPU_FrustumCulling)
 	{
 		Draw_CPU(context, state, rg, cullingData);
 	}
@@ -80,16 +80,16 @@ void VertexPipeline::Draw_GPU(GraphicsContext& context, GraphicsState& state, Re
 		const uint32_t clearValue = 0;
 		GFX::Cmd::UploadToBuffer(context, m_IndirectArgumentsCountBuffer.get(), 0, &clearValue, 0, sizeof(uint32_t));
 
+		ConstantBuffer cb{};
+		cb.Add(rg.Drawables.GetSize());
+
 		GraphicsState prepareState{};
 		prepareState.Table.SRVs[0] = rg.Drawables.GetBuffer();
 		prepareState.Table.SRVs[1] = rg.Meshes.GetBuffer();
 		prepareState.Table.SRVs[2] = cullingData.VisibilityMaskBuffer.get();
 		prepareState.Table.UAVs[0] = m_IndirectArgumentsBuffer.get();
 		prepareState.Table.UAVs[1] = m_IndirectArgumentsCountBuffer.get();
-
-		CBManager.Clear();
-		CBManager.Add(rg.Drawables.GetSize());
-		prepareState.Table.CBVs[0] = CBManager.GetBuffer();
+		prepareState.Table.CBVs[0] = cb.GetBuffer(context);
 
 		std::vector<std::string> config{};
 		config.push_back("PREPARE_ARGUMENTS");
@@ -98,7 +98,7 @@ void VertexPipeline::Draw_GPU(GraphicsContext& context, GraphicsState& state, Re
 		prepareState.ShaderStages = CS;
 		prepareState.ShaderConfig = config;
 		context.ApplyState(prepareState);
-		context.CmdList->Dispatch(MathUtility::CeilDiv(rg.Drawables.GetSize(), (uint32_t) WAVESIZE), 1, 1);
+		context.CmdList->Dispatch(MathUtility::CeilDiv(rg.Drawables.GetSize(), (uint32_t)OPT_COMP_TG_SIZE), 1, 1);
 	}
 
 	// Execute draws

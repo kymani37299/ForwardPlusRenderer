@@ -65,4 +65,30 @@ namespace StringUtility
             [](unsigned char c) { return std::toupper(c); });
         return result;
     }
+
+    template<typename IntType>
+    inline std::string RepresentNumberWithSeparator(IntType number, const char separator)
+    {
+        if (number == 0) 
+            return "0";
+
+        std::string intRepresentation;
+        uint8_t digitIndex = 0;
+        while (number)
+        {
+            uint8_t digit = number % 10;
+            number = number / 10;
+            intRepresentation += (char)(digit + '0');
+
+            digitIndex++;
+            if (digitIndex == 3)
+            {
+                digitIndex = 0;
+                intRepresentation += separator;
+            }
+        }
+        std::reverse(intRepresentation.begin(), intRepresentation.end());
+        return intRepresentation;
+    }
+
 }

@@ -5,22 +5,20 @@
 #include <Engine/Common.h>
 
 struct Buffer;
+struct GraphicsContext;
 
-class ConstantManager
+class ConstantBuffer
 {
 public:
-	~ConstantManager();
-	
-	void Clear() { m_DataSize = 0; }
-
 	template<typename T>
 	void Add(const T& value)
 	{
 		const T* valuePtr = &value;
 		AddInternal(reinterpret_cast<const uint8_t*>(valuePtr), sizeof(T));
+
 	}
 
-	Buffer* GetBuffer();
+	Buffer* GetBuffer(GraphicsContext& context);
 
 private:
 	void AddInternal(const uint8_t* data, uint32_t stride);
@@ -29,5 +27,3 @@ private:
 	uint32_t m_DataSize = 0;
 	std::vector<uint8_t> m_Data;
 };
-
-extern ConstantManager CBManager;

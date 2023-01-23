@@ -3,7 +3,7 @@
 #include "Render/Context.h"
 #include "Render/Commands.h"
 #include "Render/Device.h"
-#include "Render/Memory.h"
+#include "Render/DescriptorHeap.h"
 #include "Utility/StringUtility.h"
 
 namespace GFX
@@ -63,7 +63,7 @@ namespace GFX
 				srvDesc.Buffer.StructureByteStride = buffer->Stride;
 			}
 
-			device->GetHandle()->CreateShaderResourceView(buffer->Handle.Get(), &srvDesc, buffer->SRV);
+			device->GetHandle()->CreateShaderResourceView(buffer->Handle.Get(), &srvDesc, buffer->SRV.GetCPUHandle());
 		}
 
 		if (buffer->CreationFlags & RCF_Bind_UAV)
@@ -91,7 +91,7 @@ namespace GFX
 
 			}
 
-			device->GetHandle()->CreateUnorderedAccessView(buffer->Handle.Get(), nullptr, &uavDesc, buffer->UAV);
+			device->GetHandle()->CreateUnorderedAccessView(buffer->Handle.Get(), nullptr, &uavDesc, buffer->UAV.GetCPUHandle());
 		}
 
 		if (buffer->CreationFlags & RCF_Bind_CBV)
@@ -101,7 +101,7 @@ namespace GFX
 			D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc{};
 			cbvDesc.BufferLocation = buffer->GPUAddress;
 			cbvDesc.SizeInBytes = buffer->ByteSize;
-			device->GetHandle()->CreateConstantBufferView(&cbvDesc, buffer->CBV);
+			device->GetHandle()->CreateConstantBufferView(&cbvDesc, buffer->CBV.GetCPUHandle());
 		}
 	}
 
@@ -136,8 +136,7 @@ namespace GFX
 		oldResource->CBV = buffer->CBV;
 		oldResource->SRV = buffer->SRV;
 		oldResource->UAV = buffer->UAV;
-		DeferredTrash::Get()->Put(oldResource);
-
+		
 		const uint32_t copySize = MIN(buffer->ByteSize, byteSize);
 		
 		buffer->Handle.Reset();
@@ -150,6 +149,8 @@ namespace GFX
 		GFX::Cmd::TransitionResource(context, buffer, D3D12_RESOURCE_STATE_COPY_DEST);
 		GFX::Cmd::TransitionResource(context, oldResource, D3D12_RESOURCE_STATE_COPY_SOURCE);
 		context.CmdList->CopyBufferRegion(buffer->Handle.Get(), 0, oldResource->Handle.Get(), 0, copySize);
+
+		GFX::Cmd::Delete(context, oldResource);
 	}
 
 	// From Resource.h

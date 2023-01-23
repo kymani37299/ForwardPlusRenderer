@@ -6,7 +6,7 @@
 #include "Render/RenderAPI.h"
 
 class RenderTask;
-class DescriptorHeapCPU;
+class DescriptorHeap;
 struct GraphicsContext;
 struct Texture;
 struct Shader;
@@ -14,10 +14,10 @@ struct Buffer;
 
 struct DeviceMemory
 {
-	ScopedRef<DescriptorHeapCPU> SRVHeap;
-	ScopedRef<DescriptorHeapCPU> RTVHeap;
-	ScopedRef<DescriptorHeapCPU> DSVHeap;
-	ScopedRef<DescriptorHeapCPU> SMPHeap;
+	ScopedRef<DescriptorHeap> SRVHeap;
+	ScopedRef<DescriptorHeap> RTVHeap;
+	ScopedRef<DescriptorHeap> DSVHeap;
+	ScopedRef<DescriptorHeap> SMPHeap;
 };
 
 class DeferredTaskExecutor
@@ -44,6 +44,7 @@ private:
 public:
 	static constexpr uint8_t SWAPCHAIN_BUFFER_COUNT = 2;
 	static constexpr DXGI_FORMAT SWAPCHAIN_DEFAULT_FORMAT = DXGI_FORMAT_R8G8B8A8_UNORM;
+	static constexpr uint8_t IN_FLIGHT_FRAME_COUNT = 3;
 
 	static void Init() { s_Instance = new Device(); s_Instance->InitDevice(); }
 	static Device* Get() { return s_Instance; }
@@ -57,7 +58,10 @@ private:
 
 public:
 	void RecreateSwapchain();
-	void EndFrame(Texture* texture);
+	void BindSwapchainToRenderTarget(GraphicsContext& context);
+	void CopyToSwapchain(Texture* texture);
+	void EndFrame();
+
 	ID3D12Device* GetHandle() const { return m_Handle.Get(); }
 	D3D12MA::Allocator* GetAllocator() const { return m_Allocator.Get(); }
 	GraphicsContext& GetContext() { return *m_Context; }
@@ -65,9 +69,6 @@ public:
 	DeferredTaskExecutor& GetTaskExecutor() { return m_TaskExecutor; }
 
 	bool IsMainContext(GraphicsContext& context) { return true; } // TODO
-
-	Shader* GetCopyShader() const { return m_CopyShader.get(); }
-	Buffer* GetQuadBuffer() const { return m_QuadBuffer.get(); }
 
 private:
 	ComPtr<IDXGIFactory4> m_DXGIFactory;
@@ -80,8 +81,6 @@ private:
 
 	DeviceMemory m_Memory;
 	ScopedRef<GraphicsContext> m_Context;
-	ScopedRef<Shader> m_CopyShader;
-	ScopedRef<Buffer> m_QuadBuffer;
 
 	static constexpr uint32_t MAX_DEFERRED_TASKS = 32;
 	DeferredTaskExecutor m_TaskExecutor{ MAX_DEFERRED_TASKS };

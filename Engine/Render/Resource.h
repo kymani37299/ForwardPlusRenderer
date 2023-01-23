@@ -1,10 +1,12 @@
 #pragma once
 
+#include <unordered_map>
+
 #include "Common.h"
-#include "Render/Device.h"
 #include "Render/RenderAPI.h"
-#include "Render/Memory.h"
-#include "Render/Context.h"
+#include "Render/DescriptorHeap.h"
+
+struct GraphicsContext;
 
 enum ResourceCreationFlags : uint64_t
 {
@@ -66,6 +68,15 @@ enum class ResourceType
 	TextureSubresource,
 };
 
+struct SubResource
+{
+	DescriptorAllocation CBV;
+	DescriptorAllocation SRV;
+	DescriptorAllocation UAV;
+	DescriptorAllocation RTV;
+	DescriptorAllocation DSV;
+};
+
 struct Resource
 {
 	ResourceType Type = ResourceType::Invalid;
@@ -77,19 +88,33 @@ struct Resource
 
 	~Resource()
 	{
-		DeviceMemory& mem = Device::Get()->GetMemory();
-		if(CBV.ptr != INVALID_ALLOCATION) mem.SRVHeap->Release(CBV);
-		if(SRV.ptr != INVALID_ALLOCATION) mem.SRVHeap->Release(SRV);
-		if(UAV.ptr != INVALID_ALLOCATION) mem.SRVHeap->Release(UAV);
-		if(RTV.ptr != INVALID_ALLOCATION) mem.RTVHeap->Release(RTV);
-		if (DSV.ptr != INVALID_ALLOCATION) mem.DSVHeap->Release(DSV);
+		if (Type == ResourceType::TextureSubresource || Type == ResourceType::BufferSubresource)
+			return;
+
+		if (CBV.IsValid()) CBV.Release();
+		if (SRV.IsValid()) SRV.Release();
+		if (UAV.IsValid()) UAV.Release();
+		if (RTV.IsValid()) RTV.Release();
+		if (DSV.IsValid()) DSV.Release();
+
+		for (auto& it : Subresources)
+		{
+			SubResource& subres = it.second;
+			if (subres.CBV.IsValid()) subres.CBV.Release();
+			if (subres.SRV.IsValid()) subres.SRV.Release();
+			if (subres.UAV.IsValid()) subres.UAV.Release();
+			if (subres.RTV.IsValid()) subres.RTV.Release();
+			if (subres.DSV.IsValid()) subres.DSV.Release();
+		}
 	}
 
-	D3D12_CPU_DESCRIPTOR_HANDLE CBV = { INVALID_ALLOCATION };
-	D3D12_CPU_DESCRIPTOR_HANDLE SRV = { INVALID_ALLOCATION };
-	D3D12_CPU_DESCRIPTOR_HANDLE UAV = { INVALID_ALLOCATION };
-	D3D12_CPU_DESCRIPTOR_HANDLE RTV = { INVALID_ALLOCATION };
-	D3D12_CPU_DESCRIPTOR_HANDLE DSV = { INVALID_ALLOCATION };
+	DescriptorAllocation CBV;
+	DescriptorAllocation SRV;
+	DescriptorAllocation UAV;
+	DescriptorAllocation RTV;
+	DescriptorAllocation DSV;
+
+	std::unordered_map<uint32_t, SubResource> Subresources;
 
 #ifdef DEBUG
 	std::string DebugName = "Unknown Resource";

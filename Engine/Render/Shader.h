@@ -25,6 +25,8 @@ using ShaderHash = uint32_t;
 
 struct CompiledShader
 {
+	bool NeedsRecompilation = false;
+
 	D3D12_SHADER_BYTECODE Vertex;
 	D3D12_SHADER_BYTECODE Geometry;
 	D3D12_SHADER_BYTECODE Hull;
@@ -62,4 +64,6 @@ namespace GFX
 
 	const CompiledShader& GetCompiledShader(Shader* shaderID, const std::vector<std::string>& defines, uint32_t shaderStages);
 	void ReloadAllShaders();
+
+	uint32_t GetFailedShaderCount();
 }

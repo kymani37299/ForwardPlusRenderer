@@ -2,13 +2,20 @@
 
 #include <Engine/Render/Commands.h>
 #include <Engine/Render/Buffer.h>
+#include <Engine/Render/Texture.h>
 #include <Engine/Render/Shader.h>
+#include <Engine/Render/Resource.h>
 #include <Engine/Render/Device.h>
 #include <Engine/Utility/Random.h>
+#include <Engine/Utility/MathUtility.h>
 
 #include "Globals.h"
-#include "Renderers/Util/ConstantManager.h"
+#include "Renderers/Util/ConstantBuffer.h"
+#include "Renderers/Util/TextureDebugger.h"
+#include "Renderers/Util/SamplerManager.h"
 #include "Scene/SceneGraph.h"
+
+#include "Shaders/shared_definitions.h"
 
 struct DebugGeometrySB
 {
@@ -139,11 +146,11 @@ void DebugRenderer::Draw(GraphicsContext& context, Texture* colorTarget, Texture
 
 	if (DebugViz.LightHeatmap && RenderSettings.Culling.LightCullingEnabled)
 	{
-		CBManager.Clear();
-		CBManager.Add(MainSceneGraph->SceneInfoData);
+		ConstantBuffer cb{};
+		cb.Add(MainSceneGraph->SceneInfoData);
 
 		GraphicsState heatmapState;
-		heatmapState.Table.CBVs[0] = CBManager.GetBuffer();
+		heatmapState.Table.CBVs[0] = cb.GetBuffer(context);
 		heatmapState.Table.SRVs[0] = visibleLights;
 		heatmapState.RenderTargets[0] = colorTarget;
 		heatmapState.Shader = m_LightHeatmapShader.get();
@@ -207,9 +214,9 @@ void DebugRenderer::DrawGeometries(GraphicsContext& context, GraphicsState& stat
 		GFX::Cmd::UploadToBuffer(context, m_DebugGeometriesBuffer.get(), 0, debugGeometries.data(), 0, (uint32_t) debugGeometries.size() * m_DebugGeometriesBuffer->Stride);
 		state.Table.SRVs[0] = m_DebugGeometriesBuffer.get();
 
-		CBManager.Clear();
-		CBManager.Add(MainSceneGraph->MainCamera.CameraData);
-		state.Table.CBVs[0] = CBManager.GetBuffer();
+		ConstantBuffer cb{};
+		cb.Add(MainSceneGraph->MainCamera.CameraData);
+		state.Table.CBVs[0] = cb.GetBuffer(context);
 		state.VertexBuffers[0] = typeToVB[i];
 		context.ApplyState(state);
 		context.CmdList->DrawInstanced(m_SphereVB->ByteSize / m_SphereVB->Stride, (uint32_t) debugGeometries.size(), 0, 0);
@@ -219,4 +226,103 @@ void DebugRenderer::DrawGeometries(GraphicsContext& context, GraphicsState& stat
 	GFX::Cmd::MarkerEnd(context);
 
 	m_GeometriesToRender.clear();
+}
+
+void TextureDebuggerRenderer::Init(GraphicsContext& context)
+{
+	m_Shader = ScopedRef<Shader>(new Shader("Forward+/Shaders/texture_debugger.hlsl"));
+	m_PreviewTextureDescriptor = context.MemContext.SRVHeap.Allocate(1);
+	m_RangeBuffer = ScopedRef<ReadbackBuffer>(new ReadbackBuffer{ 2 * sizeof(float) });
+}
+
+void TextureDebuggerRenderer::Draw(GraphicsContext& context)
+{
+	if (!TexDebugger.GetEnabledRef())
+		return;
+
+	auto& selectedTexture = TexDebugger.GetSelectedTexture();
+	Texture* selectedTex = selectedTexture.Tex;
+
+	if (!m_PreviewTexture || selectedTex->Width != m_PreviewTexture->Width || selectedTex->Height != selectedTexture.Tex->Height)
+	{
+		ASSERT(GetSampleCount(selectedTex->CreationFlags) == 1, "[Texture Debugger] Currently not supporting debugging of multisample textures!");
+		ASSERT(selectedTex->DepthOrArraySize == 1, "[Texture Debugger] Currently not supporting volume textures or texture arrays!");
+
+		m_PreviewTexture = ScopedRef<Texture>(GFX::CreateTexture(selectedTex->Width, selectedTex->Height, RCF_Bind_RTV));
+		Device::Get()->GetHandle()->CopyDescriptorsSimple(1, m_PreviewTextureDescriptor.GetCPUHandle(), m_PreviewTexture->SRV.GetCPUHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		TexDebugger.SetPreviewTextureHandle(&m_PreviewTextureDescriptor.GetGPUHandle());
+	}
+	
+	GFX::Cmd::MarkerBegin(context, "Texture debugger");
+
+	// Read range
+	if (m_ShouldReadRange)
+	{
+		Buffer* rangeBuffer = m_RangeBuffer->GetReadBuffer();
+		void* data;
+		rangeBuffer->Handle->Map(0, nullptr, &data);
+		if (data)
+		{
+			float* fData = reinterpret_cast<float*>(data);
+			selectedTexture.RangeMin = fData[0];
+			selectedTexture.RangeMax = fData[1];
+
+		}
+		m_ShouldReadRange = false;
+	}
+
+	// Find range
+	if(selectedTexture.FindRange)
+	{
+		float clearValue[] = {1.0f, 0.0f};
+		GFX::Cmd::UploadToBuffer(context, m_RangeBuffer->GetWriteBuffer(), 0, clearValue, 0, sizeof(float) * 2);
+
+		GraphicsState state{};
+		state.Shader = m_Shader.get();
+		state.ShaderConfig = { "READ_RANGE" };
+		state.ShaderStages = CS;
+		state.Table.SRVs[0] = selectedTex;
+		state.Table.UAVs[0] = m_RangeBuffer->GetWriteBuffer();
+		state.PushConstantCount = 2;
+		context.ApplyState(state);
+
+		BindVector<uint32_t> pushConstants;
+		pushConstants[0] = selectedTex->Width;
+		pushConstants[1] = selectedTex->Height;
+
+		GFX::Cmd::SetPushConstants(CS, context, pushConstants);
+		context.CmdList->Dispatch((UINT)MathUtility::CeilDiv(selectedTex->Width, OPT_TILE_SIZE), (UINT)MathUtility::CeilDiv(selectedTex->Height, OPT_TILE_SIZE), 1);
+
+		GFX::Cmd::AddReadbackRequest(context, m_RangeBuffer.get());
+
+		selectedTexture.FindRange = false;
+		m_ShouldReadRange = true;
+	}
+
+	// Texture preview
+	{
+		std::vector<std::string> config{};
+		config.push_back("TEXTURE_PREVIEW");
+		if (selectedTexture.ShowAlpha)
+		{
+			config.push_back("SHOW_ALPHA");
+		}
+
+		ConstantBuffer cb{};
+		cb.Add(selectedTexture.RangeMin);
+		cb.Add(selectedTexture.RangeMax);
+		cb.Add(selectedTexture.SelectedMip);
+
+		GraphicsState state{};
+		state.Shader = m_Shader.get();
+		state.ShaderConfig = config;
+		state.Table.SRVs[0] = selectedTex;
+		state.Table.CBVs[0] = cb.GetBuffer(context);
+		state.RenderTargets[0] = m_PreviewTexture.get();
+		SSManager.Bind(state);
+		GFX::Cmd::DrawFC(context, state);
+	}
+
+
+	GFX::Cmd::MarkerEnd(context);
 }

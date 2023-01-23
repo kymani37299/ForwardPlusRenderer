@@ -42,4 +42,9 @@ float2 GetUVFromClipPosition(float4 clipPosition)
 	return uv;
 }
 
+float GetDepthFromClipPosition(float4 clipPosition)
+{
+	return clipPosition.z / clipPosition.w;
+}
+
 #endif // UTIL_H

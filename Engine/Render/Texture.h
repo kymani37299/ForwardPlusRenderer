@@ -3,8 +3,6 @@
 #include "Render/RenderAPI.h"
 #include "Render/Resource.h"
 
-struct GraphicsContext;
-
 struct Texture : public Resource
 {
 	DXGI_FORMAT Format;
@@ -17,13 +15,15 @@ struct Texture : public Resource
 	uint32_t SlicePitch;
 };
 
-struct TextureSubresource : public Texture
+struct TextureSubresourceView : public Texture
 {
+	Resource* Parent;
+
 	uint32_t FirstMip;
-	uint32_t MipCount;
+	uint32_t LastMip;
 
 	uint32_t FirstElement;
-	uint32_t ElementCount;
+	uint32_t LastElement;
 };
 
 namespace GFX
@@ -36,7 +36,8 @@ namespace GFX
 		return CreateTextureArray(width, height, depth, creationFlags | RCF_Texture3D, numMips, format);
 	}
 
-	TextureSubresource* CreateTextureSubresource(Texture* resource, uint32_t mipBegin, uint32_t mipCount, uint32_t firstElement, uint32_t elementCount);
-
+	// After finishing make sure to bring back ResourceState as it was at the beggining
+	TextureSubresourceView* GetTextureSubresource(Texture* resource, uint32_t firstMip, uint32_t lastMip, uint32_t firstElement, uint32_t lastElement);
+	
 	uint32_t GetSubresourceIndex(Texture* texture, uint32_t mipIndex, uint32_t sliceOrArrayIndex);
 }
