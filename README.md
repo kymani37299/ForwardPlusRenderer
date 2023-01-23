@@ -23,9 +23,9 @@ For example in the Sponza scene with 20k lights randomly placed around the map, 
 ## Geometry culling
 
 For the geometry culling we have 3 options, those are from slowest to fastest:
-<b>CPU_FrustumCulling<\b> - Frustum culling performed on CPU
-<b>GPU_FrustumCulling<\b> - Frustum culling performed on GPU with indirect draw generation
-<b>GPU_OcclusionCulling<\b> - Occlusion culling performed on GPU with indirect draw generation. Currently using technique based on Hierarhical-Z buffer and Depth reprojection.
+- <b>CPU_FrustumCulling</b> - Frustum culling performed on CPU
+- <b>GPU_FrustumCulling</b> - Frustum culling performed on GPU with indirect draw generation
+- <b>GPU_OcclusionCulling</b> - Occlusion culling performed on GPU with indirect draw generation. Currently using technique based on Hierarhical-Z buffer and Depth reprojection.
 
 Culling is performed on beggining of the frame for both screen view and shadow views and is producing a visibility mask (bitfield) that will be used at later stages only to process visible geometries and generate indirect draws.
 
