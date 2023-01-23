@@ -22,36 +22,32 @@ For example in the Sponza scene with 20k lights randomly placed around the map, 
 
 ## Geometry culling
 
-For the geometry culling we are using frustum culling. Planing on doing Occlusion culling with HZB maps in the future. </br>
-Both CPU and GPU culling is supported.</br>
+For the geometry culling we have 3 options, those are from slowest to fastest:
+<b>CPU_FrustumCulling<\b> - Frustum culling performed on CPU
+<b>GPU_FrustumCulling<\b> - Frustum culling performed on GPU with indirect draw generation
+<b>GPU_OcclusionCulling<\b> - Occlusion culling performed on GPU with indirect draw generation. Currently using technique based on Hierarhical-Z buffer and Depth reprojection.
 
-For the geometry culling we are using just frustum culling with bounding spheres. Bounding spheres are calculated in the model loading phase and are in model space. When we are culling we are moving it to a world space where culling is performed. </br>
-Culling is performed on beggining of the frame and is producing a visibility mask (bitfield) that will be used at later stages only to process visible geometries.
-
-<img src="Images/FrustumCulling.png" width="250" height="187">
+Culling is performed on beggining of the frame for both screen view and shadow views and is producing a visibility mask (bitfield) that will be used at later stages only to process visible geometries and generate indirect draws.
 
 ## Indirect drawing
 
 Every geometry information is contained into 2 big buffers, one for the vertices, one for the indices.<br><br>
-The data is divided into a 1 texture array and 4 big structured buffers. <br>
+The data is divided into a 1 bindless texture array and 3 big structured buffers. <br>
 The 1 texture array contains all the textures loaded into a scene. <br>
-Those 4 buffers are: <br>
+Those 3 buffers are: <br>
 - <b> Mesh </b> - Details about the locations in the vertex and index buffer
-- <b> Entity </b> - Geometry information. It contains model matrix and bounding sphere. 
 - <b> Material </b> - Material information like factors, fresnel, and most importantly indexes of the textures in the texture array.
-- <b> Drawable </b> - This buffer links information between data and objects in scene. It contains information about entity index, material index and mesh index. We gather drawable index through push constant.
+- <b> Drawable </b> - This buffer links information between data and objects in scene. It contains information about material index and mesh index. Also it contains the World transformation and bounding volume used in culling. We gather drawable index through push constant.
 <br>
 
 The first step for indirect drawing is to create argument buffer. Argument buffer contains DrawInstancedIndexed structure + one push constant that is referring to Drawable index. <br>
 We are taking visibility mask from culling phase and using that to append drawcalls to an argument buffer. <br>
 <br>
-After that we execute ExecuteIndirect that will draw everything.
+After that we call ExecuteIndirect that will draw everything.
 <br>
 In the real case scenario it is not that simple to have just one ExecuteIndirect for all. I've divided the calls by the geometries that needs special case of pipeline or shader and those groups are named *render groups*. Every render group has separate buffers for the vertices, materials and drawables, the only thing shared is the entity buffer. Also every render group has its own visibility mask.
 
 Currently we are having 3 render groups for the Opaque, AlphaDiscard and Transparent geometry.
-
-<img src="Images/ShaderDataGraph.png" width="847" height="382">
 
 ## Anti-aliasing
 
