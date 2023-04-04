@@ -21,8 +21,6 @@ ApplicationConfiguration AppConfig;
 
 Engine::Engine(Application* app)
 {
-	PROFILE_SECTION_CPU("Init Engine");
-
 	Window::Init();
 	Window::Get()->ShowCursor(false);
 	

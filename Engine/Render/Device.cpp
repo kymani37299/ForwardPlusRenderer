@@ -127,7 +127,7 @@ void Device::DeinitDevice()
 
 void Device::RecreateSwapchain(GraphicsContext& context)
 {
-	PROFILE_SECTION(context, "RecreateSwapchain");
+	PROFILE_SECTION_CPU("RecreateSwapchain");
 
 	// Wait for GPU to finish before recreating swapchain resources
 	ContextManager::Get().Flush();
@@ -189,7 +189,6 @@ void Device::CopyToSwapchain(GraphicsContext& context, Texture* texture)
 
 void Device::EndFrame(GraphicsContext& context)
 {
-	PROFILE_SECTION(context, "EndFrame");
 	{
 		PROFILE_SECTION(context, "Deferred tasks");
 		m_TaskExecutor.Run(context);
