@@ -1,5 +1,4 @@
-SIMPLE_SCENE - Loading simple scene with one cube and a planeBG_LOADING 
 MTR_LOADING - Multithreaded loading
 HIDE_GUI - Hide imgui windows when in play mode
-SINGLE_CASTLE - Draw single sponza castle instead of grid ( better for light profiling )
 LOADING_USE_LESS_MEMORY - Split loading in multiple frames so we can reuse some memory (use if having memory problems)
+PROFILE_LOADING - Use this to profile loading time, it will generate Optick capture in root folder by name LoadingCapture.opt

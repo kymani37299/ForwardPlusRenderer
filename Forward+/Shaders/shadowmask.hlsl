@@ -1,4 +1,3 @@
-#include "samplers.h"
 #include "scene.h"
 #include "util.h"
 #include "full_screen.h"
@@ -11,6 +10,8 @@ cbuffer Constants : register(b0)
 	Camera ShadowCamera;
 	SceneInfo SceneInfoData;
 }
+
+SamplerState s_LinearWrap : register(s0);
 
 Texture2D<float> DepthTexture : register(t0);
 Texture2D<float> Shadowmap : register(t1);

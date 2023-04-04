@@ -350,6 +350,8 @@ public:
 	// TODO: Reduce number of update element calls
 	void SyncGPUBuffer(GraphicsContext& context)
 	{
+		PROFILE_SECTION(context, "ElementBuffer::SyncGPUBuffer");
+
 		if (m_DirtyElements.empty()) return;
 
 		for (uint32_t dirtyEntry : m_DirtyElements)
@@ -509,5 +511,3 @@ struct SceneGraph
 
 	SceneInfoRenderData SceneInfoData;
 };
-
-extern SceneGraph* MainSceneGraph;

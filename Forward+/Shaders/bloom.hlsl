@@ -1,4 +1,3 @@
-#include "samplers.h"
 #include "full_screen.h"
 
 struct BloomInput
@@ -16,6 +15,8 @@ cbuffer Constants : register(b0)
     BloomInput BloomIN;
     float Exposure;
 }
+
+SamplerState s_LinearBorder : register(s2);
 
 VS_IMPL;
 

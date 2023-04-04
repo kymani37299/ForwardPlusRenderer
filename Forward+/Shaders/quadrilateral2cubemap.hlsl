@@ -1,5 +1,3 @@
-#include "samplers.h"
-
 struct VS_Input
 {
 	float3 pos : POS;
@@ -16,6 +14,7 @@ cbuffer Constants : register(b0)
 	float4x4 WorldToClip;
 }
 
+SamplerState s_LinearWrap : register(s0);
 Texture2D quadrilateralTexture : register(t0);
 
 float2 SprericalToUV(float3 coords)

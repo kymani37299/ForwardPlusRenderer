@@ -1,4 +1,3 @@
-#include "samplers.h"
 #include "scene.h"
 
 struct VertexInput
@@ -17,6 +16,7 @@ cbuffer Constants : register(b0)
 	Camera CamData;
 }
 
+SamplerState s_LinearWrap : register(s0);
 TextureCube SkyboxTexture : register(t0);
 
 VertexOut VS(VertexInput IN)

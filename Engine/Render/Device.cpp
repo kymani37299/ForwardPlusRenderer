@@ -50,20 +50,41 @@ void Device::InitDevice()
 		API_CALL(D3D12CreateDevice(dxgiAdapter.Get(), D3D_FEATURE_LEVEL_12_1, IID_PPV_ARGS(m_Handle.GetAddressOf())));
 	}
 
+	// Specification
+	D3D12_FEATURE_DATA_D3D12_OPTIONS1 features1{};
+	m_Handle->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS1, &features1, sizeof(D3D12_FEATURE_DATA_D3D12_OPTIONS1));
+	m_Specification.SupportWaveIntrinscs = features1.WaveOps;
+	m_Specification.WavefrontSize = features1.WaveLaneCountMin;
+
 	// Allocator
 	D3D12MA::ALLOCATOR_DESC allocatorDesc = {};
 	allocatorDesc.pDevice = m_Handle.Get();
 	allocatorDesc.pAdapter = dxgiAdapter.Get();
 	API_CALL(D3D12MA::CreateAllocator(&allocatorDesc, &m_Allocator));
 
+	// Command queue
+	D3D12_COMMAND_QUEUE_DESC queueDesc{};
+	queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+	queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+	API_CALL(m_Handle->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(m_CommandQueue.GetAddressOf())));
+
+	// Profiling
+	ID3D12CommandQueue* cmdQueues[] = { m_CommandQueue.Get() };
+	uint32_t numQueues = STATIC_ARRAY_SIZE(cmdQueues);
+	OPTICK_GPU_INIT_D3D12(m_Handle.Get(), cmdQueues, numQueues);
+
 	// Context
-	m_Context = ScopedRef<GraphicsContext>(GFX::Cmd::CreateGraphicsContext());
+	ContextManager::Get().Init();
+	GraphicsContext& context = ContextManager::Get().GetCreationContext();
+	GFX::Cmd::BeginRecording(context);
 
 	// Memory
 	m_Memory.SRVHeap = ScopedRef<DescriptorHeap>(new DescriptorHeap{false,  D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 20 * 1024u });
 	m_Memory.RTVHeap = ScopedRef<DescriptorHeap>(new DescriptorHeap{false,  D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 256u });
 	m_Memory.DSVHeap = ScopedRef<DescriptorHeap>(new DescriptorHeap{false,  D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 64u });
 	m_Memory.SMPHeap = ScopedRef<DescriptorHeap>(new DescriptorHeap{false,  D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 256u });
+	m_Memory.SRVHeapGPU = ScopedRef<DescriptorHeap>(new DescriptorHeap{ true, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 64u * 1024, 256u * 1024u });
+	m_Memory.SMPHeapGPU = ScopedRef<DescriptorHeap>(new DescriptorHeap{ true, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 256u,  1024u });
 
 	// Create swapchain
 	DXGI_SWAP_CHAIN_DESC desc;
@@ -83,16 +104,16 @@ void Device::InitDevice()
 	desc.SampleDesc.Count = 1;
 	desc.SampleDesc.Quality = 0;
 	 
-	API_CALL(m_DXGIFactory->CreateSwapChain(m_Context->CmdQueue.Get(), &desc, m_SwapchainHandle.GetAddressOf()));
+	API_CALL(m_DXGIFactory->CreateSwapChain(m_CommandQueue.Get(), &desc, m_SwapchainHandle.GetAddressOf()));
 
-	GFX::Cmd::SubmitContext(*m_Context);
+	GFX::Cmd::EndRecordingAndSubmit(context);
 
-	RecreateSwapchain();
+	RecreateSwapchain(context);
 }
 
 void Device::DeinitDevice()
 {
-	m_Context = nullptr;
+	ContextManager::Get().Destroy();
 
 	for (uint32_t i = 0; i < SWAPCHAIN_BUFFER_COUNT; i++)
 		m_SwapchainBuffers[i] = nullptr;
@@ -104,11 +125,12 @@ void Device::DeinitDevice()
 	m_Handle = nullptr;
 }
 
-void Device::RecreateSwapchain()
+void Device::RecreateSwapchain(GraphicsContext& context)
 {
-	// Wait for GPU to finish before recreating swapchain resources and reset context
-	GFX::Cmd::FlushContext(*m_Context);
-	GFX::Cmd::ResetContext(*m_Context);
+	PROFILE_SECTION(context, "RecreateSwapchain");
+
+	// Wait for GPU to finish before recreating swapchain resources
+	ContextManager::Get().Flush();
 
 	// Release swapchain resources
 	for (uint8_t i = 0; i < SWAPCHAIN_BUFFER_COUNT; i++) m_SwapchainBuffers[i] = nullptr;
@@ -119,7 +141,7 @@ void Device::RecreateSwapchain()
 	for (uint8_t i = 0; i < SWAPCHAIN_BUFFER_COUNT; i++)
 	{
 		m_SwapchainBuffers[i] = ScopedRef<Texture>(new Texture{});
-		m_SwapchainBuffers[i]->CreationFlags = RCF_Bind_RTV;
+		m_SwapchainBuffers[i]->CreationFlags = RCF::RTV;
 		API_CALL(m_SwapchainHandle->GetBuffer(i, IID_PPV_ARGS(m_SwapchainBuffers[i]->Handle.GetAddressOf())));
 		m_SwapchainBuffers[i]->Width = AppConfig.WindowWidth;
 		m_SwapchainBuffers[i]->Height = AppConfig.WindowHeight;
@@ -153,31 +175,36 @@ void Device::BindSwapchainToRenderTarget(GraphicsContext& context)
 	context.CmdList->RSSetScissorRects(1, &scissor);
 }
 
-void Device::CopyToSwapchain(Texture* texture)
+void Device::CopyToSwapchain(GraphicsContext& context, Texture* texture)
 {
-	GFX::Cmd::MarkerBegin(*m_Context, "Copy to swapchain");
+	PROFILE_SECTION(context, "Copy to swapchain");
+
 	GraphicsState copyState;
 	copyState.Table.SRVs[0] = texture;
 	copyState.RenderTargets[0] = m_SwapchainBuffers[m_CurrentSwapchainBuffer].get();
 	copyState.Shader = GFX::RenderResources.CopyShader.get();
 	copyState.Table.SMPs[0] = Sampler{ D3D12_FILTER_MIN_MAG_MIP_POINT, D3D12_TEXTURE_ADDRESS_MODE_CLAMP };
-	GFX::Cmd::DrawFC(*m_Context, copyState);
-	GFX::Cmd::MarkerEnd(*m_Context);
+	GFX::Cmd::DrawFC(context, copyState);
 }
 
-void Device::EndFrame()
+void Device::EndFrame(GraphicsContext& context)
 {
-	// Deferred tasks
-	GFX::Cmd::MarkerBegin(*m_Context, "Deferred tasks");
-	m_TaskExecutor.Run(*m_Context);
-	GFX::Cmd::MarkerEnd(*m_Context);
+	PROFILE_SECTION(context, "EndFrame");
+	{
+		PROFILE_SECTION(context, "Deferred tasks");
+		m_TaskExecutor.Run(context);
+	}
 
 	// Submit context
-	GFX::Cmd::TransitionResource(*m_Context, m_SwapchainBuffers[m_CurrentSwapchainBuffer].get(), D3D12_RESOURCE_STATE_PRESENT);
-	GFX::Cmd::SubmitContext(*m_Context);
+	GFX::Cmd::TransitionResource(context, m_SwapchainBuffers[m_CurrentSwapchainBuffer].get(), D3D12_RESOURCE_STATE_PRESENT);
+	GFX::Cmd::EndRecordingAndSubmit(context);
+	
+	// Profiling
+	OPTICK_GPU_FLIP(m_SwapchainHandle.Get());
+	OPTICK_CATEGORY("Present", Optick::Category::Wait);
 
 	// Present
-	m_SwapchainHandle->Present(0, 0);
+	m_SwapchainHandle->Present(AppConfig.VSyncEnabled ? 1 : 0, 0);
 	m_CurrentSwapchainBuffer = (m_CurrentSwapchainBuffer + 1) % SWAPCHAIN_BUFFER_COUNT;
 }
 

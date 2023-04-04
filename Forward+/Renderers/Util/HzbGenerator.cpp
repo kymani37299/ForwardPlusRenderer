@@ -18,12 +18,12 @@ void HZBGenerator::Init(GraphicsContext& context)
 
 Texture* HZBGenerator::GetHZB(GraphicsContext& context, Texture* depth, const Camera& camera)
 {
+	PROFILE_SECTION(context, "Generate HZB");
+
 	if (!m_ReprojectedDepth || m_ReprojectedDepth->Width != depth->Width || m_ReprojectedDepth->Height != depth->Height)
 	{
 		RecreateTextures(context, depth->Width, depth->Height);
 	}
-
-	GFX::Cmd::MarkerBegin(context, "Generate HZB");
 
 	// Clear depth
 	{
@@ -35,12 +35,12 @@ Texture* HZBGenerator::GetHZB(GraphicsContext& context, Texture* depth, const Ca
 		state.PushConstantCount = 2;
 		context.ApplyState(state);
 
-		BindVector<uint32_t> pushConstants;
-		pushConstants[0] = m_ReprojectedDepth->Width;
-		pushConstants[1] = m_ReprojectedDepth->Height;
+		PushConstantTable pushConstants;
+		pushConstants[0].Uint = m_ReprojectedDepth->Width;
+		pushConstants[1].Uint = m_ReprojectedDepth->Height;
 		GFX::Cmd::SetPushConstants(CS, context, pushConstants);
 
-		context.CmdList->Dispatch((UINT)MathUtility::CeilDiv(m_ReprojectedDepth->Width, OPT_TILE_SIZE), (UINT)MathUtility::CeilDiv(m_ReprojectedDepth->Height, OPT_TILE_SIZE), 1);
+		GFX::Cmd::Dispatch(context, (UINT)MathUtility::CeilDiv(m_ReprojectedDepth->Width, OPT_TILE_SIZE), (UINT)MathUtility::CeilDiv(m_ReprojectedDepth->Height, OPT_TILE_SIZE), 1);
 	}
 
 	// Reproject depth
@@ -62,7 +62,7 @@ Texture* HZBGenerator::GetHZB(GraphicsContext& context, Texture* depth, const Ca
 		state.ShaderStages = CS;
 		context.ApplyState(state);
 
-		context.CmdList->Dispatch((UINT)MathUtility::CeilDiv(depth->Width, OPT_TILE_SIZE), (UINT)MathUtility::CeilDiv(depth->Height, OPT_TILE_SIZE), 1);
+		GFX::Cmd::Dispatch(context, (UINT)MathUtility::CeilDiv(depth->Width, OPT_TILE_SIZE), (UINT)MathUtility::CeilDiv(depth->Height, OPT_TILE_SIZE), 1);
 	}
 
 	// Generate HZB
@@ -81,9 +81,9 @@ Texture* HZBGenerator::GetHZB(GraphicsContext& context, Texture* depth, const Ca
 		state.ShaderStages = CS;
 		state.PushConstantCount = 4;
 		
-		BindVector<uint32_t> pushConstants;
-		pushConstants[2] = depth->Width;
-		pushConstants[3] = depth->Height;
+		PushConstantTable pushConstants;
+		pushConstants[2].Uint = depth->Width;
+		pushConstants[3].Uint = depth->Height;
 
 		for (uint32_t writeMip = 0; writeMip < m_HZBMips; writeMip++)
 		{
@@ -91,13 +91,13 @@ Texture* HZBGenerator::GetHZB(GraphicsContext& context, Texture* depth, const Ca
 			state.Table.UAVs[0] = hzbMips[writeMip];
 			context.ApplyState(state);
 
-			pushConstants[0] = writeMip == 0 ? 0 : writeMip - 1;
-			pushConstants[1] = writeMip;
+			pushConstants[0].Uint = writeMip == 0 ? 0 : writeMip - 1;
+			pushConstants[1].Uint = writeMip;
 			GFX::Cmd::SetPushConstants(CS, context, pushConstants);
 
 			const uint32_t mipWidth = depth->Width >> writeMip;
 			const uint32_t mipHeight = depth->Height >> writeMip;
-			context.CmdList->Dispatch((UINT)MathUtility::CeilDiv(mipWidth, OPT_TILE_SIZE), (UINT)MathUtility::CeilDiv(mipHeight, OPT_TILE_SIZE), 1);
+			GFX::Cmd::Dispatch(context, (UINT)MathUtility::CeilDiv(mipWidth, OPT_TILE_SIZE), (UINT)MathUtility::CeilDiv(mipHeight, OPT_TILE_SIZE), 1);
 		}
 	
 		// Bring back state of a parent resource
@@ -110,15 +110,13 @@ Texture* HZBGenerator::GetHZB(GraphicsContext& context, Texture* depth, const Ca
 			
 	}
 
-	GFX::Cmd::MarkerEnd(context);
-
 	return m_HZB.get();
 }
 
 void HZBGenerator::RecreateTextures(GraphicsContext& context, uint32_t width, uint32_t height)
 {
-	m_ReprojectedDepth = ScopedRef<Texture>(GFX::CreateTexture(width, height, RCF_Bind_UAV, 1, DXGI_FORMAT_R32_FLOAT));
+	m_ReprojectedDepth = ScopedRef<Texture>(GFX::CreateTexture(width, height, RCF::UAV, 1, DXGI_FORMAT_R32_FLOAT));
 
 	m_HZBMips = (uint32_t) log2(MAX(width, height));
-	m_HZB = ScopedRef<Texture>(GFX::CreateTexture(width, height, RCF_Bind_UAV, m_HZBMips, DXGI_FORMAT_R32_FLOAT));
+	m_HZB = ScopedRef<Texture>(GFX::CreateTexture(width, height, RCF::UAV, m_HZBMips, DXGI_FORMAT_R32_FLOAT));
 }

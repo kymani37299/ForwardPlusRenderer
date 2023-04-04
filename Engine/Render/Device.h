@@ -12,12 +12,21 @@ struct Texture;
 struct Shader;
 struct Buffer;
 
+struct DeviceSpecification
+{
+	bool SupportWaveIntrinscs = false;
+	uint32_t WavefrontSize = 0;
+};
+
 struct DeviceMemory
 {
 	ScopedRef<DescriptorHeap> SRVHeap;
 	ScopedRef<DescriptorHeap> RTVHeap;
 	ScopedRef<DescriptorHeap> DSVHeap;
 	ScopedRef<DescriptorHeap> SMPHeap;
+
+	ScopedRef<DescriptorHeap> SRVHeapGPU;
+	ScopedRef<DescriptorHeap> SMPHeapGPU;
 };
 
 class DeferredTaskExecutor
@@ -57,31 +66,32 @@ private:
 	void DeinitDevice();
 
 public:
-	void RecreateSwapchain();
+	void RecreateSwapchain(GraphicsContext& context);
 	void BindSwapchainToRenderTarget(GraphicsContext& context);
-	void CopyToSwapchain(Texture* texture);
-	void EndFrame();
+	void CopyToSwapchain(GraphicsContext& context, Texture* texture);
+	void EndFrame(GraphicsContext& context);
 
+	const DeviceSpecification& GetSpec() const { return m_Specification; }
 	ID3D12Device* GetHandle() const { return m_Handle.Get(); }
 	D3D12MA::Allocator* GetAllocator() const { return m_Allocator.Get(); }
-	GraphicsContext& GetContext() { return *m_Context; }
 	DeviceMemory& GetMemory() { return m_Memory; }
 	DeferredTaskExecutor& GetTaskExecutor() { return m_TaskExecutor; }
-
-	bool IsMainContext(GraphicsContext& context) { return true; } // TODO
+	ID3D12CommandQueue* GetCommandQueue() const { return m_CommandQueue.Get(); }
 
 private:
+	DeviceSpecification m_Specification;
+
 	ComPtr<IDXGIFactory4> m_DXGIFactory;
 	ComPtr<ID3D12Device> m_Handle;
 	ComPtr<D3D12MA::Allocator> m_Allocator;
 
+	ComPtr<ID3D12CommandQueue> m_CommandQueue;
 	ComPtr<IDXGISwapChain> m_SwapchainHandle;
 	ScopedRef<Texture> m_SwapchainBuffers[SWAPCHAIN_BUFFER_COUNT];
 	uint8_t m_CurrentSwapchainBuffer = 0;
 
 	DeviceMemory m_Memory;
-	ScopedRef<GraphicsContext> m_Context;
-
+	
 	static constexpr uint32_t MAX_DEFERRED_TASKS = 32;
 	DeferredTaskExecutor m_TaskExecutor{ MAX_DEFERRED_TASKS };
 };

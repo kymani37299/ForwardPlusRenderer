@@ -14,8 +14,8 @@ namespace GFX
 		ScopedRef<Buffer> QuadBuffer;
 	};
 
-	void InitRenderingResources();
-	void DestroyRenderingResources();
+	void InitRenderingResources(GraphicsContext& context);
+	void DestroyRenderingResources(GraphicsContext& context);
 
 	extern RenderingResources RenderResources;
 }

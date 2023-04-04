@@ -5,7 +5,7 @@
 class ShaderCompilerGUI : public GUIElement
 {
 public:
-	ShaderCompilerGUI() : GUIElement("Shader compiler", false) {}
+	ShaderCompilerGUI() : GUIElement("Shader compiler", GUIFlags::MenuHidden) {}
 	virtual void Update(float dt);
 	virtual void Render();
 };

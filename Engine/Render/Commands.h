@@ -17,13 +17,12 @@ enum D3D12_FILTER;
 
 namespace GFX::Cmd
 {
-	GraphicsContext* CreateGraphicsContext();
-	void FlushContext(GraphicsContext& context);
-	void SubmitContext(GraphicsContext& context);
-	void ResetContext(GraphicsContext& context);
+	void WaitToFinish(GraphicsContext& context);
+	void BeginRecording(GraphicsContext& context);
+	void EndRecordingAndSubmit(GraphicsContext& context);
 
-	void MarkerBegin(GraphicsContext& context, const std::string& name);
-	void MarkerEnd(GraphicsContext& context);
+	void MarkerBegin(const GraphicsContext& context, const std::string& name);
+	void MarkerEnd(const GraphicsContext& context);
 
 	// Delete on GPU timeline
 	inline void Delete(GraphicsContext& context, const ComPtr<IUnknown>& resource) { context.MemContext.FrameDXResources.push_back(resource); }
@@ -34,7 +33,7 @@ namespace GFX::Cmd
 	void AddResourceTransition(std::vector<D3D12_RESOURCE_BARRIER>& barriers, Resource* resource, D3D12_RESOURCE_STATES wantedState);
 	void TransitionResource(GraphicsContext& context, Resource* resource, D3D12_RESOURCE_STATES wantedState);
 
-	void SetPushConstants(uint32_t shaderStages, GraphicsContext& context, const BindVector<uint32_t> values);
+	void SetPushConstants(uint32_t shaderStages, GraphicsContext& context, const PushConstantTable& values);
 
 	void ClearRenderTarget(GraphicsContext& context, Texture* renderTarget);
 	void ClearDepthStencil(GraphicsContext& context, Texture* depthStencil);
@@ -47,6 +46,12 @@ namespace GFX::Cmd
 
 	void ClearBuffer(GraphicsContext& context, Buffer* buffer);
 
+	void Draw(GraphicsContext& context, uint32_t vertexCount, uint32_t vertexOffset);
+	void DrawIndexed(GraphicsContext& context, uint32_t indexCount, uint32_t indexOffset, uint32_t vertexOffset);
+	void DrawInstanced(GraphicsContext& context, uint32_t vertexCount, uint32_t instanceCount, uint32_t vertexOffset, uint32_t firstInstance);
+	void DrawIndexedInstanced(GraphicsContext& context, uint32_t indexCount, uint32_t instanceCount, uint32_t indexOffset, uint32_t vertexOffset, uint32_t firstInstance);
+	void Dispatch(GraphicsContext& context, uint32_t numGroupsX, uint32_t numGroupsY, uint32_t numGroupsZ);
+	void ExecuteIndirect(GraphicsContext& context, ID3D12CommandSignature* commandSignature, uint32_t maxCommands, Buffer* argumentBuffer, uint32_t argumentOffset, Buffer* countBuffer, uint32_t countBufferOffset);
 	void DrawFC(GraphicsContext& context, GraphicsState& state);
 
 	void GenerateMips(GraphicsContext& context, Texture* texture);

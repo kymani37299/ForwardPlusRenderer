@@ -32,10 +32,14 @@ void DescriptorAllocation::Init()
 void DescriptorAllocation::Release()
 {
 	ASSERT(m_Alloc.Start != INVALID_ALLOCATION, "Cannot release invalid allocation!");
+
+	MTR::Mutex& allocLock = m_Owner->GetAllocationLock();
+	allocLock.Lock();
 	if (m_Transient)
 		m_Owner->m_AllocStrategyTransient.Release(m_Alloc);
 	else
 		m_Owner->m_AllocStrategy.Release(m_Alloc);
+	allocLock.Unlock();
 }
 
 D3D12_GPU_DESCRIPTOR_HANDLE DescriptorAllocation::GetGPUHandle(size_t rangeIndex) const
@@ -73,14 +77,18 @@ DescriptorHeap::DescriptorHeap(bool gpuVisible, D3D12_DESCRIPTOR_HEAP_TYPE type,
 
 DescriptorAllocation DescriptorHeap::Allocate(size_t numDescriptors)
 {
+	m_AllocationLock.Lock();
 	const RangeAllocation heapAlloc = m_AllocStrategy.Allocate(numDescriptors);
+	m_AllocationLock.Unlock();
 	ASSERT(heapAlloc.Start != INVALID_ALLOCATION, "DescriptorHeapGPU memory overflow!");
 	return DescriptorAllocation{ false, heapAlloc , this };
 }
 
 DescriptorAllocation DescriptorHeap::AllocateTransient(size_t numDescriptors)
 {
+	m_AllocationLock.Lock();
 	const RangeAllocation heapAlloc = m_AllocStrategyTransient.Allocate(numDescriptors);
+	m_AllocationLock.Unlock();
 	ASSERT(heapAlloc.Start != INVALID_ALLOCATION, "DescriptorHeapGPU transient memory overflow!");
 	return DescriptorAllocation{true, heapAlloc , this};
 }

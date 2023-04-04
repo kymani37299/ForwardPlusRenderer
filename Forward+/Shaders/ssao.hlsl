@@ -1,5 +1,4 @@
 #include "shared_definitions.h"
-#include "samplers.h"
 #include "util.h"
 #include "full_screen.h"
 
@@ -14,6 +13,8 @@ struct SSAOSettings
     float DepthBias;
     float Padding;
 };
+
+SamplerState s_PointClamp : register(s0);
 
 Texture2D<float4> NoiseTexture : register(t0);
 Texture2D<float> DepthTexture : register(t1);
@@ -89,6 +90,7 @@ cbuffer Constants : register(b0)
     uint2 ScreenSize;
 }
 
+SamplerState s_LinearBorder : register(s0);
 Texture2D<float> SampledSSAO : register(t0);
 
 float PS(FCVertex IN) : SV_Target

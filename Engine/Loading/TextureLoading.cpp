@@ -50,19 +50,18 @@ namespace TextureLoading
 			stbi_image_free(data);
 	}
 
-	Texture* LoadTextureHDR(const std::string& path, uint64_t creationFlags)
+	Texture* LoadTextureHDR(GraphicsContext& context, const std::string& path, RCF creationFlags)
 	{
-		// TODO: Pass context
 		static constexpr DXGI_FORMAT TEXTURE_FORMAT = DXGI_FORMAT_R32G32B32A32_FLOAT;
 		int width, height, bpp;
 		void* texData = LoadTextureF(path, width, height, bpp);
-		ResourceInitData initData = { &Device::Get()->GetContext(), texData };
+		ResourceInitData initData = { &context, texData };
 		Texture* texture = GFX::CreateTexture(width, height, creationFlags, 1, TEXTURE_FORMAT, &initData);
 		FreeTexture(texData);
 		return texture;
 	}
 
-	Texture* LoadTexture(GraphicsContext& context, const std::string& path, uint64_t creationFlags, uint32_t numMips)
+	Texture* LoadTexture(GraphicsContext& context, const std::string& path, RCF creationFlags, uint32_t numMips)
 	{
 		static constexpr DXGI_FORMAT TEXTURE_FORMAT = DXGI_FORMAT_R8G8B8A8_UNORM;
 
@@ -87,10 +86,8 @@ namespace TextureLoading
 		return texture;
 	}
 
-	Texture* LoadCubemap(const std::string& path, uint64_t creationFlags)
+	Texture* LoadCubemap(GraphicsContext& context, const std::string& path, RCF creationFlags)
 	{
-		// TODO: Pass context
-
 		// Load tex
 		static constexpr DXGI_FORMAT TEXTURE_FORMAT = DXGI_FORMAT_R8G8B8A8_UNORM;
 		int width, height, bpp;
@@ -104,7 +101,7 @@ namespace TextureLoading
 		uint8_t* bytePtr = (uint8_t*)texData;
 		for (size_t i = 0; i < 6; i++)
 		{
-			datas[i] = { &Device::Get()->GetContext(), (const void*)(bytePtr + i * byteSizePerImg) };
+			datas[i] = { &context, (const void*)(bytePtr + i * byteSizePerImg) };
 			initData[i] = &datas[i];
 		}
 

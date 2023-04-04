@@ -7,36 +7,36 @@
 class DebugVisualizationsGUI : public GUIElement
 {
 public:
-	DebugVisualizationsGUI(bool shown = false) : GUIElement("Debug visualizations", shown) {}
+	DebugVisualizationsGUI() : GUIElement("Debug visualizations") {}
 	virtual void Update(float dt) {}
-	virtual void Render();
+	virtual void Render(GraphicsContext& context);
 };
 
 class PositionInfoGUI : public GUIElement
 {
 public:
-	PositionInfoGUI(bool shown = false) : GUIElement("Position info", shown) {}
+	PositionInfoGUI() : GUIElement("Position info") {}
 
 	virtual void Update(float dt) {}
-	virtual void Render();
+	virtual void Render(GraphicsContext& context);
 };
 
 class RenderSettingsGUI : public GUIElement
 {
 public:
-	RenderSettingsGUI(bool shown = false) : GUIElement("Render settings", shown) {}
+	RenderSettingsGUI() : GUIElement("Render settings") {}
 
 	virtual void Update(float dt) {}
-	virtual void Render();
+	virtual void Render(GraphicsContext& context);
 };
 
 class RenderStatsGUI : public GUIElement
 {
 public:
-	RenderStatsGUI(bool shown = false) : GUIElement("Render stats", shown) {}
+	RenderStatsGUI() : GUIElement("Render stats", GUIFlags::ShowOnStart) {}
 
 	virtual void Update(float dt);
-	virtual void Render();
+	virtual void Render(GraphicsContext& context);
 
 private:
 	std::vector<float> DTHistory;
@@ -46,17 +46,26 @@ private:
 class LightsGUI : public GUIElement
 {
 public:
-	LightsGUI() : GUIElement("Lights", false) {}
+	LightsGUI() : GUIElement("Lights") {}
 
 	virtual void Update(float dt) {}
-	virtual void Render();
+	virtual void Render(GraphicsContext& context);
 };
 
 class TextureDebuggerGUI : public GUIElement
 {
 public:
-	TextureDebuggerGUI() : GUIElement("Texture debugger", false) {}
+	TextureDebuggerGUI() : GUIElement("Texture debugger") {}
 
 	virtual void Update(float dt);
-	virtual void Render();
+	virtual void Render(GraphicsContext& context);
+};
+
+class SceneManagerGUI : public GUIElement
+{
+public:
+	SceneManagerGUI() : GUIElement("Scene manager", GUIFlags::ShowOnStart) {}
+
+	virtual void Update(float dt) {}
+	virtual void Render(GraphicsContext& context);
 };

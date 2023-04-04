@@ -2,6 +2,8 @@
 
 #include "Scene/SceneGraph.h"
 
+struct GraphicsContext;
+
 namespace SceneLoading
 {
 	struct LoadedObject
@@ -16,7 +18,7 @@ namespace SceneLoading
 	using LoadedScene = std::vector<LoadedObject>;
 
 	// We are using position, scale and rotation from baseDrawable
-	void AddDraws(const LoadedScene scene, const Drawable& baseDrawable);
+	void AddDraws(GraphicsContext& context, const LoadedScene scene, const Drawable& baseDrawable);
 
-	LoadedScene Load(const std::string& path);
+	LoadedScene Load(GraphicsContext& context, const std::string& path);
 }

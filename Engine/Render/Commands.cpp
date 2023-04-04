@@ -9,37 +9,22 @@
 #include "Render/Shader.h"
 #include "Render/RenderResources.h"
 
+#define PROFILE_GFX_CMD
+#ifdef PROFILE_GFX_CMD
+#define PROFILE_CMD() PROFILE_FUNCTION()
+#else
+#define PROFILE_CMD()
+#endif
+
 namespace GFX::Cmd
 {
-
-	GraphicsContext* CreateGraphicsContext()
-	{
-		GraphicsContext* context = new GraphicsContext{};
-
-		D3D12_COMMAND_QUEUE_DESC queueDesc{};
-		queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
-		queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
-
-		ID3D12Device* device = Device::Get()->GetHandle();
-		API_CALL(device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(context->CmdQueue.GetAddressOf())));
-		API_CALL(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(context->CmdAlloc.GetAddressOf())));
-		API_CALL(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, context->CmdAlloc.Get(), nullptr /* Initial PSO */, IID_PPV_ARGS(context->CmdList.GetAddressOf())));
-		API_CALL(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(context->CmdFence.Handle.GetAddressOf())));
-		context->CmdFence.Value = 0;
-
-		context->MemContext.SRVHeap = DescriptorHeap{ true, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 64u * 1024, 256u * 1024u };
-		context->MemContext.SMPHeap = DescriptorHeap{ true, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 256u,  1024u };
-
-		return context;
-	}
-
-	void MarkerBegin(GraphicsContext& context, const std::string& name)
+	void MarkerBegin(const GraphicsContext& context, const std::string& name)
 	{
 		const uint64_t defaultColor = PIX_COLOR(0, 0, 0);
 		PIXBeginEvent(context.CmdList.Get(), defaultColor, name.c_str());
 	}
 
-	void MarkerEnd(GraphicsContext& context)
+	void MarkerEnd(const GraphicsContext& context)
 	{
 		PIXEndEvent(context.CmdList.Get());
 	}
@@ -47,6 +32,9 @@ namespace GFX::Cmd
 	void AddResourceTransition(std::vector<D3D12_RESOURCE_BARRIER>& barriers, Resource* res, D3D12_RESOURCE_STATES wantedState)
 	{
 		if (!res) return;
+
+		PROFILE_CMD();
+
 
 		const bool needsUAVBarrier = (res->CurrState & D3D12_RESOURCE_STATE_UNORDERED_ACCESS) && (wantedState & D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 		if ((res->CurrState & wantedState) && !needsUAVBarrier) 
@@ -107,12 +95,11 @@ namespace GFX::Cmd
 		if(!barriers.empty()) context.CmdList->ResourceBarrier((UINT) barriers.size(), barriers.data());
 	}
 
-	void FlushContext(GraphicsContext& context)
+	void WaitToFinish(GraphicsContext& context)
 	{
-		Fence& fence = context.CmdFence;
+		PROFILE_CMD();
 
-		fence.Value++;
-		API_CALL(context.CmdQueue->Signal(fence.Handle.Get(), fence.Value));
+		Fence& fence = context.CmdFence;
 		if (context.CmdFence.Handle->GetCompletedValue() < context.CmdFence.Value)
 		{
 			void* eventHandle = CreateEventEx(nullptr, FALSE, FALSE, EVENT_ALL_ACCESS);
@@ -129,56 +116,70 @@ namespace GFX::Cmd
 		}
 	}
 
-	void SubmitContext(GraphicsContext& context)
+	void BeginRecording(GraphicsContext& context)
 	{
+		// For some reason this messes up the capture
+		// PROFILE_CMD();
+
+		ASSERT(context.Closed, "Trying to begin recording on open context!");
+		
+		WaitToFinish(context);
+
+		// Clear inframe resources
+		{
+			MemoryContext& mem = context.MemContext;
+
+			for (DescriptorAllocation descriptorAlloc : mem.FrameDescriptors) descriptorAlloc.Release();
+			for (Shader* shader : mem.FrameShaders) delete shader;
+			for (Resource* resource : mem.FrameResources) delete resource;
+
+			mem.FrameDXResources.clear();
+			mem.FrameDescriptors.clear();
+			mem.FrameShaders.clear();
+			mem.FrameResources.clear();
+		}
+
+		// Sync readback buffers
+		{
+			for (ReadbackBuffer* readbackBuffer : context.PendingReadbacks)
+			{
+				readbackBuffer->Private_Sync();
+
+			}
+			context.PendingReadbacks.clear();
+		}
+
+		// Clear api state
+		{
+			context.CmdAlloc->Reset();
+			context.CmdList->Reset(context.CmdAlloc.Get(), nullptr);
+			context.BoundState.Valid = false;
+		}
+
+		context.Closed = false;
+	}
+
+	void EndRecordingAndSubmit(GraphicsContext& context)
+	{
+		PROFILE_CMD();
+
+		ASSERT(!context.Closed, "Trying to submit closed context!");
+
 		API_CALL(context.CmdList->Close());
 		context.Closed = true;
 
 		ID3D12CommandList* cmdsLists[] = { context.CmdList.Get() };
-		context.CmdQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+		Device::Get()->GetCommandQueue()->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+
+		Fence& fence = context.CmdFence;
+		fence.Value++;
+		API_CALL(Device::Get()->GetCommandQueue()->Signal(fence.Handle.Get(), fence.Value));
 	}
 
-	void ResetContext(GraphicsContext& context)
+	void SetPushConstants(uint32_t shaderStages, GraphicsContext& context, const PushConstantTable& values)
 	{
-		if (context.Closed)
-		{
-			// Clear resources
-			{
-				MemoryContext& mem = context.MemContext;
+		PROFILE_CMD();
 
-				for (DescriptorAllocation descriptorAlloc : mem.FrameDescriptors) descriptorAlloc.Release();
-				for (Shader* shader : mem.FrameShaders) delete shader;
-				for (Resource* resource : mem.FrameResources) delete resource;
-
-				mem.FrameDXResources.clear();
-				mem.FrameDescriptors.clear();
-				mem.FrameShaders.clear();
-				mem.FrameResources.clear();
-			}
-
-			// Sync readback buffers
-			{
-				for (ReadbackBuffer* readbackBuffer : context.PendingReadbacks)
-				{
-					readbackBuffer->Private_Sync();
-					
-				}
-				context.PendingReadbacks.clear();
-			}
-
-			// Clear api state
-			{
-				context.CmdAlloc->Reset();
-				context.CmdList->Reset(context.CmdAlloc.Get(), nullptr);
-				context.BoundState.Valid = false;
-			}
-
-			context.Closed = false;
-		}
-	}
-
-	void SetPushConstants(uint32_t shaderStages, GraphicsContext& context, const BindVector<uint32_t> values)
-	{
 		ASSERT(!values.empty(), "[UpdatePushConstants] Push constants are empty");
 
 		const bool useCompute = shaderStages & CS;
@@ -188,6 +189,8 @@ namespace GFX::Cmd
 
 	void ClearRenderTarget(GraphicsContext& context, Texture* renderTarget)
 	{
+		PROFILE_CMD();
+
 		TransitionResource(context, renderTarget, D3D12_RESOURCE_STATE_RENDER_TARGET);
 		float clearColor[] = { 0.0f, 0.0f, 0.0f, 0.0f };
 		D3D12_RECT rect = { 0, 0, (long) renderTarget->Width, (long) renderTarget->Height };
@@ -196,6 +199,8 @@ namespace GFX::Cmd
 
 	void ClearDepthStencil(GraphicsContext& context, Texture* depthStencil)
 	{
+		PROFILE_CMD();
+
 		TransitionResource(context, depthStencil, D3D12_RESOURCE_STATE_DEPTH_WRITE);
 		D3D12_RECT rect = { 0, 0, (long) depthStencil->Width, (long) depthStencil->Height };
 		context.CmdList->ClearDepthStencilView(depthStencil->DSV.GetCPUHandle(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 1, &rect);
@@ -203,7 +208,9 @@ namespace GFX::Cmd
 
 	void UploadToBufferImmediate(Buffer* buffer, uint32_t dstOffset, const void* data, uint32_t srcOffset, uint32_t dataSize)
 	{
-		ASSERT(buffer->CreationFlags & RCF_CPU_Access, "[UploadToBufferImmediate] Buffer must have CPU Access for immediate upload");
+		PROFILE_CMD();
+
+		ASSERT(TestFlag(buffer->CreationFlags, RCF::CPU_Access), "[UploadToBufferImmediate] Buffer must have CPU Access for immediate upload");
 
 		// TODO: Map only required part
 		void* mappedData;
@@ -221,8 +228,10 @@ namespace GFX::Cmd
 	{
 		if (dataSize == 0) return;
 
+		PROFILE_CMD();
+
 		// Create staging resource
-		Buffer* stagingResource = GFX::CreateBuffer(dataSize, 1, RCF_CPU_Access | RCF_No_SRV);
+		Buffer* stagingResource = GFX::CreateBuffer(dataSize, 1, RCF::CPU_Access | RCF::NoSRV);
 		GFX::SetDebugName(stagingResource, "UpdateSubresource::StagingBuffer");
 
 		// Upload data to staging resource
@@ -238,6 +247,8 @@ namespace GFX::Cmd
 
 	void UploadToTexture(GraphicsContext& context, const void* data, Texture* texture, uint32_t mipIndex, uint32_t arrayIndex)
 	{
+		PROFILE_CMD();
+
 		Device* device = Device::Get();
 
 		// Get memory footprints
@@ -261,7 +272,7 @@ namespace GFX::Cmd
 		resourceDevice->Release();
 
 		// Create staging resource
-		Buffer* stagingResource = GFX::CreateBuffer((uint32_t)resourceSize, 1, RCF_CPU_Access | RCF_No_SRV);
+		Buffer* stagingResource = GFX::CreateBuffer((uint32_t)resourceSize, 1, RCF::CPU_Access | RCF::NoSRV);
 		GFX::SetDebugName(stagingResource, "UpdateSubresource::StagingBuffer");
 
 		// Upload data to staging resource
@@ -290,6 +301,8 @@ namespace GFX::Cmd
 
 	void CopyToTexture(GraphicsContext& context, Texture* srcTexture, Texture* dstTexture, uint32_t mipIndex)
 	{
+		PROFILE_CMD();
+
 		TransitionResource(context, srcTexture, D3D12_RESOURCE_STATE_COPY_SOURCE);
 		TransitionResource(context, dstTexture, D3D12_RESOURCE_STATE_COPY_DEST);
 
@@ -308,6 +321,8 @@ namespace GFX::Cmd
 
 	void CopyToBuffer(GraphicsContext& context, Buffer* srcBuffer, uint32_t srcOffset, Buffer* dstBuffer, uint32_t dstOffset, uint32_t size)
 	{
+		PROFILE_CMD();
+
 		TransitionResource(context, srcBuffer, D3D12_RESOURCE_STATE_COPY_SOURCE);
 		TransitionResource(context, dstBuffer, D3D12_RESOURCE_STATE_COPY_DEST);
 		context.CmdList->CopyBufferRegion(dstBuffer->Handle.Get(), dstOffset, srcBuffer->Handle.Get(), srcOffset, size);
@@ -315,14 +330,54 @@ namespace GFX::Cmd
 
 	void ClearBuffer(GraphicsContext& context, Buffer* buffer)
 	{
+		PROFILE_CMD();
+
 		std::vector<uint8_t> emptyData{};
 		emptyData.resize(buffer->ByteSize);
 		memset(emptyData.data(), 0, buffer->ByteSize);
 		GFX::Cmd::UploadToBuffer(context, buffer, 0, emptyData.data(), 0, buffer->ByteSize);
 	}
 
+	void Draw(GraphicsContext& context, uint32_t vertexCount, uint32_t vertexOffset)
+	{
+		PROFILE_CMD();
+		context.CmdList->DrawInstanced(vertexCount, 1, vertexOffset, 0);
+	}
+	
+	void DrawIndexed(GraphicsContext& context, uint32_t indexCount, uint32_t indexOffset, uint32_t vertexOffset)
+	{
+		PROFILE_CMD();
+		context.CmdList->DrawIndexedInstanced(indexCount, 1, indexOffset, vertexOffset, 0);
+	}
+
+	void DrawInstanced(GraphicsContext& context, uint32_t vertexCount, uint32_t instanceCount, uint32_t vertexOffset, uint32_t firstInstance)
+	{
+		PROFILE_CMD();
+		context.CmdList->DrawInstanced(vertexCount, instanceCount, vertexOffset, firstInstance);
+	}
+	
+	void DrawIndexedInstanced(GraphicsContext& context, uint32_t indexCount, uint32_t instanceCount, uint32_t indexOffset, uint32_t vertexOffset, uint32_t firstInstance)
+	{
+		PROFILE_CMD();
+		context.CmdList->DrawIndexedInstanced(indexCount, instanceCount, indexOffset, vertexOffset, firstInstance);
+	}
+	
+	void Dispatch(GraphicsContext& context, uint32_t numGroupsX, uint32_t numGroupsY, uint32_t numGroupsZ)
+	{
+		PROFILE_CMD();
+		context.CmdList->Dispatch(numGroupsX, numGroupsY, numGroupsZ);
+	}
+
+	void ExecuteIndirect(GraphicsContext& context, ID3D12CommandSignature* commandSignature, uint32_t maxCommands, Buffer* argumentBuffer, uint32_t argumentOffset, Buffer* countBuffer, uint32_t countBufferOffset)
+	{
+		PROFILE_CMD();
+		context.CmdList->ExecuteIndirect(commandSignature, maxCommands, argumentBuffer->Handle.Get(), argumentOffset, countBuffer ? countBuffer->Handle.Get() : nullptr, countBufferOffset);
+	}
+
 	void DrawFC(GraphicsContext& context, GraphicsState& state)
 	{
+		PROFILE_CMD();
+
 		state.VertexBuffers[0] = GFX::RenderResources.QuadBuffer.get();
 		context.ApplyState(state);
 		context.CmdList->DrawInstanced(6, 1, 0, 0);
@@ -330,17 +385,17 @@ namespace GFX::Cmd
 
 	void GenerateMips(GraphicsContext& context, Texture* texture)
 	{
+		PROFILE_CMD();
+
 		ASSERT(texture->DepthOrArraySize == 1, "GenerateMips not supported for texture arrays!");
 		
-		GFX::Cmd::MarkerBegin(context, "GenerateMips");
-
 		// Get staging texture
 		StagingResourcesContext::StagingTextureRequest texRequest = {};
 		texRequest.Width = texture->Width;
 		texRequest.Height = texture->Height;
 		texRequest.NumMips = texture->NumMips;
 		texRequest.Format = texture->Format;
-		texRequest.CreationFlags = RCF_Bind_RTV | RCF_GenerateMips;
+		texRequest.CreationFlags = RCF::RTV | RCF::GenerateMips;
 		StagingResourcesContext::StagingTexture* stagingTexture = context.StagingResources.GetTransientTexture(texRequest);
 
 		// Copy data to staging texture
@@ -377,12 +432,12 @@ namespace GFX::Cmd
 		// Copy to target texture
 		for (uint32_t mip = 0; mip < texture->NumMips; mip++) 
 			GFX::Cmd::CopyToTexture(context, stagingTexture->TextureResource, texture, mip);
-
-		GFX::Cmd::MarkerEnd(context);
 	}
 
 	void ResolveTexture(GraphicsContext& context, Texture* inputTexture, Texture* outputTexture)
 	{
+		PROFILE_CMD();
+
 		TransitionResource(context, inputTexture, D3D12_RESOURCE_STATE_RESOLVE_SOURCE);
 		TransitionResource(context, outputTexture, D3D12_RESOURCE_STATE_RESOLVE_DEST);
 		context.CmdList->ResolveSubresource(outputTexture->Handle.Get(), 0, inputTexture->Handle.Get(), 0, outputTexture->Format);
@@ -390,6 +445,8 @@ namespace GFX::Cmd
 
 	void AddReadbackRequest(GraphicsContext& context, ReadbackBuffer* readbackBuffer)
 	{
+		PROFILE_CMD();
+
 		GFX::Cmd::CopyToBuffer(context, readbackBuffer->GetWriteBuffer(), 0, readbackBuffer->Private_GetReadBufferForCopy(), 0, readbackBuffer->GetStride());
 		context.PendingReadbacks.push_back(readbackBuffer);
 	}
@@ -397,13 +454,13 @@ namespace GFX::Cmd
 	template<typename T>
 	BindlessTable CreateBindlessTable(GraphicsContext& context, std::vector<T*> resources, uint32_t registerSpace)
 	{
+		PROFILE_CMD();
+
 		ASSERT(registerSpace > 0u, "[CreateBindlessTable] Bindless resources must exist on space that is not 0");
 		ASSERT(!resources.empty(), "[CreateBindlessTable] Cannot create bindless table with no resources!");
 
-		DescriptorHeap& heap = context.MemContext.SRVHeap;
-
 		BindlessTable table;
-		table.DescriptorTable = heap.Allocate(resources.size());
+		table.DescriptorTable = Device::Get()->GetMemory().SRVHeapGPU->Allocate(resources.size());
 		table.RegisterSpace = registerSpace;
 		table.DescriptorCount = (uint32_t) resources.size();
 
@@ -427,4 +484,19 @@ namespace GFX::Cmd
 			GFX::Cmd::Delete(context, table.DescriptorTable);
 	}
 
+}
+
+// From Common.h
+namespace EnginePrivate
+{
+	ScopedSectionResolver::ScopedSectionResolver(const GraphicsContext& context, const std::string& sectonName):
+		m_Context(context)
+	{
+		GFX::Cmd::MarkerBegin(m_Context, sectonName);
+	}
+
+	ScopedSectionResolver::~ScopedSectionResolver()
+	{
+		GFX::Cmd::MarkerEnd(m_Context);
+	}
 }

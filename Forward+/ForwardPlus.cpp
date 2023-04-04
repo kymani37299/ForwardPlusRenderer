@@ -12,15 +12,12 @@
 #include <Engine/System/Input.h>
 #include <Engine/System/Window.h>
 #include <Engine/System/ApplicationConfiguration.h>
-#include <Engine/Utility/MathUtility.h>
-#include <Engine/Utility/Random.h>
 
 #include "Globals.h"
 #include "Renderers/Util/ConstantBuffer.h"
-#include "Renderers/Util/SamplerManager.h"
 #include "Renderers/Util/VertexPipeline.h"
 #include "Renderers/Util/TextureDebugger.h"
-#include "Scene/SceneLoading.h"
+#include "Scene/SceneManager.h"
 #include "Scene/SceneGraph.h"
 #include "Shaders/shared_definitions.h"
 #include "Gui/GUI_Implementations.h"
@@ -35,75 +32,16 @@ TextureDebugger TexDebugger;
 
 namespace ForwardPlusPrivate
 {
-	void PrepareScene(GraphicsContext& context)
+	void UpdateInput(GraphicsContext& context, float dt, Application* app)
 	{
-		MainSceneGraph->AmbientLight = Float3(0.05f, 0.05f, 0.2f);
-		MainSceneGraph->DirLight.Direction = Float3(-0.2f, -1.0f, -0.2f);
-		MainSceneGraph->DirLight.Radiance = Float3(3.7f, 2.0f, 0.9f);
+		PROFILE_SECTION_CPU("UpdateInput");
 
-		if (AppConfig.Settings.contains("SIMPLE_SCENE"))
-		{
-			Drawable plane{};
-			plane.Position = { 0.0f, -10.0f, 0.0f };
-			plane.Scale = { 10000.0f, 1.0f, 10000.0f };
-			SceneLoading::LoadedScene cubeScene = SceneLoading::Load("Resources/cube/cube.gltf");
-			SceneLoading::AddDraws(cubeScene, plane);
-
-			constexpr uint32_t NUM_CUBES = 50;
-			for (uint32_t i = 0; i < NUM_CUBES; i++)
-			{
-				const Float3 position = Float3{ Random::SNorm(), Random::SNorm(), Random::SNorm() } *Float3{ 100.0f, 100.0f, 100.0f };
-				const Float3 scale = Float3{ Random::Float(0.1f, 10.0f), Random::Float(0.1f, 10.0f) , Random::Float(0.1f, 10.0f) };
-				Drawable cube{};
-				cube.Position = position;
-				cube.Scale = scale;
-				SceneLoading::AddDraws(cubeScene, cube);
-			}
-		}
-		else
-		{
-			// Note: Too big for the github, so using low res scene on repo
-			//SceneLoading::LoadedScene scene = SceneLoading::Load("Resources/SuperSponza/NewSponza_Main_Blender_glTF.gltf");
-			SceneLoading::LoadedScene scene = SceneLoading::Load("Resources/sponza/sponza.gltf");
-
-			if (AppConfig.Settings.contains("SINGLE_CASTLE"))
-			{
-				const Float3 startingPosition{ 350.0f, 0.0f, 200.0f };
-
-				Drawable e{};
-				e.Position = startingPosition;
-				e.Scale = 10.0f * Float3{ 1.0f, 1.0f, 1.0f };
-				SceneLoading::AddDraws(scene, e);
-				MainSceneGraph->MainCamera.NextTransform.Position += startingPosition;
-			}
-			else
-			{
-				constexpr uint32_t NUM_CASTLES[2] = { 10, 10 };
-				constexpr float CASTLE_OFFSET[2] = { 350.0f, 200.0f };
-				for (uint32_t i = 0; i < NUM_CASTLES[0]; i++)
-				{
-					for (uint32_t j = 0; j < NUM_CASTLES[1]; j++)
-					{
-						Drawable e{};
-						e.Position = { i * CASTLE_OFFSET[0], 0.0f , j * CASTLE_OFFSET[1] };
-						e.Scale = 10.0f * Float3{ 1.0f, 1.0f, 1.0f };
-						SceneLoading::AddDraws(scene, e);
-					}
-				}
-				MainSceneGraph->MainCamera.NextTransform.Position += Float3(2 * CASTLE_OFFSET[0], 0.0f, 2 * CASTLE_OFFSET[1]);
-			}
-
-		}
-	}
-
-	void UpdateInput(float dt, Application* app)
-	{
 		float dtSec = dt / 1000.0f;
 
 		if (Input::IsKeyJustPressed('R'))
 		{
 			GFX::ReloadAllShaders();
-			app->OnShaderReload(Device::Get()->GetContext());
+			app->OnShaderReload(context);
 		}
 
 		if (Input::IsKeyJustPressed('F'))
@@ -117,8 +55,7 @@ namespace ForwardPlusPrivate
 				static bool showCursorToggle = false;
 				showCursorToggle = !showCursorToggle;
 				Window::Get()->ShowCursor(showCursorToggle);
-			}
-			
+			}	
 		}
 
 		const float movement_speed = 10.0f;
@@ -141,13 +78,13 @@ namespace ForwardPlusPrivate
 		}
 
 		Float4 moveDir4{ moveDir.x, moveDir.y, moveDir.z, 1.0f };
-		Float4 relativeDir = Float4(DirectX::XMVector4Transform(moveDir4.ToXM(), MainSceneGraph->MainCamera.WorldToView));
-		MainSceneGraph->MainCamera.NextTransform.Position += Float3(relativeDir.x, relativeDir.y, relativeDir.z);
+		Float4 relativeDir = Float4(DirectX::XMVector4Transform(moveDir4.ToXM(), SceneManager::Get().GetSceneGraph().MainCamera.WorldToView));
+		SceneManager::Get().GetSceneGraph().MainCamera.NextTransform.Position += Float3(relativeDir.x, relativeDir.y, relativeDir.z);
 
 		if (!Window::Get()->IsCursorShown())
 		{
 			Float2 mouseDelta = Input::GetMouseDelta();
-			Float3& cameraRot = MainSceneGraph->MainCamera.NextTransform.Rotation;
+			Float3& cameraRot = SceneManager::Get().GetSceneGraph().MainCamera.NextTransform.Rotation;
 			cameraRot.y -= dtSec * mouse_speed * mouseDelta.x;
 			cameraRot.x -= dtSec * mouse_speed * mouseDelta.y;
 			cameraRot.x = std::clamp(cameraRot.x, -1.5f, 1.5f);
@@ -164,12 +101,11 @@ namespace ForwardPlusPrivate
 				cameraDir += dtSec * mouse_speed * camera_effects[i];
 		}
 
-		Float3& cameraRot = MainSceneGraph->MainCamera.NextTransform.Rotation;
+		Float3& cameraRot = SceneManager::Get().GetSceneGraph().MainCamera.NextTransform.Rotation;
 		cameraRot.y += dtSec * mouse_speed * 0.0001f * cameraDir.y;
 		cameraRot.x += dtSec * mouse_speed * 0.0001f * cameraDir.x;
 		cameraRot.x = std::clamp(cameraRot.x, -1.5f, 1.5f);
 	}
-
 }
 
 ForwardPlus::ForwardPlus()
@@ -184,6 +120,13 @@ ForwardPlus::~ForwardPlus()
 
 void ForwardPlus::OnInit(GraphicsContext& context)
 {
+	const bool profileLoading = AppConfig.Settings.contains("PROFILE_LOADING");
+	if (profileLoading)
+	{
+		OPTICK_START_CAPTURE();
+	}
+	PROFILE_SECTION(context, "ForwardPlus initialization");
+
 	using namespace ForwardPlusPrivate;
 	
 	// Setup gui
@@ -193,18 +136,28 @@ void ForwardPlus::OnInit(GraphicsContext& context)
 			GUI::Get()->SetVisible(false);
 		}
 
+		GUI::Get()->AddElement(new SceneManagerGUI());
 		GUI::Get()->AddElement(new LightsGUI());
-		GUI::Get()->AddElement(new RenderStatsGUI(true));
+		GUI::Get()->AddElement(new RenderStatsGUI());
 		GUI::Get()->AddElement(new RenderSettingsGUI());
 		GUI::Get()->AddElement(new DebugVisualizationsGUI());
 		GUI::Get()->AddElement(new PositionInfoGUI());
 		GUI::Get()->AddElement(new TextureDebuggerGUI());
 	}
 
+	// Load scene
+	{
+#ifdef DEBUG
+		const SceneSelection scene = SceneSelection::SimpleBoxes;
+#else
+		const SceneSelection scene = SceneSelection::Sponza;
+#endif
+		SceneManager::Get().LoadScene(context, scene);
+	}
+
 	// Initialize GFX resources
 	{
-		MainSceneGraph = new SceneGraph{};
-		MainSceneGraph->InitRenderData(context);
+		PROFILE_SECTION(context, "Initialize GFX Resources");
 
 		VertPipeline = new VertexPipeline{};
 		VertPipeline->Init(context);
@@ -222,13 +175,17 @@ void ForwardPlus::OnInit(GraphicsContext& context)
 
 		OnWindowResize(context);
 	}
-	
-	PrepareScene(context);
+
+	if (profileLoading)
+	{
+		OPTICK_STOP_CAPTURE();
+		OPTICK_SAVE_CAPTURE("LoadingCapture.opt");
+	}
 }
 
 void ForwardPlus::OnDestroy(GraphicsContext& context)
 {
-	delete MainSceneGraph;
+	SceneManager::Destroy();
 	delete VertPipeline;
 }
 
@@ -236,26 +193,24 @@ Texture* ForwardPlus::OnDraw(GraphicsContext& context)
 {
 	using namespace ForwardPlusPrivate;
 
-	MainSceneGraph->FrameUpdate(context);
+	SceneManager::Get().GetSceneGraph().FrameUpdate(context);
 
 	// Geometry culling
 	if (!RenderSettings.Culling.GeometryCullingFrozen)
 	{
-		GFX::Cmd::MarkerBegin(context, "Geometry Culling");
-
+		PROFILE_SECTION(context, "Geometry Culling");
+		
 		const bool useHzb = RenderSettings.Culling.GeoCullingMode == GeometryCullingMode::GPU_OcclusionCulling;
 
 		// Main camera
-		GeometryCullingInput mainCameraInput{ MainSceneGraph->MainCamera };
+		GeometryCullingInput mainCameraInput{ SceneManager::Get().GetSceneGraph().MainCamera };
 		if(useHzb) mainCameraInput.HZB = m_GeometryRenderer.GetHZB(context, m_MainRT_Depth.get());
 		m_Culling.CullGeometries(context, mainCameraInput);
 
 		// Shadow camera
-		GeometryCullingInput shadowCameraInput{ MainSceneGraph->ShadowCamera };
+		GeometryCullingInput shadowCameraInput{ SceneManager::Get().GetSceneGraph().ShadowCamera };
 		if (useHzb) shadowCameraInput.HZB = m_ShadowRenderer.GetHZB(context);
 		m_Culling.CullGeometries(context, shadowCameraInput);
-
-		GFX::Cmd::MarkerEnd(context);
 	}
 	
 
@@ -278,6 +233,8 @@ Texture* ForwardPlus::OnDraw(GraphicsContext& context)
 	// Resolve depth
 	if (RenderSettings.AntialiasingMode == AntiAliasingMode::MSAA)
 	{
+		PROFILE_SECTION(context, "Resolve depth");
+
 		GraphicsState resolveState{};
 		resolveState.DepthStencilState.DepthEnable = true;
 		resolveState.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_ALWAYS;
@@ -288,13 +245,10 @@ Texture* ForwardPlus::OnDraw(GraphicsContext& context)
 	
 		resolveState.Table.SRVs[0] = m_MainRT_DepthMS.get();
 		resolveState.Table.CBVs[0] = cb.GetBuffer(context);
-	
-		GFX::Cmd::MarkerBegin(context, "Resolve depth");
 		resolveState.DepthStencil = m_MainRT_Depth.get();
 		resolveState.Shader = m_DepthResolveShader.get();
 	
 		GFX::Cmd::DrawFC(context, resolveState);
-		GFX::Cmd::MarkerEnd(context);
 	}
 
 	// SSAO
@@ -329,8 +283,8 @@ Texture* ForwardPlus::OnDraw(GraphicsContext& context)
 	Texture* ppResult = m_PostprocessingRenderer.Process(context, m_MainRT_HDR.get(), m_MotionVectorRT.get());
 	
 	// Update RenderStats
-	RenderStats.MainStats = MainSceneGraph->MainCamera.CullingData.CullingStats;
-	RenderStats.ShadowStats = MainSceneGraph->ShadowCamera.CullingData.CullingStats;
+	RenderStats.MainStats = SceneManager::Get().GetSceneGraph().MainCamera.CullingData.CullingStats;
+	RenderStats.ShadowStats = SceneManager::Get().GetSceneGraph().ShadowCamera.CullingData.CullingStats;
 
 	return ppResult;
 }
@@ -338,7 +292,7 @@ Texture* ForwardPlus::OnDraw(GraphicsContext& context)
 void ForwardPlus::OnUpdate(GraphicsContext& context, float dt)
 {
 	using namespace ForwardPlusPrivate;
-	UpdateInput(dt, this);
+	UpdateInput(context, dt, this);
 }
 
 void ForwardPlus::OnShaderReload(GraphicsContext& context)
@@ -348,19 +302,19 @@ void ForwardPlus::OnShaderReload(GraphicsContext& context)
 
 void ForwardPlus::OnWindowResize(GraphicsContext& context)
 {
-	const uint32_t sampleFlags = RenderSettings.AntialiasingMode == AntiAliasingMode::MSAA ? RCF_MSAA_X8 : 0;
+	const RCF sampleFlags = RenderSettings.AntialiasingMode == AntiAliasingMode::MSAA ? RCF::MSAA_X8 : RCF::None;
 
 	const uint32_t size[2] = { AppConfig.WindowWidth, AppConfig.WindowHeight };
-	m_MainRT_HDR = ScopedRef<Texture>(GFX::CreateTexture(size[0], size[1], RCF_Bind_RTV | sampleFlags, 1, DXGI_FORMAT_R16G16B16A16_FLOAT));
-	m_MotionVectorRT = ScopedRef<Texture>(GFX::CreateTexture(size[0], size[1], RCF_Bind_RTV | sampleFlags, 1, DXGI_FORMAT_R16G16_UNORM));
-	m_MainRT_DepthMS = ScopedRef<Texture>(GFX::CreateTexture(size[0], size[1], RCF_Bind_DSV | sampleFlags));
-	m_MainRT_Depth = RenderSettings.AntialiasingMode == AntiAliasingMode::MSAA  ? Ref<Texture>(GFX::CreateTexture(size[0], size[1], RCF_Bind_DSV)) : Ref<Texture>(m_MainRT_DepthMS);
+	m_MainRT_HDR = ScopedRef<Texture>(GFX::CreateTexture(size[0], size[1], RCF::RTV | sampleFlags, 1, DXGI_FORMAT_R16G16B16A16_FLOAT));
+	m_MotionVectorRT = ScopedRef<Texture>(GFX::CreateTexture(size[0], size[1], RCF::RTV | sampleFlags, 1, DXGI_FORMAT_R16G16_UNORM));
+	m_MainRT_DepthMS = ScopedRef<Texture>(GFX::CreateTexture(size[0], size[1], RCF::DSV | sampleFlags));
+	m_MainRT_Depth = RenderSettings.AntialiasingMode == AntiAliasingMode::MSAA  ? Ref<Texture>(GFX::CreateTexture(size[0], size[1], RCF::DSV)) : Ref<Texture>(m_MainRT_DepthMS);
 	m_PostprocessingRenderer.ReloadTextureResources(context);
 	m_ShadowRenderer.ReloadTextureResources(context);
 	m_Culling.UpdateResources(context);
 	m_SSAORenderer.UpdateResources(context);
 
-	MainSceneGraph->MainCamera.AspectRatio = (float)AppConfig.WindowWidth / AppConfig.WindowHeight;
+	SceneManager::Get().GetSceneGraph().MainCamera.AspectRatio = (float)AppConfig.WindowWidth / AppConfig.WindowHeight;
 
 	GFX::SetDebugName(m_MainRT_HDR.get(), "ForwardPlus::MainRT_HDR");
 	GFX::SetDebugName(m_MotionVectorRT.get(), "ForwardPlus::MotionVectorRT");

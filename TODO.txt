@@ -1,10 +1,22 @@
-- When debugger not present, force crash instead of assert
-- Fix SSAO
-- Use BitVector for visibility mask
+TODO:
 - Only do MSAA on DepthPrepass and use results for AA on drawing
-- InFlight frames
-- Remove sampler manager
-- Move creation flags functions in Resource.h to some namespace
+- Create new scene with thousands of objects for profiling
+- Per frame data instead of 1000s of constant buffers
+- Make better constant buffer system so we don't create CBs every frame
+- Meshlet culling
+- Create loading cache
+- Add default shader defines
 
 Bugs:
 - CPU culling is not culling same things as GPU frustum culling
+- SSAO not working
+- TAA has visible jittering
+- Validation errors on changing scenes
+- Shadow edges are flickering when moving
+- MTR_LOADING doesn't load first scene properly
+- Changing scenes causes GPU memory leak
+
+Notes:
+- Using Release OptickCore.dll, not sure if it matters for debug build
+- Using GraphicsContext in GUI::Render , is it really nesecarry ?
+- Using GraphicsContext in Application::Update, is it really necesarry ?

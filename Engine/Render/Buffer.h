@@ -12,7 +12,7 @@ struct Buffer : public Resource
 
 namespace GFX
 {
-	Buffer* CreateBuffer(uint32_t byteSize, uint32_t elementStride, uint64_t creationFlags, ResourceInitData* initData = nullptr);
+	Buffer* CreateBuffer(uint32_t byteSize, uint32_t elementStride, RCF creationFlags, ResourceInitData* initData = nullptr);
 	void ResizeBuffer(GraphicsContext& context, Buffer* buffer, uint32_t byteSize);
 
 	inline void ExpandBuffer(GraphicsContext& context, Buffer* buffer, uint32_t byteSize)
@@ -25,21 +25,21 @@ namespace GFX
 
 	inline Buffer* CreateIndexBuffer(uint32_t byteSize, uint32_t elementStride, ResourceInitData* initData)
 	{
-		return CreateBuffer(byteSize, elementStride, RCF_None, initData);
+		return CreateBuffer(byteSize, elementStride, RCF::None, initData);
 	}
 
 	template<typename VertexType>
 	Buffer* CreateVertexBuffer(uint32_t numElements, ResourceInitData* initData)
 	{
 		constexpr uint32_t vertStride = sizeof(VertexType);
-		return CreateBuffer(vertStride * numElements, vertStride, RCF_None, initData);
+		return CreateBuffer(vertStride * numElements, vertStride, RCF::None, initData);
 	}
 
 	template<typename ConstantType>
 	Buffer* CreateConstantBuffer()
 	{
 		constexpr uint32_t stride = (sizeof(ConstantType) + 255) & ~255;
-		return CreateBuffer(stride, stride, RCF_Bind_CBV | RCF_CPU_Access);
+		return CreateBuffer(stride, stride, RCF::CBV | RCF::CPU_Access);
 	}
 }
 
@@ -50,8 +50,8 @@ public:
 	{
 		for (uint32_t i = 0; i < Device::IN_FLIGHT_FRAME_COUNT; i++)
 		{
-			m_ReadBuffers[i] = GFX::CreateBuffer(stride, stride, RCF_Readback);
-			m_WriteBuffers[i] = GFX::CreateBuffer(stride, stride, RCF_Bind_UAV);
+			m_ReadBuffers[i] = GFX::CreateBuffer(stride, stride, RCF::Readback);
+			m_WriteBuffers[i] = GFX::CreateBuffer(stride, stride, RCF::UAV);
 		}
 	}
 

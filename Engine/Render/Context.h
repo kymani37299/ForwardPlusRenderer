@@ -2,12 +2,15 @@
 
 #include <unordered_map>
 
+#include "Render/Device.h"
 #include "Render/RenderAPI.h"
 #include "Render/DescriptorHeap.h"
 #include "Render/Shader.h"
 #include "Utility/MathUtility.h"
+#include "Utility/Multithreading.h"
 #include "System/ApplicationConfiguration.h"
 
+enum class RCF : uint64_t;
 struct Resource;
 struct Buffer;
 class ReadbackBuffer;
@@ -24,11 +27,6 @@ struct Fence
 
 struct MemoryContext
 {
-	// Pernament descriptors
-	DescriptorHeap SRVHeap{ true, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1, 1 };
-	DescriptorHeap SMPHeap{ true, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 1, 1 };
-
-	// Frame resources
 	std::vector<ComPtr<IUnknown>> FrameDXResources;
 	std::vector<DescriptorAllocation> FrameDescriptors;
 	std::vector<Shader*> FrameShaders;
@@ -106,6 +104,14 @@ enum class RenderPrimitiveType
 	PatchList,
 };
 
+union PushConstantValue
+{
+	int32_t Int;
+	uint32_t Uint;
+	float Float;
+};
+using PushConstantTable = BindVector<PushConstantValue>;
+
 struct GraphicsState
 {
 	// Bindings
@@ -150,7 +156,7 @@ public:
 		uint32_t Width;
 		uint32_t Height;
 		uint32_t NumMips;
-		uint64_t CreationFlags;
+		RCF CreationFlags;
 		DXGI_FORMAT Format;
 	};
 
@@ -180,7 +186,6 @@ struct GraphicsContext
 	ID3D12CommandSignature* ApplyState(const GraphicsState& state);
 
 	bool Closed = false;
-	ComPtr<ID3D12CommandQueue> CmdQueue;
 	ComPtr<ID3D12CommandAllocator> CmdAlloc;
 	ComPtr<ID3D12GraphicsCommandList> CmdList;
 	MemoryContext MemContext;
@@ -196,4 +201,37 @@ struct GraphicsContext
 	StagingResourcesContext StagingResources;
 
 	BoundGraphicsState BoundState;
+};
+
+class ContextManager
+{
+public:
+	static void Init() { s_Instance = new ContextManager(); }
+	static ContextManager& Get() { return *s_Instance; }
+	static void Destroy() { SAFE_DELETE(s_Instance); }
+
+private:
+	static ContextManager* s_Instance;
+
+public:
+	ContextManager();
+
+	void Flush();
+
+	GraphicsContext& NextFrame()
+	{
+		m_ContextFrame = (m_ContextFrame + 1) % Device::IN_FLIGHT_FRAME_COUNT; 
+		return *m_FrameContexts[m_ContextFrame];
+	}
+
+	GraphicsContext& CreateWorkerContext();
+	GraphicsContext& GetCreationContext() const { return *m_CreationContext; }
+private:
+	MTR::Mutex m_CreationMutex;
+
+	uint32_t m_ContextFrame = 0;
+
+	ScopedRef<GraphicsContext> m_CreationContext;
+	ScopedRef<GraphicsContext> m_FrameContexts[Device::IN_FLIGHT_FRAME_COUNT];
+	std::vector<ScopedRef<GraphicsContext>> m_WorkerContexts;
 };

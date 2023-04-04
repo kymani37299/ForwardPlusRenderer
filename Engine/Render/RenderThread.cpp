@@ -12,60 +12,83 @@ RenderThread::RenderThread()
 
 RenderThread::~RenderThread()
 {
-	Stop();
+	SetWantedState(RenderThreadState::Stopped);
 	m_ThreadHandle->join();
 	delete m_ThreadHandle;
+
+	m_TaskQueue.ForEachAndClear([](RenderTask* task) {
+		delete task;
+		});
 }
 
 void RenderThread::Submit(RenderTask* task)
 {
-	m_TaskQueue.Push(task);
+	m_TaskQueue.Add(task);
+}
+
+bool RenderTaskComparator(const RenderTask* l, const RenderTask* r)
+{
+	const uint32_t lPrio = l ? EnumToInt(l->GetPriority()) : 1000;
+	const uint32_t rPrio = r ? EnumToInt(r->GetPriority()) : 1000;
+	return lPrio < rPrio;
 }
 
 void RenderThread::Run()
 {
-	m_Running = true;
-	ScopedRef<GraphicsContext> context = ScopedRef<GraphicsContext>(GFX::Cmd::CreateGraphicsContext());
-	while (m_Running)
-	{
-		m_CurrentTask = m_TaskQueue.Pop();
-		if (m_CurrentTask.load() == &m_ThreadKiller) break;
-		m_CurrentTask.load()->SetRunning(true);
-		m_CurrentTask.load()->Run(*context);
-		m_CurrentTask.load()->SetRunning(false);
+	OPTICK_THREAD("RenderThread");
 
-		// TODO: In flight tasks
-		GFX::Cmd::SubmitContext(*context);
-		GFX::Cmd::FlushContext(*context);
-		GFX::Cmd::ResetContext(*context.get());
-		
+	GraphicsContext& context = ContextManager::Get().CreateWorkerContext();
+	while (m_WantedState != RenderThreadState::Stopped)
+	{
+		while (m_WantedState == RenderThreadState::Paused)
+		{
+			m_State = RenderThreadState::Paused;
+			MTR::ThreadSleepMS(100);
+		}
+
+		// Fill local queue if we already processed everything
+		if (m_ThreadLocalQueueIndex >= m_ThreadLocalQueue.size())
+		{
+			m_ThreadLocalQueue.clear();
+
+			m_State = RenderThreadState::WaitingForTask;
+			while (m_TaskQueue.Empty()) MTR::ThreadSleepMS(200);
+
+			m_ThreadLocalQueueIndex = 0;
+			m_TaskQueue.ForEachAndClear([this](RenderTask* task) {
+				m_ThreadLocalQueue.push_back(task);
+				});
+
+			std::sort(m_ThreadLocalQueue.begin(), m_ThreadLocalQueue.end(), RenderTaskComparator);
+		}
+
+		// Get next task
+		m_CurrentTask = m_ThreadLocalQueue[m_ThreadLocalQueueIndex++];
+		if (m_CurrentTask == nullptr) continue;
+
+		// Execute task
+		GFX::Cmd::BeginRecording(context);
+		m_State = RenderThreadState::RunningTask;
+		m_CurrentTask.load()->SetRunning(true);
+		m_CurrentTask.load()->Run(context);
+		m_CurrentTask.load()->SetRunning(false);
+		GFX::Cmd::EndRecordingAndSubmit(context);
+
 		RenderTask* lastTask = m_CurrentTask.exchange(nullptr);
 		delete lastTask;
 	}
+	m_State = RenderThreadState::Stopped;
 }
 
-void RenderThread::ResetAndWait()
+void RenderThread::SetWantedState(RenderThreadState wantedState)
 {
-	// 1. Stop loading thread
-	Stop();
-
-	// 2. Wait it to finish
-	m_ThreadHandle->join();
-
-	// 3. Restart loading thread
-	delete m_ThreadHandle;
-	m_Running = true;
-	m_TaskQueue.Clear();
-	m_ThreadHandle = new std::thread(&RenderThread::Run, this);
-}
-
-void RenderThread::Stop()
-{
-	m_TaskQueue.Clear();
-	m_TaskQueue.Push(&m_ThreadKiller);
-	RenderTask* currentTask = m_CurrentTask;
-	if (currentTask) currentTask->SetRunning(false);
-	m_Running = false;
+	m_WantedState = wantedState;
+	Submit(nullptr);
+	if (m_WantedState == RenderThreadState::Stopped)
+	{
+		RenderTask* currentTask = m_CurrentTask;
+		if (currentTask) currentTask->SetRunning(false);
+	}
 }
 
 RenderThreadPool::RenderThreadPool(uint32_t numThreads)
@@ -83,6 +106,32 @@ RenderThreadPool::~RenderThreadPool()
 	for (uint32_t i = 0; i < m_NumThreads; i++)
 	{
 		delete m_LoadingThreads[i];
+	}
+}
+
+void RenderThreadPool::FlushAndPauseExecution()
+{
+	// Set all threads to paused
+	for (RenderThread* rt : m_LoadingThreads)
+	{
+		rt->SetWantedState(RenderThreadState::Paused);
+	}
+
+	// Wait for all threads to finish execution
+	for (RenderThread* rt : m_LoadingThreads)
+	{
+		while(rt->GetState() != RenderThreadState::Paused)
+		{
+			MTR::ThreadSleepMS(20);
+		}
+	}
+}
+
+void RenderThreadPool::ResumeExecution()
+{
+	for (RenderThread* rt : m_LoadingThreads)
+	{
+		rt->SetWantedState(RenderThreadState::RunningTask);
 	}
 }
 

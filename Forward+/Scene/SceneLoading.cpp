@@ -12,6 +12,7 @@
 #include <Engine/Utility/PathUtility.h>
 #include <Engine/System/ApplicationConfiguration.h>
 
+#include "Scene/SceneManager.h"
 #include "Scene/TextureLoading.h"
 #include "Shaders/shared_definitions.h"
 
@@ -54,6 +55,8 @@ namespace SceneLoading
 
 		void PrepareIB(const LoadingContext& context, Float3* positons, uint32_t numPositions, std::vector<uint32_t>& inBuffer, std::vector<uint32_t>& outBuffer, std::vector<DirectX::CullData>& outCullData)
 		{
+			PROFILE_SECTION(*context.GfxContext, "PrepareIB");
+
 			std::vector<DirectX::Meshlet> meshlets;
 			std::vector<uint8_t> uniqueVertexIB;
 			std::vector<DirectX::MeshletTriangle> triangles;
@@ -119,6 +122,8 @@ namespace SceneLoading
 
 		uint32_t LoadMesh(const LoadingContext& context, cgltf_primitive* meshData)
 		{
+			PROFILE_SECTION(*context.GfxContext, "LoadMesh");
+
 			ASSERT(meshData->type == cgltf_primitive_type_triangles, "[SceneLoading] Scene contains quad meshes. We are supporting just triangle meshes.");
 
 			const uint32_t vertCount = (uint32_t) meshData->attributes[0].data->count;
@@ -235,6 +240,8 @@ namespace SceneLoading
 
 		uint32_t LoadTexture(const LoadingContext& context, cgltf_texture* texture, ColorUNORM defaultColor = {1.0f, 1.0f, 1.0f, 1.0f})
 		{
+			PROFILE_SECTION(*context.GfxContext, "LoadTexture");
+
 			uint32_t textureIndex = context.LoadingRG->TextureData.AllocTexture();
 
 			std::string texturePath = "";
@@ -339,6 +346,8 @@ namespace SceneLoading
 
 		std::vector<LoadedObject> LoadNode(LoadingContext& context, cgltf_node* nodeData, LoadedScene& sceneRef)
 		{
+			PROFILE_SECTION(*context.GfxContext, "LoadNode");
+
 			std::vector<LoadedObject> objects;
 			if (nodeData->mesh)
 			{
@@ -354,8 +363,10 @@ namespace SceneLoading
 		}
 	}
 
-	LoadedScene Load(const std::string& path)
+	LoadedScene Load(GraphicsContext& gfxContext, const std::string& path)
 	{
+		PROFILE_SECTION(gfxContext, "SceneLoading::Load");
+
 		LoadedScene scene;
 
 		const std::string& ext = PathUtility::GetFileExtension(path);
@@ -367,14 +378,20 @@ namespace SceneLoading
 
 		LoadingContext context{};
 		context.RelativePath = PathUtility::GetPathWitoutFile(path);
-		context.GfxContext = &Device::Get()->GetContext();
-		context.LoadingScene = MainSceneGraph;
+		context.GfxContext = &gfxContext;
+		context.LoadingScene = &SceneManager::Get().GetSceneGraph();
 
 		cgltf_options options = {};
 		cgltf_data* data = NULL;
-		CGTF_CALL(cgltf_parse_file(&options, path.c_str(), &data));
-		CGTF_CALL(cgltf_load_buffers(&options, data, path.c_str()));
-
+		{
+			PROFILE_SECTION(gfxContext, "ParseFile");
+			CGTF_CALL(cgltf_parse_file(&options, path.c_str(), &data));
+		}
+		{
+			PROFILE_SECTION(gfxContext, "LoadBuffers");
+			CGTF_CALL(cgltf_load_buffers(&options, data, path.c_str()));
+		}
+		
 		for (size_t i = 0; i < data->nodes_count; i++)
 		{
 			std::vector<LoadedObject> objects = LoadNode(context, data->nodes + i, scene);
@@ -385,9 +402,10 @@ namespace SceneLoading
 		return scene;
 	}
 
-	void AddDraws(const LoadedScene scene, const Drawable& baseDrawable)
+	void AddDraws(GraphicsContext& context, const LoadedScene scene, const Drawable& baseDrawable)
 	{
-		GraphicsContext& context = Device::Get()->GetContext();
+		PROFILE_SECTION(context, "SceneLoading::AddDraws");
+
 		for (const LoadedObject& obj : scene)
 		{
 			Drawable drawable = baseDrawable;
@@ -396,7 +414,7 @@ namespace SceneLoading
 			drawable.BaseTransform = obj.Transform;
 			drawable.BaseBoundingVolume = obj.BoundingVolume;
 
-			RenderGroup& rg = MainSceneGraph->RenderGroups[EnumToInt(obj.RenderGroup)];
+			RenderGroup& rg = SceneManager::Get().GetSceneGraph().RenderGroups[EnumToInt(obj.RenderGroup)];
 			rg.AddDrawable(context, drawable);
 		}
 	}

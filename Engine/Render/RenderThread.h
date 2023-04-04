@@ -5,25 +5,37 @@
 
 struct GraphicsContext;
 
-// TODO: Add RenderTask priority
+enum class RenderTaskPriority
+{
+	High,
+	Medium,
+	Low,
+};
+
 class RenderTask
 {
 public:
 	virtual ~RenderTask() {}
 	virtual void Run(GraphicsContext& context) = 0;
 
-	inline bool ShouldStop() const { return !m_Running; }
-	inline bool IsRunning() const { return m_Running; }
-	inline void SetRunning(bool running) { m_Running = running; }
+	bool ShouldStop() const { return !m_Running; }
+	bool IsRunning() const { return m_Running; }
+	void SetRunning(bool running) { m_Running = running; }
+
+	void SetPriority(RenderTaskPriority priority) { m_Priority = priority; }
+	RenderTaskPriority GetPriority() const { return m_Priority; }
 
 private:
+	RenderTaskPriority m_Priority = RenderTaskPriority::Medium;
 	bool m_Running = false;
 };
 
-class RenderTaskKiller : public RenderTask
+enum class RenderThreadState
 {
-public:
-	void Run(GraphicsContext&) override {}
+	WaitingForTask,
+	RunningTask,
+	Paused,
+	Stopped,
 };
 
 class RenderThread
@@ -35,20 +47,20 @@ public:
 public:
 	void Submit(RenderTask* task);
 	void Run();
-	void ResetAndWait();
-	void Stop();
 
-	size_t RemainingTaskCount() const
-	{
-		return m_TaskQueue.Size();
-	}
+	void SetWantedState(RenderThreadState wantedState);
+	RenderThreadState GetState() const { return m_State; }
 
 private:
-	RenderTaskKiller m_ThreadKiller;
-	MTR::BlockingQueue<RenderTask*> m_TaskQueue;
+	MTR::MutexVector<RenderTask*> m_TaskQueue;
 	std::thread* m_ThreadHandle = nullptr;
 	std::atomic<RenderTask*> m_CurrentTask = nullptr;
-	bool m_Running = false;
+	
+	RenderThreadState m_WantedState = RenderThreadState::RunningTask;
+	RenderThreadState m_State = RenderThreadState::Stopped;
+
+	uint32_t m_ThreadLocalQueueIndex = 0;
+	std::vector<RenderTask*> m_ThreadLocalQueue;
 };
 
 class RenderThreadPool
@@ -65,6 +77,9 @@ private:
 	~RenderThreadPool();
 
 public:
+	void FlushAndPauseExecution();
+	void ResumeExecution();
+
 	void Submit(RenderTask* task);
 
 private:

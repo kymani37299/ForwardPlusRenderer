@@ -25,74 +25,98 @@ namespace MTR
 		std::this_thread::sleep_for(std::chrono::milliseconds(duration));
 	}
 
-	template<typename T>
-	class MutexVector
+	class Mutex
 	{
 	public:
-		MutexVector() { m_Mutex = new std::mutex(); }
-		~MutexVector() { delete m_Mutex; }
+		Mutex() { m_Mutex = new std::mutex{}; }
+		~Mutex() { delete m_Mutex; }
 
 		inline void Lock() { m_Mutex->lock(); }
 		inline void Unlock() { m_Mutex->unlock(); }
 
+	private:
+		std::mutex* m_Mutex;
+	};
+
+	template<typename T>
+	class MutexVector
+	{
+	public:
 		inline void Add(const T& element)
 		{
-			Lock();
+			m_Mutex.Lock();
 			m_Data.push_back(element);
-			Unlock();
+			m_Mutex.Unlock();
 		}
 
 		inline void AddAll(const std::vector<T>& elements)
 		{
-			Lock();
+			m_Mutex.Lock();
 			for (const T& element : elements) m_Data.push_back(element);
-			Unlock();
+			m_Mutex.Unlock();
 		}
 
 		inline void Remove(size_t index)
 		{
-			Lock();
+			m_Mutex.Lock();
 			m_Data.erase(m_Data.begin() + index);
-			Unlock();
+			m_Mutex.Unlock();
 		}
 
 		inline void Clear()
 		{
-			Lock();
+			m_Mutex.Lock();
 			m_Data.clear();
-			Unlock();
+			m_Mutex.Unlock();
 		}
 
 		inline bool Empty()
 		{
-			Lock();
+			m_Mutex.Lock();
 			bool ret = m_Data.empty();
-			Unlock();
+			m_Mutex.Unlock();
 			return ret;
+		}
+
+		template<typename F>
+		void ForEach(F&& f)
+		{
+			m_Mutex.Lock();
+			for (T& e : m_Data) f(e);
+			m_Mutex.Unlock();
 		}
 
 		template<typename F>
 		void ForEach(F& f)
 		{
-			Lock();
+			m_Mutex.Lock();
 			for (T& e : m_Data) f(e);
-			Unlock();
+			m_Mutex.Unlock();
+		}
+
+		template<typename F>
+		void ForEachAndClear(F&& f)
+		{
+			m_Mutex.Lock();
+			for (T& e : m_Data) f(e);
+			m_Data.clear();
+			m_Mutex.Unlock();
 		}
 
 		template<typename F>
 		void ForEachAndClear(F& f)
 		{
-			Lock();
+			m_Mutex.Lock();
 			for (T& e : m_Data) f(e);
 			m_Data.clear();
-			Unlock();
+			m_Mutex.Unlock();
 		}
 
 		// TODO: Add [] override
 		// TODO: Add foreach override
 
 	private:
-		std::mutex* m_Mutex;
+		Mutex m_Mutex;
 		std::vector<T> m_Data;
 	};
 

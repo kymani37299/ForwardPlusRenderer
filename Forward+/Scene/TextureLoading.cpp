@@ -11,12 +11,12 @@ void TextureLoadingTask::Run(GraphicsContext& context)
 	Texture* tex = nullptr;
 	if (!m_TexturePath.empty())
 	{
-		tex = TextureLoading::LoadTexture(context, m_TexturePath, RCF_None, NumMips);
+		tex = TextureLoading::LoadTexture(context, m_TexturePath, RCF::None, NumMips);
 	}
 	else
 	{
 		ResourceInitData initData = { &context, &m_DefaultColor };
-		tex = GFX::CreateTexture(1, 1, RCF_None, 1, DXGI_FORMAT_R8G8B8A8_UNORM, &initData);
+		tex = GFX::CreateTexture(1, 1, RCF::None, 1, DXGI_FORMAT_R8G8B8A8_UNORM, &initData);
 	}
 
 	m_TextureStorage.UpdateTexture(m_TextureIndex, tex);

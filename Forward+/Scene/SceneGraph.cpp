@@ -9,10 +9,6 @@
 #include <Engine/Render/Shader.h>
 #include <Engine/System/ApplicationConfiguration.h>
 
-#include "Renderers/Util/SamplerManager.h"
-
-SceneGraph* MainSceneGraph = nullptr;
-
 namespace
 {
 	float DegreesToRadians(float deg)
@@ -240,6 +236,8 @@ SceneGraph::SceneGraph():
 
 void SceneGraph::InitRenderData(GraphicsContext& context)
 {
+	PROFILE_SECTION(context, "SceneGraph::InitRenderData");
+
 	MainCamera = Camera::CreatePerspective(75.0f, (float) AppConfig.WindowWidth / AppConfig.WindowHeight, 0.1f, 1000.0f);
 	ShadowCamera = Camera::CreateOrtho(500.0f, 500.0f, -500.0f, 500.0f);
 	ShadowCamera.UseRotation = false;
@@ -253,6 +251,8 @@ void SceneGraph::InitRenderData(GraphicsContext& context)
 
 void SceneGraph::FrameUpdate(GraphicsContext& context)
 {
+	PROFILE_SECTION(context, "SceneGraph::FrameUpdate");
+
 	MainCamera.FrameUpdate(context);
 
 	Lights.SyncGPUBuffer(context);
@@ -309,7 +309,7 @@ namespace ElementBufferHelp
 {
 	Buffer* CreateBuffer(uint32_t numElements, uint32_t stride, const std::string& debugName) 
 	{
-		Buffer* buffer = GFX::CreateBuffer(numElements * stride, stride, RCF_None);
+		Buffer* buffer = GFX::CreateBuffer(numElements * stride, stride, RCF::None);
 		GFX::SetDebugName(buffer, debugName);
 		return buffer;
 	}
@@ -332,8 +332,8 @@ MeshStorage::~MeshStorage()
 
 void MeshStorage::Initialize()
 {
-	m_VertexBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(GetVertexBufferStride(), GetVertexBufferStride(), RCF_None));
-	m_IndexBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(GetIndexBufferStride(), GetIndexBufferStride(), RCF_None));
+	m_VertexBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(GetVertexBufferStride(), GetVertexBufferStride(), RCF::None));
+	m_IndexBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(GetIndexBufferStride(), GetIndexBufferStride(), RCF::None));
 
 	GFX::SetDebugName(m_VertexBuffer.get(), "MeshStorage::VertexBuffer");
 	GFX::SetDebugName(m_IndexBuffer.get(), "MeshStorage::IndexBuffer");
@@ -365,7 +365,7 @@ void TextureStorage::Initialize(GraphicsContext& context)
 {
 	ColorUNORM defaultColor{ (unsigned char) 0, 0, 0, 255 };
 	ResourceInitData initData = { &context, &defaultColor };
-	m_EmptyTexture = ScopedRef<Texture>(GFX::CreateTexture(1, 1, RCF_None, 1, DXGI_FORMAT_R8G8B8A8_UNORM, &initData));
+	m_EmptyTexture = ScopedRef<Texture>(GFX::CreateTexture(1, 1, RCF::None, 1, DXGI_FORMAT_R8G8B8A8_UNORM, &initData));
 	m_Textures.resize(MAX_TEXTURE_COUNT);
 
 	for(uint32_t i=0;i<MAX_TEXTURE_COUNT;i++)

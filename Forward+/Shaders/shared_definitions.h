@@ -13,7 +13,7 @@
 #define SSAO_KERNEL_SIZE 64
 
 // General
-#define OPT_COMP_TG_SIZE 128
+#define OPT_COMP_TG_SIZE 128 // Must be divisible by 32
 #define OPT_TILE_SIZE 32u
 
 #endif // SHARED_DEFINITIONS_H

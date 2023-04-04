@@ -44,14 +44,14 @@ namespace GFX
 			srvDesc.Format = DepthViewFormat;
 		}
 
-		if (texture->DepthOrArraySize == 6 && texture->CreationFlags & RCF_Cubemap)
+		if (texture->DepthOrArraySize == 6 && TestFlag(texture->CreationFlags, RCF::Cubemap))
 		{
 			srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
 			srvDesc.TextureCube.MipLevels = mipCount;
 			srvDesc.TextureCube.MostDetailedMip = firstMip;
 			srvDesc.TextureCube.ResourceMinLODClamp = 0.0f;
 		}
-		else if (texture->CreationFlags & RCF_Texture3D)
+		else if (TestFlag(texture->CreationFlags, RCF::Texture3D))
 		{
 			ASSERT(!GetSampleCount(texture->CreationFlags) != 1, "MS Texutre3D SRV not implemented");
 
@@ -98,7 +98,7 @@ namespace GFX
 			uavDesc.Format = DepthViewFormat;
 		}
 
-		if (texture->CreationFlags & RCF_Texture3D)
+		if (TestFlag(texture->CreationFlags, RCF::Texture3D))
 		{
 			uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE3D;
 			uavDesc.Texture3D.FirstWSlice = firstElementOrSlice;
@@ -127,7 +127,7 @@ namespace GFX
 
 	static DescriptorAllocation CreateRTV(Texture* texture, uint32_t firstMip, uint32_t mipCount, uint32_t firstElement, uint32_t elementCount)
 	{
-		ASSERT(!(texture->CreationFlags & RCF_Texture3D), "RTV not implemented for Texture3D!");
+		ASSERT(!TestFlag(texture->CreationFlags, RCF::Texture3D), "RTV not implemented for Texture3D!");
 		ASSERT(texture->DepthOrArraySize == 1, "RTV not implemented for TextureArray!");
 
 		DescriptorAllocation RTV = Device::Get()->GetMemory().RTVHeap->Allocate();
@@ -160,13 +160,13 @@ namespace GFX
 
 	static void CreateTextureResources(Texture* texture, ResourceInitData* initData)
 	{
-		if (texture->CreationFlags & RCF_Bind_DSV) texture->Format = DepthFormat;
+		if (TestFlag(texture->CreationFlags, RCF::DSV)) texture->Format = DepthFormat;
 
 		Device* device = Device::Get();
 		DeviceMemory& memory = device->GetMemory();
 
 		D3D12_RESOURCE_DESC resourceDesc{};
-		resourceDesc.Dimension = texture->CreationFlags & RCF_Texture3D ? D3D12_RESOURCE_DIMENSION_TEXTURE3D : D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+		resourceDesc.Dimension = TestFlag(texture->CreationFlags, RCF::Texture3D) ? D3D12_RESOURCE_DIMENSION_TEXTURE3D : D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 		resourceDesc.Alignment = 0;
 		resourceDesc.Width = texture->Width;
 		resourceDesc.Height = texture->Height;
@@ -179,7 +179,7 @@ namespace GFX
 		resourceDesc.SampleDesc.Quality = 0;
 
 		ScopedRef<D3D12_CLEAR_VALUE> clearValue = nullptr;
-		if (texture->CreationFlags & RCF_Bind_RTV)
+		if (TestFlag(texture->CreationFlags, RCF::RTV))
 		{
 			clearValue = ScopedRef<D3D12_CLEAR_VALUE>(new D3D12_CLEAR_VALUE{});
 			clearValue->Color[0] = 0.0f;
@@ -188,7 +188,7 @@ namespace GFX
 			clearValue->Color[3] = 0.0f;
 			clearValue->Format = texture->Format;
 		}
-		else if(texture->CreationFlags & RCF_Bind_DSV)
+		else if(TestFlag(texture->CreationFlags, RCF::DSV))
 		{
 			clearValue = ScopedRef<D3D12_CLEAR_VALUE>(new D3D12_CLEAR_VALUE{});
 			clearValue->DepthStencil = { 1.0f, 0 };
@@ -201,13 +201,13 @@ namespace GFX
 
 		if (initData) GFX::Cmd::UploadToTexture(*initData->Context, initData->Data, texture, 0);
 
-		if(!(texture->CreationFlags & RCF_No_SRV)) texture->SRV = CreateSRV(texture, 0, -1, 0, texture->DepthOrArraySize);
-		if (texture->CreationFlags & RCF_Bind_UAV) texture->UAV = CreateUAV(texture, 0, 0, texture->DepthOrArraySize);
-		if (texture->CreationFlags & RCF_Bind_RTV && !(texture->CreationFlags & RCF_Cubemap)) texture->RTV = CreateRTV(texture, 0, texture->NumMips, -1, texture->DepthOrArraySize);
-		if (texture->CreationFlags & RCF_Bind_DSV && !(texture->CreationFlags & RCF_Cubemap)) texture->DSV = CreateDSV(texture, 0, texture->NumMips, -1, texture->DepthOrArraySize);
+		if(!TestFlag(texture->CreationFlags, RCF::NoSRV)) texture->SRV = CreateSRV(texture, 0, -1, 0, texture->DepthOrArraySize);
+		if (TestFlag(texture->CreationFlags, RCF::UAV)) texture->UAV = CreateUAV(texture, 0, 0, texture->DepthOrArraySize);
+		if (TestFlag(texture->CreationFlags, RCF::RTV) && !TestFlag(texture->CreationFlags, RCF::Cubemap)) texture->RTV = CreateRTV(texture, 0, texture->NumMips, -1, texture->DepthOrArraySize);
+		if (TestFlag(texture->CreationFlags, RCF::DSV) && !TestFlag(texture->CreationFlags, RCF::Cubemap)) texture->DSV = CreateDSV(texture, 0, texture->NumMips, -1, texture->DepthOrArraySize);
 	}
 
-	Texture* CreateTexture(uint32_t width, uint32_t height, uint64_t creationFlags, uint32_t numMips, DXGI_FORMAT format, ResourceInitData* initData)
+	Texture* CreateTexture(uint32_t width, uint32_t height, RCF creationFlags, uint32_t numMips, DXGI_FORMAT format, ResourceInitData* initData)
 	{
 		Texture* tex = new Texture{};
 		tex->Type = ResourceType::Texture;
@@ -224,7 +224,7 @@ namespace GFX
 		return tex;
 	}
 
-	Texture* CreateTextureArray(uint32_t width, uint32_t height, uint32_t numElements, uint64_t creationFlags, uint32_t numMips, DXGI_FORMAT format, std::vector<ResourceInitData*> initData)
+	Texture* CreateTextureArray(uint32_t width, uint32_t height, uint32_t numElements, RCF creationFlags, uint32_t numMips, DXGI_FORMAT format, std::vector<ResourceInitData*> initData)
 	{
 		Texture* tex = new Texture{};
 		tex->Type = ResourceType::Texture;
@@ -310,7 +310,7 @@ namespace GFX
 
 	uint32_t GetSubresourceIndex(Texture* texture, uint32_t mipIndex, uint32_t sliceOrArrayIndex)
 	{
-		if (texture->CreationFlags & RCF_Texture3D)
+		if (TestFlag(texture->CreationFlags, RCF::Texture3D))
 		{
 			return D3D12CalcSubresource(mipIndex, 0, sliceOrArrayIndex, texture->NumMips, texture->DepthOrArraySize);
 		}

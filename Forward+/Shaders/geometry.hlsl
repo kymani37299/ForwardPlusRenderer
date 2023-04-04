@@ -1,4 +1,3 @@
-#include "samplers.h"
 #include "scene.h"
 #include "lighting.h"
 #include "light_culling.h"
@@ -21,6 +20,9 @@ cbuffer Constants : register(b0)
 	Camera MainCamera;
 	SceneInfo SceneInfoData;
 }
+
+SamplerState s_AnisoWrap : register(s0);
+SamplerState s_LinearWrap : register(s1);
 
 StructuredBuffer<Light> Lights : register(t0);
 StructuredBuffer<uint> VisibleLights : register(t1);

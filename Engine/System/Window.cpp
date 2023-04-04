@@ -216,6 +216,7 @@ Window::Window()
 
 void Window::Update(float dt)
 {
+    PROFILE_SECTION_CPU("Window::Update");
     MSG message = {};
     while (PeekMessageW(&message, 0, 0, 0, PM_REMOVE))
     {

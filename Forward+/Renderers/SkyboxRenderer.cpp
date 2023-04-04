@@ -9,7 +9,6 @@
 #include <Engine/Loading/TextureLoading.h>
 
 #include "Renderers/Util/ConstantBuffer.h"
-#include "Renderers/Util/SamplerManager.h"
 #include "Scene/SceneGraph.h"
 
 Buffer* GenerateCubeVB(GraphicsContext& context);
@@ -54,7 +53,7 @@ static void ProcessAllCubemapFaces(GraphicsContext& context, GraphicsState& face
 		cubemap->RTV = rtvDescriptor;
 		faceState.RenderTargets[0] = cubemap;
 		context.ApplyState(faceState);
-		context.CmdList->DrawInstanced(CubeVB->ByteSize / CubeVB->Stride, 1, 0, 0);
+		GFX::Cmd::Draw(context, CubeVB->ByteSize / CubeVB->Stride, 0);
 
 		GFX::Cmd::Delete(context, rtvDescriptor);
 	}
@@ -66,44 +65,44 @@ static void ProcessAllCubemapFaces(GraphicsContext& context, GraphicsState& face
 
 static Texture* PanoramaToCubemap(GraphicsContext& context, Texture* panoramaTexture, uint32_t cubemapSize)
 {
-	Texture* cubemapTex = GFX::CreateTextureArray(cubemapSize, cubemapSize, 6, RCF_Bind_RTV | RCF_Cubemap);
+	PROFILE_SECTION(context, "Panorama to cubemap");
+
+	Texture* cubemapTex = GFX::CreateTextureArray(cubemapSize, cubemapSize, 6, RCF::RTV | RCF::Cubemap);
 
 	Shader* shader = new Shader("Forward+/Shaders/quadrilateral2cubemap.hlsl");
 	
 	GraphicsState state;
 	state.Shader = shader;
 	state.Table.SRVs[0] = panoramaTexture;
+	state.Table.SMPs[0] = { D3D12_FILTER_MIN_MAG_MIP_LINEAR , D3D12_TEXTURE_ADDRESS_MODE_WRAP };
 
-	GFX::Cmd::MarkerBegin(context, "Panorama to cubemap");
-	SSManager.Bind(state);
 	ProcessAllCubemapFaces(context, state, cubemapTex);
 	GFX::Cmd::Delete(context, shader);
-	GFX::Cmd::MarkerEnd(context);
 
 	return cubemapTex;
 }
 
 static Texture* CubemapToIrradianceMap(GraphicsContext& context, Texture* cubemapTexture, uint32_t cubemapSize)
 {
-	Texture* cubemapTex = GFX::CreateTextureArray(cubemapSize, cubemapSize, 6, RCF_Bind_RTV | RCF_Cubemap, 1, DXGI_FORMAT_R11G11B10_FLOAT);
+	PROFILE_SECTION(context, "Calculate irradiance");
+
+	Texture* cubemapTex = GFX::CreateTextureArray(cubemapSize, cubemapSize, 6, RCF::RTV | RCF::Cubemap, 1, DXGI_FORMAT_R11G11B10_FLOAT);
 	Shader* shader = new Shader("Forward+/Shaders/calculate_irradiance.hlsl");
 	
 	GraphicsState state;
 	state.Shader = shader;
 
-	GFX::Cmd::MarkerBegin(context, "Calculate irradiance");
 	state.Table.SRVs[0] = cubemapTexture;
-	SSManager.Bind(state);
+	state.Table.SMPs[0] = { D3D12_FILTER_MIN_MAG_MIP_LINEAR , D3D12_TEXTURE_ADDRESS_MODE_WRAP };
 	ProcessAllCubemapFaces(context, state, cubemapTex);
 	GFX::Cmd::Delete(context, shader);
-	GFX::Cmd::MarkerEnd(context);
-
+	
 	return cubemapTex;
 }
 
 static Texture* GenerateSkybox(GraphicsContext& context, const std::string& texturePath)
 {
-	Texture* skyboxPanorama = TextureLoading::LoadTextureHDR(texturePath, RCF_None);
+	Texture* skyboxPanorama = TextureLoading::LoadTextureHDR(context, texturePath, RCF::None);
 	Texture* cubemap = PanoramaToCubemap(context, skyboxPanorama, SkyboxRenderer::CUBEMAP_SIZE);
 	GFX::Cmd::Delete(context, skyboxPanorama);
 	return cubemap;
@@ -123,6 +122,8 @@ void SkyboxRenderer::Init(GraphicsContext& context)
 
 void SkyboxRenderer::Draw(GraphicsContext& context, GraphicsState& state)
 {
+	PROFILE_SECTION(context, "Skybox");
+
 	state.StencilRef = 0xff;
 	state.DepthStencilState.StencilEnable = true;
 	state.DepthStencilState.StencilWriteMask = 0;
@@ -132,20 +133,17 @@ void SkyboxRenderer::Draw(GraphicsContext& context, GraphicsState& state)
 	state.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_NOT_EQUAL;
 	state.DepthStencilState.BackFace = state.DepthStencilState.FrontFace;
 
-	GFX::Cmd::MarkerBegin(context, "Skybox");
-
 	ConstantBuffer cb{};
-	cb.Add(MainSceneGraph->MainCamera.CameraData);
+	cb.Add(SceneManager::Get().GetSceneGraph().MainCamera.CameraData);
 
 	state.Table.CBVs[0] = cb.GetBuffer(context);
 	state.Table.SRVs[0] = m_SkyboxCubemap.get();
+	state.Table.SMPs[0] = { D3D12_FILTER_MIN_MAG_MIP_LINEAR , D3D12_TEXTURE_ADDRESS_MODE_WRAP };
 	state.VertexBuffers[0] = m_CubeVB.get();
-	SSManager.Bind(state);
 	state.Shader = m_SkyboxShader.get();
 
 	context.ApplyState(state);
-	context.CmdList->DrawInstanced(m_CubeVB->ByteSize/m_CubeVB->Stride, 1, 0, 0);
-	GFX::Cmd::MarkerEnd(context);
+	GFX::Cmd::Draw(context, m_CubeVB->ByteSize/m_CubeVB->Stride, 0);
 }
 
 void SkyboxRenderer::OnShaderReload(GraphicsContext& context)

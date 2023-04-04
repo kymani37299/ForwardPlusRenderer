@@ -1,6 +1,5 @@
 #ifdef TEXTURE_PREVIEW
 
-#include "samplers.h"
 #include "full_screen.h"
 
 VS_IMPL;
@@ -12,6 +11,7 @@ cbuffer Constants : register(b0)
 	uint SelectedMip;
 };
 
+SamplerState s_PointWrap : register(s0);
 Texture2D InputTexture : register(t0);
 
 float4 PS(FCVertex IN) : SV_Target

@@ -26,8 +26,8 @@ static constexpr uint32_t INDIRECT_ARGUMENTS_STRIDE = sizeof(D3D12_DRAW_INDEXED_
 
 void VertexPipeline::Init(GraphicsContext& context)
 {
-	m_IndirectArgumentsBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(INDIRECT_ARGUMENTS_STRIDE, INDIRECT_ARGUMENTS_STRIDE, RCF_Bind_UAV));
-	m_IndirectArgumentsCountBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_UAV));
+	m_IndirectArgumentsBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(INDIRECT_ARGUMENTS_STRIDE, INDIRECT_ARGUMENTS_STRIDE, RCF::UAV));
+	m_IndirectArgumentsCountBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(sizeof(uint32_t), sizeof(uint32_t), RCF::UAV));
 	m_PrepareArgsShader = ScopedRef<Shader>(new Shader{ "Forward+/Shaders/geometry_culling.hlsl" });
 }
 
@@ -47,7 +47,7 @@ void VertexPipeline::Draw(GraphicsContext& context, GraphicsState& state, Render
 
 void VertexPipeline::Draw_CPU(GraphicsContext& context, GraphicsState& state, RenderGroup& rg, RenderGroupCullingData& cullingData)
 {
-	GFX::Cmd::MarkerBegin(context, "VertexPipeline::Execute");
+	PROFILE_SECTION(context, "VertexPipeline::Draw");
 
 	rg.SetupPipelineInputs(state);
 	state.VertexBuffers[0] = rg.MeshData.GetVertexBuffer();
@@ -55,7 +55,7 @@ void VertexPipeline::Draw_CPU(GraphicsContext& context, GraphicsState& state, Re
 	state.PushConstantCount = 1;
 	context.ApplyState(state);
 	
-	BindVector<uint32_t> pushConstantValues;
+	PushConstantTable pushConstantValues;
 	for (uint32_t i = 0; i < rg.Drawables.GetSize(); i++)
 	{
 		if (!cullingData.VisibilityMask.Get(i)) continue;
@@ -63,18 +63,18 @@ void VertexPipeline::Draw_CPU(GraphicsContext& context, GraphicsState& state, Re
 		const Drawable& d = rg.Drawables[i];
 		const Mesh& m = rg.Meshes[d.MeshIndex];
 
-		pushConstantValues[0] = i;
+		pushConstantValues[0].Uint = i;
 		GFX::Cmd::SetPushConstants(state.ShaderStages, context, pushConstantValues);
-		context.CmdList->DrawIndexedInstanced(m.IndexCount, 1, m.IndexOffset, m.VertOffset, 0);
+		GFX::Cmd::DrawIndexed(context, m.IndexCount, m.IndexOffset, m.VertOffset);
 	}
-
-	GFX::Cmd::MarkerEnd(context);
 }
 
 void VertexPipeline::Draw_GPU(GraphicsContext& context, GraphicsState& state, RenderGroup& rg, RenderGroupCullingData& cullingData)
 {
 	// Prepare args
 	{
+		PROFILE_SECTION(context, "VertexPipeline::Prepare");
+
 		GFX::ExpandBuffer(context, m_IndirectArgumentsBuffer.get(), INDIRECT_ARGUMENTS_STRIDE * (UINT) rg.Drawables.GetSize());
 
 		const uint32_t clearValue = 0;
@@ -98,11 +98,13 @@ void VertexPipeline::Draw_GPU(GraphicsContext& context, GraphicsState& state, Re
 		prepareState.ShaderStages = CS;
 		prepareState.ShaderConfig = config;
 		context.ApplyState(prepareState);
-		context.CmdList->Dispatch(MathUtility::CeilDiv(rg.Drawables.GetSize(), (uint32_t)OPT_COMP_TG_SIZE), 1, 1);
+		GFX::Cmd::Dispatch(context, MathUtility::CeilDiv(rg.Drawables.GetSize(), (uint32_t)OPT_COMP_TG_SIZE), 1, 1);
 	}
 
 	// Execute draws
 	{
+		PROFILE_SECTION(context, "VertexPipeline::Draw");
+
 		D3D12_INDIRECT_ARGUMENT_DESC indirectArguments[2];
 		indirectArguments[0].Type = D3D12_INDIRECT_ARGUMENT_TYPE_CONSTANT;
 		indirectArguments[0].Constant.DestOffsetIn32BitValues = 0;
@@ -124,6 +126,6 @@ void VertexPipeline::Draw_GPU(GraphicsContext& context, GraphicsState& state, Re
 		GFX::Cmd::TransitionResource(context, m_IndirectArgumentsBuffer.get(), D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
 
 		ID3D12CommandSignature* commandSignature = context.ApplyState(state);
-		context.CmdList->ExecuteIndirect(commandSignature, (UINT) rg.Drawables.GetSize(), m_IndirectArgumentsBuffer->Handle.Get(), 0, m_IndirectArgumentsCountBuffer->Handle.Get(), 0u);
+		GFX::Cmd::ExecuteIndirect(context, commandSignature, (uint32_t)rg.Drawables.GetSize(), m_IndirectArgumentsBuffer.get(), 0, m_IndirectArgumentsCountBuffer.get(), 0);
 	}
 }

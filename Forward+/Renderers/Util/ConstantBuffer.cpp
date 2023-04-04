@@ -8,7 +8,7 @@
 Buffer* ConstantBuffer::GetBuffer(GraphicsContext& context)
 {
 	uint32_t bufferSize = (m_DataSize + 255) & ~255;
-	Buffer* buffer = GFX::CreateBuffer(bufferSize, bufferSize, RCF_Bind_CBV | RCF_CPU_Access);
+	Buffer* buffer = GFX::CreateBuffer(bufferSize, bufferSize, RCF::CBV | RCF::CPU_Access);
 	GFX::SetDebugName(buffer, "ConstantBuffer");
 	GFX::Cmd::UploadToBufferImmediate(buffer, 0, m_Data.data(), 0, m_DataSize);
 	GFX::Cmd::Delete(context, buffer);

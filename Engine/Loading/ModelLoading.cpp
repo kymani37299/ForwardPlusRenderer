@@ -431,7 +431,7 @@ namespace ModelLoading
 
 			MorphTarget targetData{};
 			targetData.Weight = weights[targetIndex];
-			targetData.Data = GFX::CreateBuffer(vertices.NumVertices * sizeof(MorphVertex), sizeof(MorphVertex), RCF_None, &initData);
+			targetData.Data = GFX::CreateBuffer(vertices.NumVertices * sizeof(MorphVertex), sizeof(MorphVertex), RCF::None, &initData);
 
 			m_Object.MorphTargets.push_back(targetData);
 		}
@@ -499,7 +499,7 @@ namespace ModelLoading
 				data = defaultData.data();
 			}
 			ResourceInitData initData{ &this->m_Context, data };
-			return GFX::CreateBuffer(numElements * stride, stride, RCF_None, &initData);
+			return GFX::CreateBuffer(numElements * stride, stride, RCF::None, &initData);
 		};
 
 		m_Object.Positions = createBuffer(vertices.Positions, sizeof(DirectX::XMFLOAT3), vertCount);
@@ -550,44 +550,47 @@ namespace ModelLoading
 		{
 			const std::string textureURI = textureData->image->uri;
 			const std::string texturePath = m_DirectoryPath + "/" + textureURI;
-			return TextureLoading::LoadTexture(m_Context, texturePath, RCF_None, m_TextureNumMips);
+			return TextureLoading::LoadTexture(m_Context, texturePath, RCF::None, m_TextureNumMips);
 		}
 		else
 		{
 			ResourceInitData initData = { &m_Context, &defaultColor };
-			return GFX::CreateTexture(1, 1, RCF_None, 1, DXGI_FORMAT_R8G8B8A8_UNORM, &initData);
+			return GFX::CreateTexture(1, 1, RCF::None, 1, DXGI_FORMAT_R8G8B8A8_UNORM, &initData);
 		}
 	}
 
 	template<typename T>
-	static void Free(T** res)
+	static void Free(GraphicsContext& context, T** res)
 	{
-		if (*res) GFX::Cmd::Delete(Device::Get()->GetContext(), *res);
+		if (*res) GFX::Cmd::Delete(context, *res);
 		*res = nullptr;
 	}
 
-	void Free(SceneObject& sceneObject)
+	void Free(GraphicsContext& context, SceneObject& sceneObject)
 	{
-		Free(&sceneObject.Positions);
-		Free(&sceneObject.Texcoords);
-		Free(&sceneObject.Normals);
-		Free(&sceneObject.Tangents);
-		Free(&sceneObject.Weights);
-		Free(&sceneObject.Joints);
-		Free(&sceneObject.Indices);
-		Free(&sceneObject.Albedo);
-		Free(&sceneObject.Normal);
-		Free(&sceneObject.MetallicRoughness);
+		Free(context, &sceneObject.Positions);
+		Free(context, &sceneObject.Texcoords);
+		Free(context, &sceneObject.Normals);
+		Free(context, &sceneObject.Tangents);
+		Free(context, &sceneObject.Weights);
+		Free(context, &sceneObject.Joints);
+		Free(context, &sceneObject.Indices);
+		Free(context, &sceneObject.Albedo);
+		Free(context, &sceneObject.Normal);
+		Free(context, &sceneObject.MetallicRoughness);
 
 		for (MorphTarget& morphTarget : sceneObject.MorphTargets)
 		{
-			GFX::Cmd::Delete(Device::Get()->GetContext(), morphTarget.Data);
+			GFX::Cmd::Delete(context, morphTarget.Data);
 		}
 	}
 	
 	void Free(std::vector<SceneObject>& scene)
 	{
-		for (SceneObject& sceneObject : scene) Free(sceneObject);
+		GraphicsContext& context = ContextManager::Get().GetCreationContext();
+		GFX::Cmd::BeginRecording(context);
+		for (SceneObject& sceneObject : scene) Free(context, sceneObject);
+		GFX::Cmd::EndRecordingAndSubmit(context);
 	}
 }
 

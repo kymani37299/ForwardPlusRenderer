@@ -10,6 +10,7 @@
 
 #include "Globals.h"
 #include "Renderers/Util/ConstantBuffer.h"
+#include "Scene/SceneManager.h"
 #include "Scene/SceneGraph.h"
 #include "Shaders/shared_definitions.h"
 
@@ -41,7 +42,7 @@ void Culling::UpdateResources(GraphicsContext& context)
 {
 	m_NumTilesX = MathUtility::CeilDiv(AppConfig.WindowWidth, (uint32_t) TILE_SIZE);
 	m_NumTilesY = MathUtility::CeilDiv(AppConfig.WindowHeight, (uint32_t) TILE_SIZE);
-	m_VisibleLightsBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(m_NumTilesX * m_NumTilesY * (MAX_LIGHTS_PER_TILE + 1) * sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_UAV));
+	m_VisibleLightsBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(m_NumTilesX * m_NumTilesY * (MAX_LIGHTS_PER_TILE + 1) * sizeof(uint32_t), sizeof(uint32_t), RCF::UAV));
 	GFX::SetDebugName(m_VisibleLightsBuffer.get(), "Culling::VisibleLightsBuffer");
 }
 
@@ -49,7 +50,7 @@ namespace CullingPrivate
 {
 	bool IsVisible(const Drawable& d)
 	{
-		const ViewFrustum& vf = MainSceneGraph->MainCamera.CameraFrustum;
+		const ViewFrustum& vf = SceneManager::Get().GetSceneGraph().MainCamera.CameraFrustum;
 		const BoundingSphere bv = d.GetBoundingVolume();
 		return vf.IsInFrustum(bv);
 	}
@@ -57,6 +58,8 @@ namespace CullingPrivate
 
 void Culling::CullGeometries(GraphicsContext& context, GeometryCullingInput& input)
 {
+	PROFILE_SECTION(context, "Cull geometries")
+
 	UpdateStats(context, input.Cam.CullingData);
 
 	GFX::Cmd::ClearBuffer(context, input.Cam.CullingData.StatsBuffer->GetWriteBuffer());
@@ -79,29 +82,29 @@ void Culling::CullLights(GraphicsContext& context, Texture* depth)
 {
 	if (RenderSettings.Culling.LightCullingEnabled)
 	{
+		PROFILE_SECTION(context, "Light culling");
+
 		GraphicsState state{};
 		
 		ConstantBuffer cb{};
-		cb.Add(MainSceneGraph->SceneInfoData);
-		cb.Add(MainSceneGraph->MainCamera.CameraData);
+		cb.Add(SceneManager::Get().GetSceneGraph().SceneInfoData);
+		cb.Add(SceneManager::Get().GetSceneGraph().MainCamera.CameraData);
 
 		state.Table.CBVs[0] = cb.GetBuffer(context);
-		state.Table.SRVs[0] = MainSceneGraph->Lights.GetBuffer();
+		state.Table.SRVs[0] = SceneManager::Get().GetSceneGraph().Lights.GetBuffer();
 		state.Table.SRVs[1] = depth;
 		state.Table.UAVs[0] = m_VisibleLightsBuffer.get();
 		state.Shader = m_LightCullingShader.get();
 		state.ShaderStages = CS;
 
-		GFX::Cmd::MarkerBegin(context, "Light Culling");
 		context.ApplyState(state);
-		context.CmdList->Dispatch(m_NumTilesX, m_NumTilesY, 1);
-		GFX::Cmd::MarkerEnd(context);
+		GFX::Cmd::Dispatch(context, m_NumTilesX, m_NumTilesY, 1);
 	}
 }
 
 void Culling::CullRenderGroupCPU(GraphicsContext& context, RenderGroupType rgType, GeometryCullingInput& input)
 {
-	RenderGroup& rg = MainSceneGraph->RenderGroups[EnumToInt(rgType)];
+	RenderGroup& rg = SceneManager::Get().GetSceneGraph().RenderGroups[EnumToInt(rgType)];
 	RenderGroupCullingData& cullData = input.Cam.CullingData[rgType];
 
 	if (rg.Drawables.GetSize() == 0) return;
@@ -122,7 +125,7 @@ void Culling::CullRenderGroupCPU(GraphicsContext& context, RenderGroupType rgTyp
 
 void Culling::CullRenderGroupGPU(GraphicsContext& context, RenderGroupType rgType, GeometryCullingInput& input)
 {
-	RenderGroup& rg = MainSceneGraph->RenderGroups[EnumToInt(rgType)];
+	RenderGroup& rg = SceneManager::Get().GetSceneGraph().RenderGroups[EnumToInt(rgType)];
 	CameraCullingData& camCullData = input.Cam.CullingData;
 	RenderGroupCullingData& cullData = camCullData[rgType];
 
@@ -137,8 +140,16 @@ void Culling::CullRenderGroupGPU(GraphicsContext& context, RenderGroupType rgTyp
 		config.push_back("OCCLUSION_CULLING");
 	}
 
-	if(!cullData.VisibilityMaskBuffer) cullData.VisibilityMaskBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(sizeof(uint32_t), sizeof(uint32_t), RCF_Bind_UAV));
-	GFX::ExpandBuffer(context, cullData.VisibilityMaskBuffer.get(), rg.Drawables.GetSize() * sizeof(uint32_t));
+	const DeviceSpecification& deviceSpec = Device::Get()->GetSpec();
+	if (deviceSpec.SupportWaveIntrinscs && deviceSpec.WavefrontSize >= 32)
+	{
+		config.push_back("WAVEFRONT_SIZE_GE_32");
+	}
+
+	if(!cullData.VisibilityMaskBuffer) cullData.VisibilityMaskBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(1, 1, RCF::UAV | RCF::RAW));
+
+	constexpr uint32_t BitsPerByte = 8;
+	GFX::ExpandBuffer(context, cullData.VisibilityMaskBuffer.get(), MathUtility::CeilDiv(rg.Drawables.GetSize(), BitsPerByte));
 
 	GraphicsState cullingState{};
 	cullingState.Table.SRVs[0] = rg.Drawables.GetBuffer();
@@ -159,13 +170,13 @@ void Culling::CullRenderGroupGPU(GraphicsContext& context, RenderGroupType rgTyp
 	cullingState.PushConstantCount = 3;
 	context.ApplyState(cullingState);
 
-	BindVector<uint32_t> pushConstants;
-	pushConstants[0] = rg.Drawables.GetSize();
-	pushConstants[1] = input.HZB ? input.HZB->Width : 0;
-	pushConstants[2] = input.HZB ? input.HZB->Height : 0;
+	PushConstantTable pushConstants;
+	pushConstants[0].Uint = rg.Drawables.GetSize();
+	pushConstants[1].Uint = input.HZB ? input.HZB->Width : 0;
+	pushConstants[2].Uint = input.HZB ? input.HZB->Height : 0;
 	
 	GFX::Cmd::SetPushConstants(CS, context, pushConstants);
-	context.CmdList->Dispatch((UINT) MathUtility::CeilDiv(rg.Drawables.GetSize(), (uint32_t) OPT_COMP_TG_SIZE), 1u, 1u);
+	GFX::Cmd::Dispatch(context, (UINT) MathUtility::CeilDiv(rg.Drawables.GetSize(), (uint32_t) OPT_COMP_TG_SIZE), 1u, 1u);
 
 	GFX::Cmd::AddReadbackRequest(context, camCullData.StatsBuffer.get());
 
@@ -191,7 +202,7 @@ void Culling::UpdateStats(GraphicsContext& context, CameraCullingData& cullingDa
 		for (uint32_t i = 0; i < EnumToInt(RenderGroupType::Count); i++)
 		{
 			RenderGroupType rgType = IntToEnum<RenderGroupType>(i);
-			RenderGroup& rg = MainSceneGraph->RenderGroups[i];
+			RenderGroup& rg = SceneManager::Get().GetSceneGraph().RenderGroups[i];
 
 			cullStats.TotalDrawables += rg.Drawables.GetSize();
 			cullStats.VisibleDrawables += rg.Drawables.GetSize();
@@ -202,7 +213,7 @@ void Culling::UpdateStats(GraphicsContext& context, CameraCullingData& cullingDa
 		for (uint32_t i = 0; i < EnumToInt(RenderGroupType::Count); i++)
 		{
 			RenderGroupType rgType = IntToEnum<RenderGroupType>(i);
-			RenderGroup& rg = MainSceneGraph->RenderGroups[i];
+			RenderGroup& rg = SceneManager::Get().GetSceneGraph().RenderGroups[i];
 
 			cullStats.TotalDrawables += rg.Drawables.GetSize();
 			cullStats.VisibleDrawables += cullingData[rgType].VisibilityMask.CountOnes();

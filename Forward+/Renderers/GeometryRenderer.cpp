@@ -8,8 +8,8 @@
 
 #include "Globals.h"
 #include "Renderers/Util/ConstantBuffer.h"
-#include "Renderers/Util/SamplerManager.h"
 #include "Renderers/Util/VertexPipeline.h"
+#include "Scene/SceneManager.h"
 #include "Scene/SceneGraph.h"
 
 GeometryRenderer::GeometryRenderer()
@@ -31,15 +31,16 @@ void GeometryRenderer::Init(GraphicsContext& context)
 
 void GeometryRenderer::DepthPrepass(GraphicsContext& context, GraphicsState& state)
 {
+	PROFILE_SECTION(context, "Depth Prepass");
+
 	const bool drawMotionVectors = RenderSettings.AntialiasingMode == AntiAliasingMode::TAA;
 
-	GFX::Cmd::MarkerBegin(context, "Depth Prepass");
-
 	ConstantBuffer cb{};
-	cb.Add(MainSceneGraph->MainCamera.CameraData);
-	cb.Add(MainSceneGraph->MainCamera.LastCameraData);
-	cb.Add(MainSceneGraph->SceneInfoData);
+	cb.Add(SceneManager::Get().GetSceneGraph().MainCamera.CameraData);
+	cb.Add(SceneManager::Get().GetSceneGraph().MainCamera.LastCameraData);
+	cb.Add(SceneManager::Get().GetSceneGraph().SceneInfoData);
 
+	state.Table.SMPs[0] = { D3D12_FILTER_ANISOTROPIC , D3D12_TEXTURE_ADDRESS_MODE_WRAP };
 	state.Table.CBVs[0] = cb.GetBuffer(context);
 	state.DepthStencilState.DepthEnable = true;
 	state.Shader = m_DepthPrepassShader.get();
@@ -48,7 +49,7 @@ void GeometryRenderer::DepthPrepass(GraphicsContext& context, GraphicsState& sta
 	for (uint32_t i = 0; i < STATIC_ARRAY_SIZE(prepassTypes); i++)
 	{
 		RenderGroupType rgType = IntToEnum<RenderGroupType>(i);
-		RenderGroup& renderGroup = MainSceneGraph->RenderGroups[i];
+		RenderGroup& renderGroup = SceneManager::Get().GetSceneGraph().RenderGroups[i];
 
 		std::vector<std::string> config{};
 		if (drawMotionVectors) config.push_back("MOTION_VECTORS");
@@ -56,17 +57,15 @@ void GeometryRenderer::DepthPrepass(GraphicsContext& context, GraphicsState& sta
 		if (rgType == RenderGroupType::AlphaDiscard)
 		{
 			config.push_back("ALPHA_DISCARD");
-			SSManager.Bind(state);
 		}
 		state.ShaderConfig = config;
-		VertPipeline->Draw(context, state, renderGroup, MainSceneGraph->MainCamera.CullingData[rgType]);
+		VertPipeline->Draw(context, state, renderGroup, SceneManager::Get().GetSceneGraph().MainCamera.CullingData[rgType]);
 	}
-	GFX::Cmd::MarkerEnd(context);
 }
 
 void GeometryRenderer::Draw(GraphicsContext& context, GraphicsState& state, Texture* shadowMask, Buffer* visibleLights, Texture* irradianceMap, Texture* ambientOcclusion)
 {
-	GFX::Cmd::MarkerBegin(context, "Geometry");
+	PROFILE_SECTION(context, "Geometry");
 
 	D3D12_BLEND_DESC blendStateOff = state.BlendState;
 	D3D12_BLEND_DESC blendStateOn = state.BlendState;
@@ -79,9 +78,11 @@ void GeometryRenderer::Draw(GraphicsContext& context, GraphicsState& state, Text
 	blendStateOn.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
 
 	ConstantBuffer cb{};
-	cb.Add(MainSceneGraph->MainCamera.CameraData);
-	cb.Add(MainSceneGraph->SceneInfoData);
+	cb.Add(SceneManager::Get().GetSceneGraph().MainCamera.CameraData);
+	cb.Add(SceneManager::Get().GetSceneGraph().SceneInfoData);
 	state.Table.CBVs[0] = cb.GetBuffer(context);
+	state.Table.SMPs[0] = { D3D12_FILTER_ANISOTROPIC , D3D12_TEXTURE_ADDRESS_MODE_WRAP };
+	state.Table.SMPs[1] = { D3D12_FILTER_MIN_MAG_MIP_LINEAR , D3D12_TEXTURE_ADDRESS_MODE_WRAP };
 
 	state.StencilRef = 0xff;
 	state.DepthStencilState.DepthEnable = true;
@@ -93,9 +94,7 @@ void GeometryRenderer::Draw(GraphicsContext& context, GraphicsState& state, Text
 	state.DepthStencilState.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
 	state.DepthStencilState.BackFace = state.DepthStencilState.FrontFace;
 	
-	SSManager.Bind(state);
-
-	state.Table.SRVs[0] = MainSceneGraph->Lights.GetBuffer();
+	state.Table.SRVs[0] = SceneManager::Get().GetSceneGraph().Lights.GetBuffer();
 	state.Table.SRVs[1] = visibleLights;
 	state.Table.SRVs[2] = shadowMask;
 	state.Table.SRVs[3] = irradianceMap;
@@ -104,7 +103,7 @@ void GeometryRenderer::Draw(GraphicsContext& context, GraphicsState& state, Text
 	for (uint32_t i = 0; i < EnumToInt(RenderGroupType::Count); i++)
 	{
 		RenderGroupType rgType = IntToEnum<RenderGroupType>(i);
-		RenderGroup& renderGroup = MainSceneGraph->RenderGroups[i];
+		RenderGroup& renderGroup = SceneManager::Get().GetSceneGraph().RenderGroups[i];
 		if (renderGroup.Drawables.GetSize() == 0u) continue;
 
 		std::vector<std::string> configuration;
@@ -117,13 +116,11 @@ void GeometryRenderer::Draw(GraphicsContext& context, GraphicsState& state, Text
 		state.Shader = m_GeometryShader.get();
 		state.ShaderConfig = configuration;
 		state.BlendState = rgType == RenderGroupType::Transparent ? blendStateOn : blendStateOff;
-		VertPipeline->Draw(context, state, renderGroup, MainSceneGraph->MainCamera.CullingData[rgType]);
+		VertPipeline->Draw(context, state, renderGroup, SceneManager::Get().GetSceneGraph().MainCamera.CullingData[rgType]);
 	}
-
-	GFX::Cmd::MarkerEnd(context);
 }
 
 Texture* GeometryRenderer::GetHZB(GraphicsContext& context, Texture* depth)
 {
-	return m_HzbGenerator.GetHZB(context, depth, MainSceneGraph->MainCamera);
+	return m_HzbGenerator.GetHZB(context, depth, SceneManager::Get().GetSceneGraph().MainCamera);
 }

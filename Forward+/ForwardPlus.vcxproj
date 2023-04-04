@@ -31,10 +31,10 @@
     <ClCompile Include="Renderers\SSAORenderer.cpp" />
     <ClCompile Include="Renderers\Util\ConstantBuffer.cpp" />
     <ClCompile Include="Renderers\Util\HzbGenerator.cpp" />
-    <ClCompile Include="Renderers\Util\SamplerManager.cpp" />
     <ClCompile Include="Renderers\Util\VertexPipeline.cpp" />
     <ClCompile Include="Scene\SceneGraph.cpp" />
     <ClCompile Include="Scene\SceneLoading.cpp" />
+    <ClCompile Include="Scene\SceneManager.cpp" />
     <ClCompile Include="Scene\TextureLoading.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -50,18 +50,17 @@
     <ClInclude Include="Renderers\SSAORenderer.h" />
     <ClInclude Include="Renderers\Util\ConstantBuffer.h" />
     <ClInclude Include="Renderers\Util\HzbGenerator.h" />
-    <ClInclude Include="Renderers\Util\SamplerManager.h" />
     <ClInclude Include="Renderers\Util\TextureDebugger.h" />
     <ClInclude Include="Renderers\Util\VertexPipeline.h" />
     <ClInclude Include="Scene\SceneGraph.h" />
     <ClInclude Include="Scene\SceneLoading.h" />
+    <ClInclude Include="Scene\SceneManager.h" />
     <ClInclude Include="Scene\TextureLoading.h" />
     <None Include="Shaders\culling.h" />
     <None Include="Shaders\full_screen.h" />
     <None Include="Shaders\lighting.h" />
     <None Include="Shaders\light_culling.h" />
     <None Include="Shaders\pipeline.h" />
-    <None Include="Shaders\samplers.h" />
     <None Include="Shaders\scene.h" />
     <None Include="Shaders\shared_definitions.h" />
     <None Include="Shaders\util.h" />
@@ -206,12 +205,12 @@
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)\External\imgui\src;$(SolutionDir)\External\cgitf;$(SolutionDir);$(SolutionDir)\Forward+;$(SolutionDir)\Engine;$(SolutionDir)\External\DirectXMesh\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\External\imgui\src;$(SolutionDir)\External\cgitf;$(SolutionDir);$(SolutionDir)\Forward+;$(SolutionDir)\Engine;$(SolutionDir)\External\DirectXMesh\Include;$(SolutionDir)\External\Optick\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>d3d12.lib;dxcompiler.lib;dxguid.lib;dxgi.lib;WinPixEventRuntime.lib;Engine.lib;DirectXMesh_x86_d.lib;D3D12MAd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d12.lib;dxcompiler.lib;dxguid.lib;dxgi.lib;WinPixEventRuntime.lib;Engine.lib;DirectXMesh_x86_d.lib;D3D12MAd.lib;OptickCore.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)\Build\Engine\$(Platform)\$(Configuration)\;$(SolutionDir)\External\DirectXMesh\Lib;$(SolutionDir)\External\D3D12MemoryAllocator\bin;$(SolutionDir)\External\WinPixEventRuntime\bin\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -224,14 +223,14 @@
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)\External\imgui\src;$(SolutionDir)\External\cgitf;$(SolutionDir);$(SolutionDir)\Forward+;$(SolutionDir)\Engine;$(SolutionDir)\External\DirectXMesh\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\External\imgui\src;$(SolutionDir)\External\cgitf;$(SolutionDir);$(SolutionDir)\Forward+;$(SolutionDir)\Engine;$(SolutionDir)\External\DirectXMesh\Include;$(SolutionDir)\External\Optick\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>d3d12.lib;dxcompiler.lib;dxguid.lib;dxgi.lib;WinPixEventRuntime.lib;Engine.lib;DirectXMesh_x86.lib;D3D12MA.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d12.lib;dxcompiler.lib;dxguid.lib;dxgi.lib;WinPixEventRuntime.lib;Engine.lib;DirectXMesh_x86.lib;D3D12MA.lib;OptickCore.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(SolutionDir)\Build\Engine\$(Platform)\$(Configuration)\;$(SolutionDir)\External\DirectXMesh\Lib;$(SolutionDir)\External\D3D12MemoryAllocator\bin;$(SolutionDir)\External\WinPixEventRuntime\bin\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -242,13 +241,13 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)\External\imgui\src;$(SolutionDir)\External\cgitf;$(SolutionDir);$(SolutionDir)\Forward+;$(SolutionDir)\Engine;$(SolutionDir)\External\DirectXMesh\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\External\imgui\src;$(SolutionDir)\External\cgitf;$(SolutionDir);$(SolutionDir)\Forward+;$(SolutionDir)\Engine;$(SolutionDir)\External\DirectXMesh\Include;$(SolutionDir)\External\Optick\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>d3d12.lib;dxcompiler.lib;dxguid.lib;dxgi.lib;WinPixEventRuntime.lib;Engine.lib;DirectXMesh_d.lib;D3D12MAd.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)\Build\Engine\$(Platform)\$(Configuration)\;$(SolutionDir)\External\DirectXMesh\Lib;$(SolutionDir)\External\D3D12MemoryAllocator\bin;$(SolutionDir)\External\WinPixEventRuntime\bin\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>d3d12.lib;dxcompiler.lib;dxguid.lib;dxgi.lib;WinPixEventRuntime.lib;Engine.lib;DirectXMesh_d.lib;D3D12MAd.lib;OptickCore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)\Build\Engine\$(Platform)\$(Configuration)\;$(SolutionDir)\External\DirectXMesh\Lib;$(SolutionDir)\External\D3D12MemoryAllocator\bin;$(SolutionDir)\External\WinPixEventRuntime\bin\x64;$(SolutionDir)\External\Optick\lib\x64\debug;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -260,15 +259,15 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)\External\imgui\src;$(SolutionDir)\External\cgitf;$(SolutionDir);$(SolutionDir)\Forward+;$(SolutionDir)\Engine;$(SolutionDir)\External\DirectXMesh\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\External\imgui\src;$(SolutionDir)\External\cgitf;$(SolutionDir);$(SolutionDir)\Forward+;$(SolutionDir)\Engine;$(SolutionDir)\External\DirectXMesh\Include;$(SolutionDir)\External\Optick\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>d3d12.lib;dxcompiler.lib;dxguid.lib;dxgi.lib;WinPixEventRuntime.lib;Engine.lib;DirectXMesh.lib;D3D12MA.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)\Build\Engine\$(Platform)\$(Configuration)\;$(SolutionDir)\External\DirectXMesh\Lib;$(SolutionDir)\External\D3D12MemoryAllocator\bin;$(SolutionDir)\External\WinPixEventRuntime\bin\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>d3d12.lib;dxcompiler.lib;dxguid.lib;dxgi.lib;WinPixEventRuntime.lib;Engine.lib;DirectXMesh.lib;D3D12MA.lib;OptickCore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)\Build\Engine\$(Platform)\$(Configuration)\;$(SolutionDir)\External\DirectXMesh\Lib;$(SolutionDir)\External\D3D12MemoryAllocator\bin;$(SolutionDir)\External\WinPixEventRuntime\bin\x64;$(SolutionDir)\External\Optick\lib\x64\release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

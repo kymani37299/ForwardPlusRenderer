@@ -1,7 +1,9 @@
-#include "samplers.h"
 #include "full_screen.h"
 
 VS_IMPL;
+
+SamplerState s_PointWrap : register(s0);
+SamplerState s_LinearWrap : register(s1);
 
 #ifdef TAA
 

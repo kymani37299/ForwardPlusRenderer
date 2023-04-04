@@ -21,6 +21,8 @@ ApplicationConfiguration AppConfig;
 
 Engine::Engine(Application* app)
 {
+	PROFILE_SECTION_CPU("Init Engine");
+
 	Window::Init();
 	Window::Get()->ShowCursor(false);
 	
@@ -28,27 +30,34 @@ Engine::Engine(Application* app)
 	GFX::InitShaderCompiler();
 	RenderThreadPool::Init(8);
 
-	GFX::InitRenderingResources();
+	GraphicsContext& context = ContextManager::Get().GetCreationContext();
+	ID3D12CommandList* cmdList = context.CmdList.Get();
+	OPTICK_GPU_CONTEXT(cmdList);
+
+	GFX::Cmd::BeginRecording(context);
+	GFX::InitRenderingResources(context);
 
 	GUI::Init();
 	GUI::Get()->AddElement(new ShaderCompilerGUI());
 
 	m_Application = app;
-	m_Application->OnInit(Device::Get()->GetContext());
-	GFX::Cmd::SubmitContext(Device::Get()->GetContext());
+	m_Application->OnInit(context);
+
+	GFX::Cmd::EndRecordingAndSubmit(context);
+	GFX::Cmd::WaitToFinish(context);
 }
 
 Engine::~Engine()
 {
-	GraphicsContext& context = Device::Get()->GetContext();
-	GFX::Cmd::FlushContext(context);
+	ContextManager::Get().Flush();
+	GraphicsContext& context = ContextManager::Get().GetCreationContext();
 
 	m_Application->OnDestroy(context);
 	GUI::Destroy();
 	delete m_Application;
 	RenderThreadPool::Destroy();
 	GFX::DestroyShaderCompiler();
-	GFX::DestroyRenderingResources();
+	GFX::DestroyRenderingResources(context);
 	Device::Destroy();
 	Window::Destroy();
 }
@@ -57,41 +66,54 @@ void Engine::Run()
 {
 	while (Window::Get()->IsRunning())
 	{
+		OPTICK_FRAME("MainThread");
+
 		const float dt = m_FrameTimer.GetTimeMS();
-		GraphicsContext& context = Device::Get()->GetContext();
+
+		GraphicsContext& context = ContextManager::Get().NextFrame();
+
+		ID3D12CommandList* cmdList = context.CmdList.Get();
+		OPTICK_GPU_CONTEXT(cmdList);
 
 		m_FrameTimer.Start();
 		WindowInput::InputFrameBegin();
+		
+		GFX::Cmd::BeginRecording(context);
 
 		// Update
 		Window::Get()->Update(dt);
-		
-		m_Application->OnUpdate(context, dt);
+		{
+			PROFILE_SECTION_CPU("Application::Update");
+			m_Application->OnUpdate(context, dt);
+		}
 		GUI::Get()->Update(dt);
 
-		// Graphics frame init
-		GFX::Cmd::FlushContext(context);
-		GFX::Cmd::ResetContext(context);
-		
 		// Update window size if needed
 		if (AppConfig.WindowSizeDirty)
 		{
-			Device::Get()->RecreateSwapchain();
-			m_Application->OnWindowResize(context);
+			Device::Get()->RecreateSwapchain(context);
+			{
+				PROFILE_SECTION(context, "Application::WindowResize");
+				m_Application->OnWindowResize(context);
+			}
 			AppConfig.WindowSizeDirty = false;
 		}
 
 		// Render
-		Texture* finalRT = m_Application->OnDraw(context);
+		Texture* finalRT = nullptr;
+		{
+			PROFILE_SECTION(context, "Application::Draw");
+			finalRT = m_Application->OnDraw(context);
+		}
 		if (!finalRT)
 		{
-			finalRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV);
+			finalRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF::RTV);
 			GFX::Cmd::Delete(context, finalRT);
 		}
-		Device::Get()->CopyToSwapchain(finalRT);
+		Device::Get()->CopyToSwapchain(context, finalRT);
 
 		GUI::Get()->Render(context);
-		Device::Get()->EndFrame();
+		Device::Get()->EndFrame(context);
 
 		WindowInput::InputFrameEnd();
 		m_FrameTimer.Stop();
@@ -100,6 +122,7 @@ void Engine::Run()
 
 void Engine::ReloadShaders()
 {
-	GFX::ReloadAllShaders();
-	m_Application->OnShaderReload(Device::Get()->GetContext());
+	// TODO: Rework shader reload system this
+	// GFX::ReloadAllShaders();
+	// m_Application->OnShaderReload(ContextManager::Get().GetContext());
 }

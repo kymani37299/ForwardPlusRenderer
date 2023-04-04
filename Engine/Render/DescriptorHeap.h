@@ -5,6 +5,7 @@
 
 #include "Render/RenderAPI.h"
 #include "Utility/MemoryStrategies.h"
+#include "Utility/Multithreading.h"
 
 class DescriptorHeap;
 
@@ -69,7 +70,12 @@ public:
 	DescriptorAllocation Allocate(size_t numDescriptors = 1);
 	DescriptorAllocation AllocateTransient(size_t numDescriptors = 1);
 	
+	void Release(DescriptorAllocation& allocation);
+
 	ID3D12DescriptorHeap* GetHeap() const { return m_Heap.Get(); }
+	
+	// Hack
+	MTR::Mutex& GetAllocationLock() { return m_AllocationLock; }
 
 private:
 	bool m_GpuVisible;
@@ -85,4 +91,6 @@ private:
 
 	D3D12_CPU_DESCRIPTOR_HANDLE m_HeapStartCPUTransient;
 	D3D12_GPU_DESCRIPTOR_HANDLE m_HeapStartGPUTransient;
+
+	MTR::Mutex m_AllocationLock;
 };

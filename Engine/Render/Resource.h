@@ -8,54 +8,56 @@
 
 struct GraphicsContext;
 
-enum ResourceCreationFlags : uint64_t
+// RCF = Resource Creation Flags
+DEFINE_ENUM_CLASS_FLAGS_EX(RCF, uint64_t);
+enum class RCF : uint64_t
 {
-	RCF_None = 0,
+	None = 0,
 
 	// Bindings
-	RCF_Bind_UAV = 1,
-	RCF_Bind_RTV = RCF_Bind_UAV << 1,
-	RCF_Bind_DSV = RCF_Bind_RTV << 1,
-	RCF_Bind_CBV = RCF_Bind_DSV << 1,
-	RCF_Bind_RAW = RCF_Bind_CBV << 1,
-	RCF_No_SRV = RCF_Bind_RAW << 1,
+	UAV = 1,
+	RTV = UAV << 1,
+	DSV = RTV << 1,
+	CBV = DSV << 1,
+	RAW = CBV << 1,
+	NoSRV = RAW << 1,
 
 	// Misc
-	RCF_CPU_Access = RCF_No_SRV << 1,
-	RCF_Readback = RCF_CPU_Access << 1,
-	RCF_GenerateMips = RCF_Readback << 1,
-	RCF_Cubemap = RCF_GenerateMips << 1,
-	RCF_Texture3D = RCF_Cubemap << 1,
+	CPU_Access = NoSRV << 1,
+	Readback = CPU_Access << 1,
+	GenerateMips = Readback << 1,
+	Cubemap = GenerateMips << 1,
+	Texture3D = Cubemap << 1,
 
 	// MSAA
-	RCF_MSAA_X2 = RCF_Texture3D << 1,
-	RCF_MSAA_X4 = RCF_MSAA_X2 << 1,
-	RCF_MSAA_X8 = RCF_MSAA_X4 << 1,
-	RCF_MSAA_X16 = RCF_MSAA_X8 << 1,
+	MSAA_X2 = Texture3D << 1,
+	MSAA_X4 = MSAA_X2 << 1,
+	MSAA_X8 = MSAA_X4 << 1,
+	MSAA_X16 = MSAA_X8 << 1,
 };
 
-inline D3D12_RESOURCE_FLAGS GetResourceCreationFlags(uint64_t creationFlags)
+inline D3D12_RESOURCE_FLAGS GetResourceCreationFlags(RCF creationFlags)
 {
 	D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE;
-	if (creationFlags & RCF_Bind_RTV) flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
-	if (creationFlags & RCF_Bind_DSV) flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
-	if (creationFlags & RCF_Bind_UAV) flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
+	if (TestFlag(creationFlags, RCF::RTV)) flags |= D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+	if (TestFlag(creationFlags, RCF::DSV)) flags |= D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+	if (TestFlag(creationFlags, RCF::UAV)) flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
 	return flags;
 }
 
-inline uint32_t GetSampleCount(uint64_t creationFlags)
+inline uint32_t GetSampleCount(RCF creationFlags)
 {
-	if (creationFlags & RCF_MSAA_X2) return 2;
-	if (creationFlags & RCF_MSAA_X4) return 4;
-	if (creationFlags & RCF_MSAA_X8) return 8;
-	if (creationFlags & RCF_MSAA_X16) return 16;
+	if (TestFlag(creationFlags, RCF::MSAA_X2)) return 2;
+	if (TestFlag(creationFlags, RCF::MSAA_X4)) return 4;
+	if (TestFlag(creationFlags, RCF::MSAA_X8)) return 8;
+	if (TestFlag(creationFlags, RCF::MSAA_X16)) return 16;
 	return 1;
 }
 
-inline D3D12_HEAP_TYPE GetHeapType(uint64_t creationFlags)
+inline D3D12_HEAP_TYPE GetHeapType(RCF creationFlags)
 {
-	if (creationFlags & RCF_Readback) return D3D12_HEAP_TYPE_READBACK;
-	if (creationFlags & RCF_CPU_Access) return D3D12_HEAP_TYPE_UPLOAD;
+	if (TestFlag(creationFlags, RCF::Readback)) return D3D12_HEAP_TYPE_READBACK;
+	if (TestFlag(creationFlags, RCF::CPU_Access)) return D3D12_HEAP_TYPE_UPLOAD;
 	return D3D12_HEAP_TYPE_DEFAULT;
 }
 
@@ -80,7 +82,7 @@ struct SubResource
 struct Resource
 {
 	ResourceType Type = ResourceType::Invalid;
-	uint64_t CreationFlags = RCF_None;
+	RCF CreationFlags = RCF::None;
 
 	ComPtr<ID3D12Resource> Handle = nullptr;
 	ComPtr<D3D12MA::Allocation> Alloc = nullptr;

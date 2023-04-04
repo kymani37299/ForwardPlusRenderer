@@ -1,6 +1,8 @@
 #include "shared_definitions.h"
 #include "scene.h"
 
+#define UINT_BIT_SIZE 32u
+
 #ifdef GEO_CULLING
 
 #include "util.h"
@@ -35,7 +37,7 @@ StructuredBuffer<Mesh> Meshes : register(t2);
 
 SamplerState s_DepthSampler : register(s0);
 
-RWStructuredBuffer<uint> VisibilityMask : register(u0);
+RWByteAddressBuffer VisibilityMask : register(u0);
 RWStructuredBuffer<CullingStats> StatsBuffer : register(u1);
 
 // https://zeux.io/2023/01/12/approximate-projected-bounds/
@@ -70,7 +72,7 @@ bool IsVisible(const Drawable d)
 
 #ifdef OCCLUSION_CULLING
 	BoundingSphere bsView = d.BoundingVolume;
-	bsView.Center = mul(float4(bsView.Center,1.0f), MainCamera.WorldToView);
+	bsView.Center = mul(float4(bsView.Center,1.0f), MainCamera.WorldToView).xyz;
 	
 	float4 aabb;
 	const bool shouldDoOcclusionCulling = TryProjectBoxOnScreen(bsView.Center, bsView.Radius, MainCamera.ZNear, MainCamera.ViewToClip[0][0], MainCamera.ViewToClip[1][1], aabb);
@@ -96,24 +98,59 @@ bool IsVisible(const Drawable d)
 	return true;
 }
 
+// Wavefront size is less than UINT_BIT_SIZE so we can't use wave intrinsics to write to visibility buffer
+#ifndef WAVEFRONT_SIZE_GE_32
+groupshared uint gs_VisibilityMask[OPT_COMP_TG_SIZE / UINT_BIT_SIZE];
+#endif
+
 [numthreads(OPT_COMP_TG_SIZE, 1, 1)]
-void CS(uint3 threadID : SV_DispatchThreadID)
+void CS(uint3 threadID : SV_DispatchThreadID, uint3 localThreadID : SV_GroupThreadID)
 {
 	const uint drawableIndex = threadID.x;
-	if (drawableIndex >= DrawableCount) return;
+	bool isVisible = false;
 
-	const Drawable d = Drawables[drawableIndex];
+	if (drawableIndex < DrawableCount)
+	{
+		const Drawable d = Drawables[drawableIndex];
 
 #ifdef FORCE_VISIBLE
-	const bool isVisible = true;
+		isVisible = true;
 #else
-	const bool isVisible = IsVisible(d);
+		isVisible = IsVisible(d);
 #endif // FORCE_VISIBLE
+	}
 
-	VisibilityMask[drawableIndex] = isVisible ? 1 : 0;
+	// Write result
+#ifdef WAVEFRONT_SIZE_GE_32
+	const uint4 visibilityMask = WaveActiveBallot(isVisible);
+	if (WaveGetLaneIndex() % UINT_BIT_SIZE == 0)
+	{
+		const uint writeIndex = drawableIndex / UINT_BIT_SIZE;
+		const uint ballotIndex = WaveGetLaneIndex() / UINT_BIT_SIZE;
+		VisibilityMask.Store(writeIndex * sizeof(uint), visibilityMask[ballotIndex]);
+	}
+#else
+	const uint ballotIndex = localThreadID.x / UINT_BIT_SIZE;
+	const uint localBallotindex = localThreadID.x % UINT_BIT_SIZE;
+	gs_VisibilityMask[ballotIndex] = 0;
+	GroupMemoryBarrierWithGroupSync();
+	if (isVisible)
+	{
+		const uint visibilityMask = 1u << localBallotindex;
+		InterlockedOr(gs_VisibilityMask[ballotIndex], visibilityMask);
+	}
+	GroupMemoryBarrierWithGroupSync();
+	if (localBallotindex == 0)
+	{
+		const uint writeIndex = drawableIndex / UINT_BIT_SIZE;
+		VisibilityMask.Store(writeIndex * sizeof(uint), gs_VisibilityMask[ballotIndex]);
+	}
+#endif
 
 	// STATS
+	if (drawableIndex < DrawableCount)
 	{
+		const Drawable d = Drawables[drawableIndex];
 		const Mesh m = Meshes[d.MeshIndex];
 		const uint triangleCount = m.IndexCount / 3;
 
@@ -154,7 +191,7 @@ cbuffer Constants : register(b0)
 
 StructuredBuffer<Drawable> Drawables : register(t0);
 StructuredBuffer<Mesh> Meshes : register(t1);
-StructuredBuffer<bool> VisibilityMask : register(t2);
+ByteAddressBuffer VisibilityMask : register(t2);
 
 RWStructuredBuffer<IndirectArguments> IndArgs : register(u0);
 RWStructuredBuffer<uint> IndArgsCount : register(u1);
@@ -168,7 +205,10 @@ void CS(uint3 threadID : SV_DispatchThreadID)
 #ifdef DRAW_ALL
 	const bool isVisible = true;
 #else
-	const bool isVisible = VisibilityMask[drawableIndex] == 1;
+	const uint visMaskIndex = drawableIndex / UINT_BIT_SIZE;
+	const uint visMask = VisibilityMask.Load(visMaskIndex * sizeof(uint));
+	const uint drawableVisMaskIndex = drawableIndex % UINT_BIT_SIZE;
+	const bool isVisible = visMask & (1u << drawableVisMaskIndex);
 #endif // DRAW_ALL
 
 	if (isVisible)

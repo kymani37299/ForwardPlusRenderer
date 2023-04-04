@@ -8,10 +8,11 @@
 #include <Engine/Utility/StringUtility.h>
 
 #include "Renderers/Util/TextureDebugger.h"
+#include "Scene/SceneManager.h"
 #include "Scene/SceneGraph.h"
 
 // --------------------------------------------------
-void DebugVisualizationsGUI::Render()
+void DebugVisualizationsGUI::Render(GraphicsContext& context)
 {
 	ImGui::Checkbox("Bounding spheres", &DebugViz.BoundingSpheres);
 	ImGui::Checkbox("Light spheres", &DebugViz.LightSpheres);
@@ -20,9 +21,9 @@ void DebugVisualizationsGUI::Render()
 }
 
 // --------------------------------------------------
-void PositionInfoGUI::Render()
+void PositionInfoGUI::Render(GraphicsContext& context)
 {
-	Camera::CameraTransform t = MainSceneGraph->MainCamera.CurrentTranform;
+	Camera::CameraTransform t = SceneManager::Get().GetSceneGraph().MainCamera.CurrentTranform;
 	
 	ImGui::Text("Position: (%.2f, %.2f, %.2f)", t.Position.x, t.Position.y, t.Position.z);
 	ImGui::Text("Rotation: (%.2f, %.2f, %.2f)", t.Rotation.x, t.Rotation.y, t.Rotation.z);
@@ -57,7 +58,7 @@ static std::string ToString(GeometryCullingMode gcMode)
 	return "";
 }
 
-void RenderSettingsGUI::Render()
+void RenderSettingsGUI::Render(GraphicsContext& context)
 {
 	if (ImGui::BeginCombo("Antialiasing mode", ToString(RenderSettings.AntialiasingMode).c_str()))
 	{
@@ -146,6 +147,7 @@ void RenderSettingsGUI::Render()
 	}
 }
 
+// --------------------------------------------------
 void RenderStatsGUI::Update(float dt)
 {
 	static constexpr float UpdateInterval = 200.0f; // In ms
@@ -169,13 +171,12 @@ void RenderStatsGUI::Update(float dt)
 	}
 }
 
-// --------------------------------------------------
-void RenderStatsGUI::Render()
+void RenderStatsGUI::Render(GraphicsContext& context)
 {
 	ImGui::Text("Frame: %.2f ms", m_CurrentDT);
 	ImGui::Text("FPS:   %u", static_cast<uint32_t>(1000.0f / m_CurrentDT));
 	ImGui::Separator();
-	ImGui::Text("Num lights:  %u", MainSceneGraph->Lights.GetSize());
+	ImGui::Text("Num lights:  %u", SceneManager::Get().GetSceneGraph().Lights.GetSize());
 	ImGui::Separator();
 	ImGui::Text("Drawables(Main)  :   %u / %u", RenderStats.MainStats.VisibleDrawables, RenderStats.MainStats.TotalDrawables);
 	ImGui::Text("Triangles(Main)  :   %s / %s", StringUtility::RepresentNumberWithSeparator(RenderStats.MainStats.VisibleTriangles, ' ').c_str(), StringUtility::RepresentNumberWithSeparator(RenderStats.MainStats.TotalTriangles, ' ').c_str());
@@ -185,7 +186,7 @@ void RenderStatsGUI::Render()
 }
 
 // --------------------------------------------------
-void LightsGUI::Render()
+void LightsGUI::Render(GraphicsContext& context)
 {
 	uint32_t lightsToGenerate = 0;
 
@@ -205,12 +206,12 @@ void LightsGUI::Render()
 		const Float3 position = Float3(1000.0f, 80.0f, 1000.0f) * Float3(Random::UNorm(), Random::UNorm(), Random::UNorm());
 		const Float3 color = strength * Float3(Random::UNorm(), Random::UNorm(), Random::UNorm());
 		const Float2 falloff = strength * Float2(0.5f + 2.0f * Random::UNorm(), 3.0f + 2.0f * Random::UNorm());
-		MainSceneGraph->CreatePointLight(Device::Get()->GetContext(), position, color, falloff);
+		SceneManager::Get().GetSceneGraph().CreatePointLight(context, position, color, falloff);
 	}
 
 	ImGui::Separator();
 
-	DirectionalLight& dirLight = MainSceneGraph->DirLight;
+	DirectionalLight& dirLight = SceneManager::Get().GetSceneGraph().DirLight;
 
 	float direction[3];
 	direction[0] = dirLight.Direction.x;
@@ -237,7 +238,7 @@ void TextureDebuggerGUI::Update(float dt)
 	TexDebugger.GetEnabledRef() = GetShownRef();
 }
 
-void TextureDebuggerGUI::Render()
+void TextureDebuggerGUI::Render(GraphicsContext& context)
 {
 	const auto& debugTextures = TexDebugger.GetTextures();
 	
@@ -283,5 +284,48 @@ void TextureDebuggerGUI::Render()
 
 		ImTextureID textureHandle = *((ImTextureID*)TexDebugger.GetPreviewTextureHandle());
 		ImGui::Image(textureHandle, { previewSize, previewSize * textureAspect });
+	}
+}
+
+// --------------------------------------------------
+std::string ToString(const SceneSelection scene)
+{
+	switch (scene)
+	{
+	case SceneSelection::None:			return "None";
+	case SceneSelection::SimpleBoxes:	return "Simple boxes";
+	case SceneSelection::Sponza:		return "Sponza";
+	case SceneSelection::SponzaX100:	return "SponzaX100";
+	case SceneSelection::Count:
+	default: NOT_IMPLEMENTED;
+	}
+	return "";
+}
+
+void SceneManagerGUI::Render(GraphicsContext& context)
+{
+	SceneSelection currentScene = SceneManager::Get().GetCurrentScene();
+	SceneSelection selectedScene = currentScene;
+
+	if (ImGui::BeginCombo("Selected scene", ToString(currentScene).c_str()))
+	{
+		const uint32_t sceneCount = EnumToInt(SceneSelection::Count);
+		for (uint32_t i = 1; i < sceneCount; i++)
+		{
+			bool isSelected = false;
+			const SceneSelection scene = IntToEnum<SceneSelection>(i);
+			ImGui::Selectable(ToString(scene).c_str(), &isSelected);
+			if (isSelected)
+			{
+				selectedScene = scene;
+				ImGui::SetItemDefaultFocus();
+			}
+		}
+		ImGui::EndCombo();
+	}
+
+	if (currentScene != selectedScene)
+	{
+		SceneManager::Get().LoadScene(context, selectedScene);
 	}
 }

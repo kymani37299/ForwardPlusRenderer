@@ -29,4 +29,10 @@ namespace Random
 	{
 		return UNorm() * (b - a) + a;
 	}
+
+	// Random uint [a,b]
+	inline uint32_t UInt(uint32_t a, uint32_t b)
+	{
+		return rand() % (b - a + 1) + a;
+	}
 }

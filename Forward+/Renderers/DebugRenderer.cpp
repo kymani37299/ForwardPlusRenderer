@@ -12,7 +12,6 @@
 #include "Globals.h"
 #include "Renderers/Util/ConstantBuffer.h"
 #include "Renderers/Util/TextureDebugger.h"
-#include "Renderers/Util/SamplerManager.h"
 #include "Scene/SceneGraph.h"
 
 #include "Shaders/shared_definitions.h"
@@ -108,7 +107,7 @@ void DebugRenderer::Init(GraphicsContext& context)
 	m_DebugGeometryShader = ScopedRef<Shader>(new Shader("Forward+/Shaders/debug_geometry.hlsl"));
 	m_LightHeatmapShader = ScopedRef<Shader>(new Shader("Forward+/Shaders/light_heatmap.hlsl"));
 
-	m_DebugGeometriesBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(sizeof(DebugGeometrySB), sizeof(DebugGeometrySB), RCF_None));
+	m_DebugGeometriesBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(sizeof(DebugGeometrySB), sizeof(DebugGeometrySB), RCF::None));
 }
 
 void DebugRenderer::Draw(GraphicsContext& context, Texture* colorTarget, Texture* depthTarget, Buffer* visibleLights)
@@ -117,7 +116,7 @@ void DebugRenderer::Draw(GraphicsContext& context, Texture* colorTarget, Texture
 	{
 		for (uint32_t rgType = 0; rgType < EnumToInt(RenderGroupType::Count); rgType++)
 		{
-			RenderGroup& rg = MainSceneGraph->RenderGroups[rgType];
+			RenderGroup& rg = SceneManager::Get().GetSceneGraph().RenderGroups[rgType];
 			const uint32_t numDrawables = rg.Drawables.GetSize();
 			for (uint32_t i = 0; i < numDrawables; i++)
 			{
@@ -131,10 +130,10 @@ void DebugRenderer::Draw(GraphicsContext& context, Texture* colorTarget, Texture
 
 	if (DebugViz.LightSpheres)
 	{
-		const uint32_t numLights = MainSceneGraph->Lights.GetSize();
+		const uint32_t numLights = SceneManager::Get().GetSceneGraph().Lights.GetSize();
 		for (uint32_t i = 0; i < numLights; i++)
 		{
-			const Light& l = MainSceneGraph->Lights[i];
+			const Light& l = SceneManager::Get().GetSceneGraph().Lights[i];
 			DrawSphere(l.Position, Float4(l.Radiance.x, l.Radiance.y, l.Radiance.z, 0.2f), { l.Falloff.y, l.Falloff.y, l.Falloff.y });
 		}
 	}
@@ -147,7 +146,7 @@ void DebugRenderer::Draw(GraphicsContext& context, Texture* colorTarget, Texture
 	if (DebugViz.LightHeatmap && RenderSettings.Culling.LightCullingEnabled)
 	{
 		ConstantBuffer cb{};
-		cb.Add(MainSceneGraph->SceneInfoData);
+		cb.Add(SceneManager::Get().GetSceneGraph().SceneInfoData);
 
 		GraphicsState heatmapState;
 		heatmapState.Table.CBVs[0] = cb.GetBuffer(context);
@@ -167,11 +166,11 @@ void DebugRenderer::Draw(GraphicsContext& context, Texture* colorTarget, Texture
 
 void DebugRenderer::DrawGeometries(GraphicsContext& context, GraphicsState& state)
 {
-	GFX::Cmd::MarkerBegin(context, "Debug Geometries");
-
+	PROFILE_SECTION(context, "Debug Geometries");
+	
 	std::sort(m_GeometriesToRender.begin(), m_GeometriesToRender.end(), [](const DebugGeometry& a, const DebugGeometry& b)
 		{
-			const Float3 cameraPos = MainSceneGraph->MainCamera.CurrentTranform.Position;
+			const Float3 cameraPos = SceneManager::Get().GetSceneGraph().MainCamera.CurrentTranform.Position;
 			const float aDist = (cameraPos - a.Position).Abs().SumElements();
 			const float bDist = (cameraPos - b.Position).Abs().SumElements();
 			return aDist < bDist;
@@ -215,15 +214,13 @@ void DebugRenderer::DrawGeometries(GraphicsContext& context, GraphicsState& stat
 		state.Table.SRVs[0] = m_DebugGeometriesBuffer.get();
 
 		ConstantBuffer cb{};
-		cb.Add(MainSceneGraph->MainCamera.CameraData);
+		cb.Add(SceneManager::Get().GetSceneGraph().MainCamera.CameraData);
 		state.Table.CBVs[0] = cb.GetBuffer(context);
 		state.VertexBuffers[0] = typeToVB[i];
 		context.ApplyState(state);
-		context.CmdList->DrawInstanced(m_SphereVB->ByteSize / m_SphereVB->Stride, (uint32_t) debugGeometries.size(), 0, 0);
+		GFX::Cmd::DrawInstanced(context, m_SphereVB->ByteSize / m_SphereVB->Stride, (uint32_t) debugGeometries.size(), 0, 0);
 		debugGeometries.clear();
 	}
-
-	GFX::Cmd::MarkerEnd(context);
 
 	m_GeometriesToRender.clear();
 }
@@ -231,7 +228,7 @@ void DebugRenderer::DrawGeometries(GraphicsContext& context, GraphicsState& stat
 void TextureDebuggerRenderer::Init(GraphicsContext& context)
 {
 	m_Shader = ScopedRef<Shader>(new Shader("Forward+/Shaders/texture_debugger.hlsl"));
-	m_PreviewTextureDescriptor = context.MemContext.SRVHeap.Allocate(1);
+	m_PreviewTextureDescriptor = Device::Get()->GetMemory().SRVHeap->Allocate(1);
 	m_RangeBuffer = ScopedRef<ReadbackBuffer>(new ReadbackBuffer{ 2 * sizeof(float) });
 }
 
@@ -239,6 +236,8 @@ void TextureDebuggerRenderer::Draw(GraphicsContext& context)
 {
 	if (!TexDebugger.GetEnabledRef())
 		return;
+
+	PROFILE_SECTION(context, "Texture debugger");
 
 	auto& selectedTexture = TexDebugger.GetSelectedTexture();
 	Texture* selectedTex = selectedTexture.Tex;
@@ -248,13 +247,11 @@ void TextureDebuggerRenderer::Draw(GraphicsContext& context)
 		ASSERT(GetSampleCount(selectedTex->CreationFlags) == 1, "[Texture Debugger] Currently not supporting debugging of multisample textures!");
 		ASSERT(selectedTex->DepthOrArraySize == 1, "[Texture Debugger] Currently not supporting volume textures or texture arrays!");
 
-		m_PreviewTexture = ScopedRef<Texture>(GFX::CreateTexture(selectedTex->Width, selectedTex->Height, RCF_Bind_RTV));
+		m_PreviewTexture = ScopedRef<Texture>(GFX::CreateTexture(selectedTex->Width, selectedTex->Height, RCF::RTV));
 		Device::Get()->GetHandle()->CopyDescriptorsSimple(1, m_PreviewTextureDescriptor.GetCPUHandle(), m_PreviewTexture->SRV.GetCPUHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 		TexDebugger.SetPreviewTextureHandle(&m_PreviewTextureDescriptor.GetGPUHandle());
 	}
 	
-	GFX::Cmd::MarkerBegin(context, "Texture debugger");
-
 	// Read range
 	if (m_ShouldReadRange)
 	{
@@ -286,12 +283,12 @@ void TextureDebuggerRenderer::Draw(GraphicsContext& context)
 		state.PushConstantCount = 2;
 		context.ApplyState(state);
 
-		BindVector<uint32_t> pushConstants;
-		pushConstants[0] = selectedTex->Width;
-		pushConstants[1] = selectedTex->Height;
+		PushConstantTable pushConstants;
+		pushConstants[0].Uint = selectedTex->Width;
+		pushConstants[1].Uint = selectedTex->Height;
 
 		GFX::Cmd::SetPushConstants(CS, context, pushConstants);
-		context.CmdList->Dispatch((UINT)MathUtility::CeilDiv(selectedTex->Width, OPT_TILE_SIZE), (UINT)MathUtility::CeilDiv(selectedTex->Height, OPT_TILE_SIZE), 1);
+		GFX::Cmd::Dispatch(context, (UINT)MathUtility::CeilDiv(selectedTex->Width, OPT_TILE_SIZE), (UINT)MathUtility::CeilDiv(selectedTex->Height, OPT_TILE_SIZE), 1);
 
 		GFX::Cmd::AddReadbackRequest(context, m_RangeBuffer.get());
 
@@ -318,11 +315,8 @@ void TextureDebuggerRenderer::Draw(GraphicsContext& context)
 		state.ShaderConfig = config;
 		state.Table.SRVs[0] = selectedTex;
 		state.Table.CBVs[0] = cb.GetBuffer(context);
+		state.Table.SMPs[0] = { D3D12_FILTER_MIN_MAG_MIP_POINT , D3D12_TEXTURE_ADDRESS_MODE_WRAP };
 		state.RenderTargets[0] = m_PreviewTexture.get();
-		SSManager.Bind(state);
 		GFX::Cmd::DrawFC(context, state);
 	}
-
-
-	GFX::Cmd::MarkerEnd(context);
 }

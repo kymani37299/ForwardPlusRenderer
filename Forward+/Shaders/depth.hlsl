@@ -2,10 +2,6 @@
 #include "util.h"
 #include "pipeline.h"
 
-#ifdef ALPHA_DISCARD
-#include "samplers.h"
-#endif
-
 struct VertexOut
 {
 	float4 Position : SV_POSITION;
@@ -29,6 +25,8 @@ cbuffer Constants : register(b0)
 	SceneInfo SceneInfoData;
 #endif // SHADOWMAP
 }
+
+SamplerState s_AnisoWrap : register(s0);
 
 #ifdef MOTION_VECTORS
 
